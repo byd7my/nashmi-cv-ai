@@ -147,7 +147,8 @@ export const Route = createFileRoute("/api/improve")({
           return json({ text: out.trim() });
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          const status = /429/.test(msg) ? 429 : /402/.test(msg) ? 402 : 500;
+          const geminiStatus = msg.match(/Gemini API request failed \((\d{3})\)/)?.[1];
+          const status = geminiStatus ? Number(geminiStatus) : /429/.test(msg) ? 429 : /402/.test(msg) ? 402 : 500;
           return json({ error: msg }, status);
         }
       },
