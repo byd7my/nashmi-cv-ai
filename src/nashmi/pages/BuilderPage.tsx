@@ -1,4 +1,5 @@
 import { useState, useEffect, memo, useCallback, useRef } from "react";
+import { toast as sonnerToast } from "sonner";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { P, FF } from "@/nashmi/lib/tokens";
@@ -52,7 +53,16 @@ async function callAI(task: string, text: string, lang: string, extra?: Record<s
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ task, text, language: lang, ...extra }),
   });
-  if (!res.ok) throw new Error(`AI error ${res.status}`);
+  if (!res.ok) {
+    let detail = `AI error ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) detail = body.error;
+    } catch { /* ignore */ }
+    if (res.status === 402) detail = "AI credits exhausted. Please upgrade your Lovable workspace plan.";
+    if (res.status === 429) detail = "AI rate limit reached. Please try again in a moment.";
+    throw new Error(detail);
+  }
   return res.json() as Promise<{ text?: string; json?: unknown }>;
 }
 
@@ -220,7 +230,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         setBeforeAfter({ section, before, after });
       }
     } catch (err) {
-      alert(isAr ? "حدث خطأ في AI. تأكد من إعداد OPENAI_API_KEY." : "AI error. Make sure OPENAI_API_KEY is configured.");
+      const msg = err instanceof Error ? err.message : String(err);
+      sonnerToast.error(isAr ? `فشل تحسين AI: ${msg}` : `AI improve failed: ${msg}`);
     } finally {
       setAiLoading(null);
     }
@@ -271,8 +282,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const data = await callAI("copilot", message, aiLang, { cv, history: copilotHistory.slice(-8) });
       const reply = (data.text || "").trim() || (isAr ? "عذراً، لم أتمكن من المعالجة." : "Sorry, could not process that.");
       setCopilotHistory(h => [...h, { role: "assistant", content: reply }]);
-    } catch {
-      setCopilotHistory(h => [...h, { role: "assistant", content: isAr ? "⚠️ خطأ في الاتصال. تأكد من OPENAI_API_KEY." : "⚠️ Connection error. Check OPENAI_API_KEY." }]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCopilotHistory(h => [...h, { role: "assistant", content: (isAr ? "⚠️ خطأ في الاتصال: " : "⚠️ Connection error: ") + msg }]);
     } finally {
       setIsTyping(false);
     }
