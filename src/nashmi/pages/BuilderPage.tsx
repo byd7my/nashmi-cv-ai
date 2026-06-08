@@ -847,9 +847,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 <span style={{ color: P.muted, fontSize: 12, marginRight: isAr ? 0 : 0, marginLeft: isAr ? 0 : 8 }}>  {isAr ? "· التصدير متاح للباقات المدفوعة فقط" : "· Export requires a paid plan"}</span>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button onClick={() => setIsPaid(true)} style={{ background: `${P.green}22`, border: `1px solid ${P.green}44`, color: P.green, borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff }}>
-                  {isAr ? "محاكاة الدفع" : "Simulate Basic Payment"}
-                </button>
                 <button onClick={() => setShowUpgrade(true)} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff }}>
                   {isAr ? "ترقية" : "Upgrade"}
                 </button>
