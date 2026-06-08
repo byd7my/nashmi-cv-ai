@@ -60,7 +60,9 @@ async function callAI(task: string, text: string, lang: string, extra?: Record<s
       if (body?.error) detail = body.error;
     } catch { /* ignore */ }
     if (res.status === 402) detail = "AI credits exhausted. Please upgrade your Lovable workspace plan.";
-    if (res.status === 429) detail = "AI rate limit reached. Please try again in a moment.";
+    if (res.status === 400) detail = `Gemini rejected the request: ${detail}`;
+    if (res.status === 401 || res.status === 403) detail = `Gemini API key is invalid or unauthorized: ${detail}`;
+    if (res.status === 429) detail = `Gemini rate limit reached: ${detail}`;
     throw new Error(detail);
   }
   return res.json() as Promise<{ text?: string; json?: unknown }>;
