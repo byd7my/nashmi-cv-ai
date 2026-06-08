@@ -231,7 +231,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(isAr ? `فشل تحسين AI: ${msg}` : `AI improve failed: ${msg}`);
+      sonnerToast.error(isAr ? `فشل تحسين AI: ${msg}` : `AI improve failed: ${msg}`);
     } finally {
       setAiLoading(null);
     }
