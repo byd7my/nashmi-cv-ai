@@ -120,49 +120,26 @@ export function CVPreview({ cv, lang, cvLanguage, userTier }: CVPreviewProps) {
         </>}
       </div>
 
-      {/* Protective watermark overlay — only visible to unpaid users */}
+      {/* Protective watermark overlay — only visible on the Free tier */}
       {!isPaid && (
-        <>
-          <div
-            aria-hidden="true"
-            data-nashmi-watermark="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage: watermarkUrl,
-              backgroundRepeat: "repeat",
-              backgroundSize: "360px 200px",
-              transform: "rotate(-45deg)",
-              transformOrigin: "center center",
-              opacity: 0.1,
-              pointerEvents: "none",
-              userSelect: "none",
-              WebkitUserSelect: "none",
-              zIndex: 10,
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setIsPaid(true)}
-            style={{
-              position: "absolute",
-              top: 12,
-              right: 12,
-              zIndex: 20,
-              padding: "8px 14px",
-              background: "#7C3AED",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(124,58,237,0.4)",
-            }}
-          >
-            Simulate Basic Payment
-          </button>
-        </>
+        <div
+          aria-hidden="true"
+          data-nashmi-watermark="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: watermarkUrl,
+            backgroundRepeat: "repeat",
+            backgroundSize: "360px 200px",
+            transform: "rotate(-45deg)",
+            transformOrigin: "center center",
+            opacity: 0.1,
+            pointerEvents: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            zIndex: 10,
+          }}
+        />
       )}
     </div>
   );
