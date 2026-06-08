@@ -230,7 +230,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         setBeforeAfter({ section, before, after });
       }
     } catch (err) {
-      alert(isAr ? "حدث خطأ في AI. تأكد من إعداد OPENAI_API_KEY." : "AI error. Make sure OPENAI_API_KEY is configured.");
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(isAr ? `فشل تحسين AI: ${msg}` : `AI improve failed: ${msg}`);
     } finally {
       setAiLoading(null);
     }
