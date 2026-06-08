@@ -53,7 +53,16 @@ async function callAI(task: string, text: string, lang: string, extra?: Record<s
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ task, text, language: lang, ...extra }),
   });
-  if (!res.ok) throw new Error(`AI error ${res.status}`);
+  if (!res.ok) {
+    let detail = `AI error ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) detail = body.error;
+    } catch { /* ignore */ }
+    if (res.status === 402) detail = "AI credits exhausted. Please upgrade your Lovable workspace plan.";
+    if (res.status === 429) detail = "AI rate limit reached. Please try again in a moment.";
+    throw new Error(detail);
+  }
   return res.json() as Promise<{ text?: string; json?: unknown }>;
 }
 
