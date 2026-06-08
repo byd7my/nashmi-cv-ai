@@ -282,8 +282,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const data = await callAI("copilot", message, aiLang, { cv, history: copilotHistory.slice(-8) });
       const reply = (data.text || "").trim() || (isAr ? "عذراً، لم أتمكن من المعالجة." : "Sorry, could not process that.");
       setCopilotHistory(h => [...h, { role: "assistant", content: reply }]);
-    } catch {
-      setCopilotHistory(h => [...h, { role: "assistant", content: isAr ? "⚠️ خطأ في الاتصال. تأكد من OPENAI_API_KEY." : "⚠️ Connection error. Check OPENAI_API_KEY." }]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCopilotHistory(h => [...h, { role: "assistant", content: (isAr ? "⚠️ خطأ في الاتصال: " : "⚠️ Connection error: ") + msg }]);
     } finally {
       setIsTyping(false);
     }
