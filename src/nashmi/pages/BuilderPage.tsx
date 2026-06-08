@@ -887,7 +887,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           {isElite && otherLangCv && (
             <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
               <div ref={hiddenCvPreviewRef} style={{ width: 794 }}>
-                <CVPreview cv={otherLangCv} lang={lang} cvLanguage={otherLang}/>
+                <CVPreview cv={otherLangCv} lang={lang} cvLanguage={otherLang} userTier={userTier}/>
               </div>
             </div>
           )}
