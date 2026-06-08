@@ -854,7 +854,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             </div>
           )}
           <div ref={cvPreviewRef} style={{ maxWidth: 794, margin: "0 auto", boxShadow: "0 8px 40px rgba(0,0,0,0.5)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
-            <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang}/>
+            <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
             {!isPaid && (
               <div style={{ position: "absolute", inset: 0, pointerEvents: "none", userSelect: "none", zIndex: 50, overflow: "hidden" }}>
                 {Array.from({ length: 54 }).map((_, i) => {
