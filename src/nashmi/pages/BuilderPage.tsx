@@ -117,7 +117,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
-  const [isPaid, setIsPaid] = useState(false);
+  const hasElitePackage = userTier === "elite" || userTier === "enterprise";
+  const hasPremiumPackage = userTier === "premium";
+  const isPaid = hasElitePackage || hasPremiumPackage;
   const [exportingPdf, setExportingPdf] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
