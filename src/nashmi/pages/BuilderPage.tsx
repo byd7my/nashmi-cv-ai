@@ -117,7 +117,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
-  const [isPaid, setIsPaid] = useState(false);
+  const hasElitePackage = userTier === "elite" || userTier === "enterprise";
+  const hasPremiumPackage = userTier === "premium";
+  const isPaid = hasElitePackage || hasPremiumPackage;
   const [exportingPdf, setExportingPdf] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -845,9 +847,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 <span style={{ color: P.muted, fontSize: 12, marginRight: isAr ? 0 : 0, marginLeft: isAr ? 0 : 8 }}>  {isAr ? "· التصدير متاح للباقات المدفوعة فقط" : "· Export requires a paid plan"}</span>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button onClick={() => setIsPaid(true)} style={{ background: `${P.green}22`, border: `1px solid ${P.green}44`, color: P.green, borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff }}>
-                  {isAr ? "محاكاة الدفع" : "Simulate Basic Payment"}
-                </button>
                 <button onClick={() => setShowUpgrade(true)} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff }}>
                   {isAr ? "ترقية" : "Upgrade"}
                 </button>
@@ -855,7 +854,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             </div>
           )}
           <div ref={cvPreviewRef} style={{ maxWidth: 794, margin: "0 auto", boxShadow: "0 8px 40px rgba(0,0,0,0.5)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
-            <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang}/>
+            <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
             {!isPaid && (
               <div style={{ position: "absolute", inset: 0, pointerEvents: "none", userSelect: "none", zIndex: 50, overflow: "hidden" }}>
                 {Array.from({ length: 54 }).map((_, i) => {
@@ -888,7 +887,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           {isElite && otherLangCv && (
             <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
               <div ref={hiddenCvPreviewRef} style={{ width: 794 }}>
-                <CVPreview cv={otherLangCv} lang={lang} cvLanguage={otherLang}/>
+                <CVPreview cv={otherLangCv} lang={lang} cvLanguage={otherLang} userTier={userTier}/>
               </div>
             </div>
           )}

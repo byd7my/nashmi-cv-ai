@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { EN_HEADERS, AR_HEADERS } from "@/nashmi/lib/cv-parser";
 import type { CVData } from "@/nashmi/lib/ats";
 
@@ -6,9 +5,10 @@ interface CVPreviewProps {
   cv: CVData;
   lang: string;
   cvLanguage?: string;
+  userTier?: string | null;
 }
 
-export function CVPreview({ cv, lang, cvLanguage }: CVPreviewProps) {
+export function CVPreview({ cv, lang, cvLanguage, userTier }: CVPreviewProps) {
   const effectiveLang = cvLanguage === "ar" || cvLanguage === "en" ? cvLanguage : (lang === "ar" ? "ar" : "en");
   const isAr = effectiveLang === "ar";
   const H = isAr ? AR_HEADERS : EN_HEADERS;
@@ -16,8 +16,10 @@ export function CVPreview({ cv, lang, cvLanguage }: CVPreviewProps) {
     ? "'Cairo', 'Tajawal', 'Noto Naskh Arabic', Tahoma, Arial, sans-serif"
     : "'Inter', 'Helvetica Neue', Arial, sans-serif";
 
-  // Payment gating: while unpaid, render a protective watermark overlay on top of the preview.
-  const [isPaid, setIsPaid] = useState(false);
+  // Package gating: watermark only renders on the Free tier.
+  const hasElitePackage = userTier === "elite" || userTier === "enterprise";
+  const hasPremiumPackage = userTier === "premium";
+  const isPaid = hasElitePackage || hasPremiumPackage;
 
   // Repeating watermark text (SVG tile -> CSS background) so it tiles full-coverage.
   const watermarkText = "NASHMI - نشمي";
@@ -118,49 +120,26 @@ export function CVPreview({ cv, lang, cvLanguage }: CVPreviewProps) {
         </>}
       </div>
 
-      {/* Protective watermark overlay — only visible to unpaid users */}
+      {/* Protective watermark overlay — only visible on the Free tier */}
       {!isPaid && (
-        <>
-          <div
-            aria-hidden="true"
-            data-nashmi-watermark="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage: watermarkUrl,
-              backgroundRepeat: "repeat",
-              backgroundSize: "360px 200px",
-              transform: "rotate(-45deg)",
-              transformOrigin: "center center",
-              opacity: 0.1,
-              pointerEvents: "none",
-              userSelect: "none",
-              WebkitUserSelect: "none",
-              zIndex: 10,
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setIsPaid(true)}
-            style={{
-              position: "absolute",
-              top: 12,
-              right: 12,
-              zIndex: 20,
-              padding: "8px 14px",
-              background: "#7C3AED",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(124,58,237,0.4)",
-            }}
-          >
-            Simulate Basic Payment
-          </button>
-        </>
+        <div
+          aria-hidden="true"
+          data-nashmi-watermark="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: watermarkUrl,
+            backgroundRepeat: "repeat",
+            backgroundSize: "360px 200px",
+            transform: "rotate(-45deg)",
+            transformOrigin: "center center",
+            opacity: 0.1,
+            pointerEvents: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            zIndex: 10,
+          }}
+        />
       )}
     </div>
   );
