@@ -30,23 +30,8 @@ const P = {
   muted: "#cfc9e6",
 };
 
-async function callTranslate(cv: CVData, target: EliteLang): Promise<CVData | null> {
-  const BASE = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-  try {
-    const res = await fetch(`${BASE}/api/translate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        resumeData: cv,
-        targetLanguage: target === "ar" ? "Arabic" : "English",
-      }),
-    });
-    if (!res.ok) throw new Error(String(res.status));
-    const data = (await res.json()) as { translatedData?: unknown };
-    if (data.translatedData && typeof data.translatedData === "object") {
-      return data.translatedData as CVData;
-    }
-  } catch { /* fall through */ }
+async function callTranslate(_cv: CVData, _target: EliteLang): Promise<CVData | null> {
+  // AI translation removed from this project.
   return null;
 }
 
