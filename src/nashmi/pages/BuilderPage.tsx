@@ -45,25 +45,13 @@ const Txta = memo(function Txta({ label, value, onChange, placeholder, rows = 4,
   );
 });
 
-// ── AI call (hits /api/improve) ────────────────────────────────────────────
-async function callAI(task: string, text: string, lang: string, extra?: Record<string, unknown>) {
-  const BASE = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-  const res = await fetch(`${BASE}/api/improve`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ task, text, language: lang, ...extra }),
-  });
-  if (!res.ok) {
-    let detail = `AI error ${res.status}`;
-    try {
-      const body = (await res.json()) as { error?: string };
-      if (body?.error) detail = body.error;
-    } catch { /* ignore */ }
-    if (res.status === 402) detail = "AI credits exhausted. Please upgrade your Lovable workspace plan.";
-    if (res.status === 429) detail = "AI rate limit reached. Please try again in a moment.";
-    throw new Error(detail);
-  }
-  return res.json() as Promise<{ text?: string; json?: unknown }>;
+// ── AI removed ─────────────────────────────────────────────────────────────
+// All AI client integrations were removed from this project. Any feature
+// that previously called the AI gateway now throws a localized error so the
+// caller can show a friendly toast.
+async function callAI(_task: string, _text: string, lang: string, _extra?: Record<string, unknown>): Promise<{ text?: string; json?: unknown }> {
+  const isAr = (lang || "").startsWith("ar");
+  throw new Error(isAr ? "ميزة الذكاء الاصطناعي غير متاحة حالياً." : "AI features are currently unavailable.");
 }
 
 interface Props {
