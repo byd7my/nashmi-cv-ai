@@ -328,14 +328,25 @@ export function smartCategorize(cv: CVData): CVData {
 
 async function loadPdfJs(): Promise<typeof window> {
   if ((window as any).pdfjsLib) return (window as any).pdfjsLib;
+  // Use unpkg which is more reliable than cdnjs for CORS
+  const CDN = "https://unpkg.com/pdfjs-dist@3.11.174/build";
   await new Promise<void>((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.src = `${CDN}/pdf.min.js`;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load pdf.js"));
+    s.onerror = () => {
+      // fallback: cdnjs
+      const s2 = document.createElement("script");
+      s2.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      s2.onload = () => resolve();
+      s2.onerror = () => reject(new Error("Failed to load pdf.js"));
+      document.head.appendChild(s2);
+    };
     document.head.appendChild(s);
   });
-  (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  // Point worker to same CDN to avoid CORS
+  (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
   return (window as any).pdfjsLib;
 }
 
