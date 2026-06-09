@@ -33,7 +33,7 @@ export function Footer({ lang, t, onNav }: FooterProps) {
           ))}
           <a href="/privacy" style={{ color:P.muted, fontSize:13, fontFamily:ff, textDecoration:"none" }}>{isAr ? "سياسة الخصوصية" : "Privacy Policy"}</a>
           <a href="/terms" style={{ color:P.muted, fontSize:13, fontFamily:ff, textDecoration:"none" }}>{isAr ? "الشروط والأحكام" : "Terms & Conditions"}</a>
-          <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, color:"#25D366", fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid #25D36644`, padding:"6px 12px", borderRadius:8 }}>
+          <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); window.open("https://api.whatsapp.com/send?phone=966552967837", "_blank", "noopener,noreferrer"); }} style={{ display:"inline-flex", alignItems:"center", gap:6, color:"#25D366", fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid #25D36644`, padding:"6px 12px", borderRadius:8, cursor:"pointer" }}>
             <MessageCircle size={16} />
             {isAr ? "واتساب: 0552967837" : "WhatsApp: +966 55 296 7837"}
           </a>
