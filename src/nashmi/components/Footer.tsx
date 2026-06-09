@@ -20,7 +20,7 @@ export function Footer({ lang, t, onNav }: FooterProps) {
           <div style={{ width:28, height:28, borderRadius:8, background:`linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900, color:"#fff" }}>N</div>
           <span style={{ color:P.text, fontWeight:700, fontFamily:ff }}>{t.brand}</span>
         </div>
-        <div style={{ display:"flex", gap:24 }}>
+        <div style={{ display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
           {routes.map(r => (
             <button key={r.label} onClick={() => {
               if (r.page) onNav(r.page);
@@ -30,8 +30,14 @@ export function Footer({ lang, t, onNav }: FooterProps) {
               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = P.muted}
             >{r.label}</button>
           ))}
+          <a href="/privacy" style={{ color:P.muted, fontSize:13, fontFamily:ff, textDecoration:"none" }}>{isAr ? "سياسة الخصوصية" : "Privacy Policy"}</a>
+          <a href="/terms" style={{ color:P.muted, fontSize:13, fontFamily:ff, textDecoration:"none" }}>{isAr ? "الشروط والأحكام" : "Terms & Conditions"}</a>
+          <a href="https://wa.me/966552967837" target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, color:"#25D366", fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid #25D36644`, padding:"6px 12px", borderRadius:8 }}>
+            <span aria-hidden>💬</span>
+            {isAr ? "واتساب: 0552967837" : "WhatsApp: +966 55 296 7837"}
+          </a>
         </div>
-        <div style={{ color:P.muted, fontSize:13 }}>© 2025 {t.brand}. {isAr ? "جميع الحقوق محفوظة" : "All rights reserved."}</div>
+        <div style={{ color:P.muted, fontSize:13 }}>© 2026 {t.brand}. {isAr ? "جميع الحقوق محفوظة" : "All rights reserved."}</div>
       </div>
     </footer>
   );

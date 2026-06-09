@@ -5,15 +5,14 @@ export type CvLang = "ar" | "en" | "bi";
 
 export function useLang() {
   const [lang, setLang] = useState<Lang>("ar");
-  const [chosen, setChosen] = useState(false);
+  // Arabic is the default — no language picker required to enter the site.
+  const [chosen, setChosen] = useState(true);
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("nashmi:lang");
-      if (saved === "ar" || saved === "en" || saved === "bi") {
-        setLang(saved === "bi" ? "ar" : (saved as Lang));
-        setChosen(true);
-      }
+      if (saved === "en") setLang("en");
+      else if (saved === "ar" || saved === "bi") setLang("ar");
     } catch {}
   }, []);
 
@@ -24,7 +23,13 @@ export function useLang() {
     try { window.localStorage.setItem("nashmi:lang", next); } catch {}
   };
 
-  const toggle = () => setLang(l => (l === "ar" ? "en" : "ar"));
+  const toggle = () => {
+    setLang(l => {
+      const next: Lang = l === "ar" ? "en" : "ar";
+      try { window.localStorage.setItem("nashmi:lang", next); } catch {}
+      return next;
+    });
+  };
 
   return { lang, toggle, choose, chosen, isAr: lang === "ar" };
 }
