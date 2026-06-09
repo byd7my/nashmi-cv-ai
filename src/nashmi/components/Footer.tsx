@@ -1,6 +1,7 @@
 import { P, FF } from "@/nashmi/lib/tokens";
 import { NAV_ROUTES } from "@/nashmi/lib/translations";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
+import { Mail, MessageCircle } from "lucide-react";
 
 interface FooterProps {
   lang: TrLang;
