@@ -55,7 +55,7 @@ function TermsPage() {
         </Section>
 
         <Section title="التواصل والدعم">
-          لأي استفسار، تواصل معنا عبر واتساب: <a href="https://wa.me/966552967837" target="_blank" rel="noreferrer" style={{ color: P.violetLight }}>+966 55 296 7837</a>
+          لأي استفسار، تواصل معنا عبر واتساب: <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noreferrer" style={{ color: P.violetLight }}>+966 55 296 7837</a>
         </Section>
       </div>
     </div>
