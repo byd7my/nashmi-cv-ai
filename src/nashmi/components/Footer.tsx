@@ -1,6 +1,7 @@
 import { P, FF } from "@/nashmi/lib/tokens";
 import { NAV_ROUTES } from "@/nashmi/lib/translations";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
+import { Mail, MessageCircle } from "lucide-react";
 
 interface FooterProps {
   lang: TrLang;
@@ -32,9 +33,13 @@ export function Footer({ lang, t, onNav }: FooterProps) {
           ))}
           <a href="/privacy" style={{ color:P.muted, fontSize:13, fontFamily:ff, textDecoration:"none" }}>{isAr ? "سياسة الخصوصية" : "Privacy Policy"}</a>
           <a href="/terms" style={{ color:P.muted, fontSize:13, fontFamily:ff, textDecoration:"none" }}>{isAr ? "الشروط والأحكام" : "Terms & Conditions"}</a>
-          <a href="https://wa.me/966552967837" target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, color:"#25D366", fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid #25D36644`, padding:"6px 12px", borderRadius:8 }}>
-            <span aria-hidden>💬</span>
+          <a href="https://wa.me/966552967837" target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, color:"#25D366", fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid #25D36644`, padding:"6px 12px", borderRadius:8 }}>
+            <MessageCircle size={16} />
             {isAr ? "واتساب: 0552967837" : "WhatsApp: +966 55 296 7837"}
+          </a>
+          <a href="mailto:nashmi4cvs@gmail.com" style={{ display:"inline-flex", alignItems:"center", gap:6, color:P.violetLight, fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid ${P.violet}44`, padding:"6px 12px", borderRadius:8 }}>
+            <Mail size={16} />
+            nashmi4cvs@gmail.com
           </a>
         </div>
         <div style={{ color:P.muted, fontSize:13 }}>© 2026 {t.brand}. {isAr ? "جميع الحقوق محفوظة" : "All rights reserved."}</div>
