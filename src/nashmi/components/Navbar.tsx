@@ -35,7 +35,7 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
       background:`${P.bg}e8`, backdropFilter:"blur(20px)",
       borderBottom:`1px solid ${P.border}`,
     }}>
-      <div style={{ maxWidth:1200, margin:"0 auto", height:"100%", display:"flex", alignItems:"center", padding:"0 24px", gap:24, direction: isAr ? "rtl" : "ltr" }}>
+     <div style={{ maxWidth:1200, margin:"0 auto", height:"100%", display:"flex", alignItems:"center", padding:"0 16px", gap:12, direction: isAr ? "rtl" : "ltr" }}>
         {/* Logo */}
         <div onClick={() => onNav("landing")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
           <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:900, color:"#fff", boxShadow:`0 4px 16px ${P.violet}55` }}>N</div>
@@ -43,7 +43,7 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
         </div>
 
         {/* Center nav */}
-        <div style={{ flex:1, display:"flex", justifyContent:"center", gap:30 }}>
+        <div style={{ flex:1, display:"flex", justifyContent:"center", gap:30, overflow:"hidden" }}>
           {routes.map((route, i) => {
             const active = isActive(route);
             return (
@@ -65,7 +65,7 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
         </div>
 
         {/* Right controls */}
-        <div style={{ display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
           <button onClick={onLangToggle} style={{ background:`${P.border}cc`, border:`1px solid ${P.borderLight}`, color:P.muted, borderRadius:8, padding:"6px 13px", cursor:"pointer", fontSize:12, fontWeight:700, transition:"border-color 0.2s, color 0.2s" }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet; (e.currentTarget as HTMLButtonElement).style.color = P.violetLight; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.borderLight; (e.currentTarget as HTMLButtonElement).style.color = P.muted; }}
