@@ -64,9 +64,22 @@ async function callGeminiRaw(prompt: string): Promise<string> {
       generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
     }),
   });
-  if (!res.ok) throw new Error(`Gemini error: ${res.status}`);
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "");
+    let message = `Gemini error: ${res.status}`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      message = errorJson?.error?.message || message;
+    } catch {
+      if (errorText) message = `${message} - ${errorText.slice(0, 180)}`;
+    }
+    throw new Error(message);
+  }
   const data = await res.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return (data?.candidates?.[0]?.content?.parts ?? [])
+    .map((part: { text?: string }) => part.text || "")
+    .join("")
+    .trim();
 }
 
 async function callAI(task: string, text: string, lang: string, extra?: Record<string, unknown>): Promise<{ text?: string; json?: unknown }> {
@@ -396,6 +409,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   // ── AI improve section ─────────────────────────────────────────────────
   async function aiImprove(section: string, text: string) {
+    if (!isPaid) {
+      setShowUpgrade(true);
+      sonnerToast.info(isAr ? "تحسين AI متاح للباقات المدفوعة فقط" : "AI Improve is available on paid plans only");
+      return;
+    }
     if (!text.trim() && section === "summary") {
       // allow empty summary — Gemini will use the rest of the CV
     } else if (!text.trim()) return;
@@ -406,16 +424,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const data = await callAI(`improve_${section}`, text, aiLang, { cv });
       const after = (data.text || "").trim();
       if (after) {
-        // للمهارات: نضيف القائمة مباشرة بدل BeforeAfter
-        if (section === "skills" && Array.isArray(data.json)) {
-          const newSkills = (data.json as string[]).filter(s => !cv.skills.includes(s));
-          if (newSkills.length > 0) {
-            setCv(prev => ({ ...prev, skills: [...prev.skills, ...newSkills] }));
-            sonnerToast.success(isAr ? `✓ أُضيفت ${newSkills.length} مهارة` : `✓ Added ${newSkills.length} skills`);
-          }
-        } else {
-          setBeforeAfter({ section, before, after });
-        }
+        setBeforeAfter({ section, before, after });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -676,11 +685,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     <button
       onClick={() => aiImprove(section, text)}
       disabled={!!aiLoading}
-      style={{ background: aiLoading === section ? `${P.violet}44` : `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: full ? "9px 16px" : "6px 12px", cursor: aiLoading ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, display: "flex", alignItems: "center", gap: 6, width: full ? "100%" : "auto", justifyContent: "center", transition: "background 0.2s", whiteSpace: "nowrap" }}
+      style={{ background: aiLoading === section ? `${P.violet}44` : isPaid ? `${P.violet}22` : P.surface, border: `1px solid ${isPaid ? `${P.violet}44` : P.border}`, color: isPaid ? P.violetLight : P.muted, borderRadius: 8, padding: full ? "9px 16px" : "6px 12px", cursor: aiLoading ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, display: "flex", alignItems: "center", gap: 6, width: full ? "100%" : "auto", justifyContent: "center", transition: "background 0.2s", whiteSpace: "nowrap" }}
       onMouseEnter={e => { if (!aiLoading) (e.currentTarget as HTMLButtonElement).style.background = `${P.violet}38`; }}
-      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = aiLoading === section ? `${P.violet}44` : `${P.violet}22`}
+      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = aiLoading === section ? `${P.violet}44` : isPaid ? `${P.violet}22` : P.surface}
     >
-      {aiLoading === section ? "⏳" : "✦"} {aiLoading === section ? (isAr ? "جارٍ..." : "Working...") : (isAr ? "تحسين AI" : "AI Improve")}
+      {aiLoading === section ? "⏳" : isPaid ? "✦" : "🔒"} {aiLoading === section ? (isAr ? "جارٍ..." : "Working...") : (isAr ? "تحسين AI" : "AI Improve")}
     </button>
   );
 
@@ -1271,20 +1280,20 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           <div style={{ width: "100%", maxWidth: 680, background: P.card, border: `1px solid ${P.border}`, borderRadius: 20, padding: "28px 24px", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
               <h3 style={{ color: P.text, fontWeight: 800, fontSize: 18, fontFamily: ff }}>
-                ✦ {isAr ? "قبل وبعد تحسين AI" : "Before & After AI Improvement"}
+                ✦ {isAr ? "اختر النص المناسب" : "Choose the Version You Want"}
               </h3>
               <button onClick={() => setBeforeAfter(null)} style={{ background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 20 }}>×</button>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 }}>
               <div>
-                <div style={{ color: P.red, fontSize: 11, fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>✕ {isAr ? "قبل" : "Before"}</div>
+                <div style={{ color: P.red, fontSize: 11, fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>✕ {isAr ? "النص الحالي" : "Current Text"}</div>
                 <div style={{ background: P.surface, border: `1px solid ${P.red}33`, borderRadius: 10, padding: "12px 14px", color: P.muted, fontSize: 13, lineHeight: 1.7, minHeight: 80, direction: isAr ? "rtl" : "ltr" }}>
                   {beforeAfter.before}
                 </div>
               </div>
               <div>
-                <div style={{ color: P.green, fontSize: 11, fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>✦ {isAr ? "بعد AI" : "After AI"}</div>
+                <div style={{ color: P.green, fontSize: 11, fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>✦ {isAr ? "تحسين AI" : "AI Improvement"}</div>
                 <div style={{ background: P.surface, border: `1px solid ${P.green}33`, borderRadius: 10, padding: "12px 14px", color: P.text, fontSize: 13, lineHeight: 1.7, minHeight: 80, direction: isAr ? "rtl" : "ltr" }}>
                   {beforeAfter.after}
                 </div>
@@ -1293,7 +1302,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setBeforeAfter(null)} style={{ background: "transparent", border: `1px solid ${P.border}`, color: P.muted, borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 14, fontFamily: ff }}>
-                {isAr ? "إلغاء" : "Discard"}
+                {isAr ? "استخدام النص الحالي" : "Use Current Text"}
               </button>
               <button onClick={() => {
                 const sec = beforeAfter.section;
@@ -1308,7 +1317,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 }
                 setBeforeAfter(null);
               }} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 10, padding: "10px 24px", cursor: "pointer", fontSize: 14, fontWeight: 800, fontFamily: ff, boxShadow: `0 4px 16px ${P.violet}44` }}>
-                ✓ {isAr ? "تطبيق التحسين" : "Apply Improvement"}
+                ✓ {isAr ? "استخدام تحسين AI" : "Use AI Improvement"}
               </button>
             </div>
           </div>
@@ -1322,9 +1331,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             <button onClick={() => setShowUpgrade(false)} style={{ position: "absolute", top: 20, [isAr ? "left" : "right"]: 20, background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 20 }}>×</button>
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
-              <h3 style={{ color: P.text, fontSize: 22, fontWeight: 900, fontFamily: ff, marginBottom: 10 }}>{isAr ? "قم بالترقية للتصدير" : "Upgrade to Export"}</h3>
+              <h3 style={{ color: P.text, fontSize: 22, fontWeight: 900, fontFamily: ff, marginBottom: 10 }}>{isAr ? "قم بالترقية للمتابعة" : "Upgrade to Continue"}</h3>
               <p style={{ color: P.muted, fontSize: 14, lineHeight: 1.7 }}>
-                {isAr ? "المعاينة مجانية دائماً. لتحميل PDF أو DOCX عالي الجودة، اختر باقتك." : "Preview is always free. To download a high-quality PDF or DOCX, choose your plan."}
+                {isAr ? "تحسين AI والتصدير عالي الجودة متاحان للباقات المدفوعة فقط. اختر باقتك للمتابعة." : "AI Improve and high-quality export are available on paid plans only. Choose a plan to continue."}
               </p>
             </div>
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
