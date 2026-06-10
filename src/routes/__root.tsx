@@ -77,14 +77,39 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "نشمي | Nashmi - منصة بناء السير الذاتية بالذكاء الاصطناعي" },
+      {
+        name: "description",
+        content:
+          "منصة الذكاء الاصطناعي المتكاملة لبناء سيرتك الذاتية باحترافية عالية وتوافق تام مع أنظمة ATS لتزيد من فرص قبولك المهني.",
+      },
+      { name: "author", content: "Nashmi" },
+      {
+        property: "og:title",
+        content: "نشمي | Nashmi - منصة بناء السير الذاتية بالذكاء الاصطناعي",
+      },
+      {
+        property: "og:description",
+        content:
+          "منصة الذكاء الاصطناعي المتكاملة لبناء سيرتك الذاتية باحترافية عالية وتوافق تام مع أنظمة ATS لتزيد من فرص قبولك المهني.",
+      },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { property: "og:image", content: "/og-image.svg" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Nashmi - نشمي" },
+      { property: "og:locale", content: "ar_SA" },
+      { name: "twitter:card", content: "summary_large_image" },
+      {
+        name: "twitter:title",
+        content: "نشمي | Nashmi - منصة بناء السير الذاتية بالذكاء الاصطناعي",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "منصة الذكاء الاصطناعي المتكاملة لبناء سيرتك الذاتية باحترافية عالية وتوافق تام مع أنظمة ATS لتزيد من فرص قبولك المهني.",
+      },
+      { name: "twitter:image", content: "/og-image.svg" },
     ],
     links: [
       {
