@@ -71,38 +71,73 @@ async function callAI(task: string, text: string, lang: string, extra?: Record<s
   // ── برومت الملخص المهني ────────────────────────────────────────────────
   if (task === "improve_summary") {
     const cv = (extra as any)?.cv;
+
+    const personalText = `
+Name: ${cv?.personal?.name || ""}
+Title: ${cv?.personal?.title || ""}
+City: ${cv?.personal?.city || ""}
+`.trim();
+
     const expText = cv?.experience?.map((e: any) =>
-      `- ${e.role} في ${e.company} (${e.from} - ${e.to}): ${e.desc}`
-    ).join("\n") ?? text;
+      `- Job Title: ${e.role || ""}
+Company: ${e.company || ""}
+Period: ${e.from || ""} - ${e.to || ""}
+Responsibilities/Achievements:
+${e.desc || ""}`
+    ).join("\n\n") || "";
+
     const eduText = cv?.education?.map((e: any) =>
-      `- ${e.degree} ${e.field} من ${e.school} (${e.from}-${e.to})${e.gpa ? ` | GPA: ${e.gpa}/${e.gpaScale}` : ""}${e.honors ? ` | ${e.honors}` : ""}`
-    ).join("\n") ?? "";
+      `- Degree: ${e.degree || ""}
+Field: ${e.field || ""}
+Institution: ${e.school || ""}
+Period: ${e.from || ""} - ${e.to || ""}
+GPA: ${e.showGpa && e.gpa ? `${e.gpa}/${e.gpaScale}` : ""}
+Honors: ${e.honors || ""}`
+    ).join("\n\n") || "";
+
     const certsText = cv?.certifications?.map((c: any) =>
-      `- ${c.title}${c.issuer ? ` | ${c.issuer}` : ""}${c.date ? ` (${c.date})` : ""}`
-    ).join("\n") ?? "";
+      `- Certificate/Course: ${c.title || ""}
+Issuer: ${c.issuer || ""}
+Date: ${c.date || ""}`
+    ).join("\n\n") || "";
+
+    const skillsText = cv?.skills?.join(", ") || "";
 
     const prompt = `
-أنت خبير في كتابة السير الذاتية الاحترافية المتوافقة مع أنظمة ATS.
+You are a professional resume writer and ATS optimization expert.
 
-المهمة: أعد كتابة الملخص المهني بشكل احترافي ومتوافق مع ATS بناءً على جميع المعلومات المتاحة.
+Task:
+Rewrite the professional summary using ALL available resume information.
 
-الملخص الحالي:
-${text}
+Current summary:
+${text || "No current summary provided."}
 
-الخبرة المهنية:
-${expText}
+Personal information:
+${personalText}
 
-${eduText ? `التعليم:\n${eduText}` : ""}
-${certsText ? `الشهادات والدورات:\n${certsText}` : ""}
+Work experience:
+${expText || "No work experience provided."}
 
-القواعد:
-- اكتب 3-5 جمل قوية ومركزة
-- ابدأ بالمسمى الوظيفي وسنوات الخبرة
-- اذكر أبرز الإنجازات والمهارات التقنية
-- استخدم كلمات مفتاحية مناسبة لأنظمة ATS
-- لا تستخدم ضمير المتكلم (أنا، I)
-- اذكر الشهادات والمؤهلات إن وجدت
-- لا تضف أي تعليق أو شرح، فقط الملخص المعاد كتابته
+Education:
+${eduText || "No education provided."}
+
+Professional certificates, courses, or training:
+${certsText || "No certificates provided."}
+
+Skills:
+${skillsText || "No skills provided."}
+
+Rules:
+- Write one strong professional summary.
+- Use the current summary if it has useful information, but improve it.
+- Base the summary on experience, education, certificates, courses, and skills.
+- Mention certificates or education only if they are actually provided.
+- Make it ATS-friendly with relevant keywords.
+- Make it clear, polished, and suitable for a CV.
+- Do not invent fake companies, fake years, fake degrees, or fake certificates.
+- Do not use first person pronouns like "I", "my", "أنا".
+- Keep it between 3 and 5 sentences.
+- Return only the improved summary, with no explanation.
 
 ${outLang}
     `.trim();
@@ -115,25 +150,39 @@ ${outLang}
     const cv = (extra as any)?.cv;
     const idx = parseInt(task.replace("improve_exp-", ""), 10);
     const exp = cv?.experience?.[idx];
-    const role = exp?.role ?? "";
-    const company = exp?.company ?? "";
+    const role = exp?.role || "";
+    const company = exp?.company || "";
+    const from = exp?.from || "";
+    const to = exp?.to || "";
 
     const prompt = `
-أنت خبير في كتابة السير الذاتية الاحترافية المتوافقة مع أنظمة ATS.
+You are a professional resume writer and ATS optimization expert.
 
-المهمة: حسّن نقاط المهام والإنجازات للوظيفة التالية.
+Task:
+Improve the responsibilities and achievements for this work experience.
 
-المسمى الوظيفي: ${role}
-الشركة: ${company}
-النقاط الحالية:
-${text}
+Job title:
+${role || "Not provided"}
 
-القواعد:
-- حافظ على نفس عدد النقاط أو أضف نقطة إضافية إن لزم
-- ابدأ كل نقطة بفعل قوي (طوّر، أدار، خفّض، حقق، نفّذ...)
-- أضف أرقاماً وإحصاءات إن أمكن استنتاجها من السياق
-- اجعل النقاط متوافقة مع ATS
-- لا تضف أي تعليق، فقط النقاط المحسّنة
+Company:
+${company || "Not provided"}
+
+Period:
+${from || ""} - ${to || ""}
+
+Current responsibilities and achievements:
+${text || "No responsibilities provided."}
+
+Rules:
+- Rewrite the content specifically for the job title.
+- Keep it relevant to the role and the current written tasks.
+- Make each bullet strong, professional, and ATS-friendly.
+- Start bullets with powerful action verbs.
+- Add measurable impact only when it is reasonable from the provided context.
+- Do not invent fake numbers, fake tools, or fake achievements.
+- Use bullet points.
+- Return only the improved responsibilities and achievements.
+- No explanations before or after.
 
 ${outLang}
     `.trim();
@@ -144,25 +193,47 @@ ${outLang}
   // ── برومت اقتراح المهارات ──────────────────────────────────────────────
   if (task === "improve_skills") {
     const cv = (extra as any)?.cv;
-    const titles = cv?.experience?.map((e: any) => e.role).filter(Boolean).join(", ") ?? "";
-    const fields = cv?.education?.map((e: any) => `${e.degree} ${e.field}`).filter(Boolean).join(", ") ?? "";
-    const existing = cv?.skills?.join(", ") ?? text;
+    const titles = cv?.experience?.map((e: any) => e.role).filter(Boolean).join(", ") || "";
+    const responsibilities = cv?.experience?.map((e: any) => e.desc).filter(Boolean).join("\n") || "";
+    const education = cv?.education?.map((e: any) =>
+      `${e.degree || ""} ${e.field || ""} - ${e.school || ""}`.trim()
+    ).filter(Boolean).join("\n") || "";
+    const certs = cv?.certifications?.map((c: any) =>
+      `${c.title || ""} ${c.issuer || ""}`.trim()
+    ).filter(Boolean).join("\n") || "";
+    const existing = cv?.skills?.join(", ") || text || "";
 
     const prompt = `
-أنت خبير في كتابة السير الذاتية الاحترافية المتوافقة مع أنظمة ATS.
+You are an ATS resume optimization expert.
 
-المهمة: اقترح قائمة مهارات احترافية ومتوافقة مع ATS.
+Task:
+Suggest strong resume skills based on the candidate's job titles, responsibilities, education, certificates, and existing skills.
 
-المسميات الوظيفية: ${titles}
-التخصص الأكاديمي: ${fields}
-المهارات الحالية: ${existing}
+Job titles:
+${titles || "No job titles provided."}
 
-القواعد:
-- اقترح 10-15 مهارة مناسبة للتخصص والمسمى الوظيفي
-- اشمل مهارات تقنية وشخصية وإدارية
-- لا تكرر المهارات الموجودة
-- اكتب كل مهارة في سطر منفصل بدون ترقيم أو رموز
-- لا تضف أي تعليق، فقط قائمة المهارات
+Responsibilities and achievements:
+${responsibilities || "No responsibilities provided."}
+
+Education:
+${education || "No education provided."}
+
+Certificates and courses:
+${certs || "No certificates provided."}
+
+Existing skills:
+${existing || "No existing skills provided."}
+
+Rules:
+- Suggest 10 to 15 skills.
+- Skills must be relevant to the candidate's specialization and experience.
+- Include ATS-friendly keywords.
+- Include a balanced mix of technical skills, professional skills, tools, and domain skills when appropriate.
+- Do not duplicate existing skills.
+- Do not suggest unrelated skills.
+- Write one skill per line.
+- Do not use numbering, bullets, commas, or explanations.
+- Return only the skills list.
 
 ${outLang}
     `.trim();
