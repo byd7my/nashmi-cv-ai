@@ -334,12 +334,21 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   }
 
   async function renderElementToPdfBlob(el: HTMLElement): Promise<Blob> {
+    // force A4 width so mobile exports match desktop
+    const A4_PX = 794;
+    const origWidth = el.style.width;
+    const origMinWidth = el.style.minWidth;
+    el.style.width = `${A4_PX}px`;
+    el.style.minWidth = `${A4_PX}px`;
+
     const canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
       allowTaint: true,
       backgroundColor: "#ffffff",
       logging: false,
+      width: A4_PX,
+      windowWidth: A4_PX,
       onclone: (doc) => {
         const style = doc.createElement("style");
         style.textContent = `
@@ -390,6 +399,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       },
     });
     const imgData = canvas.toDataURL("image/jpeg", 0.97);
+
+    // restore original width
+    el.style.width = origWidth;
+    el.style.minWidth = origMinWidth;
+
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pdfW = pdf.internal.pageSize.getWidth();
     const pdfH = (canvas.height * pdfW) / canvas.width;
