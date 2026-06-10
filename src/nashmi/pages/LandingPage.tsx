@@ -6,11 +6,13 @@ import { PageShell } from "@/nashmi/components/PageShell";
 import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import { getReviews, subscribeToReviews, type UserReview } from "@/nashmi/lib/reviews";
+import { extractTextFromFile, localParseCV, normalizeParsedCV, smartCategorize } from "@/nashmi/lib/cv-parser";
+import type { CVData } from "@/nashmi/lib/ats";
 
 interface Props {
   lang: TrLang;
   t: Translation;
-  onNav: (page: string) => void;
+  onNav: (page: string, cv?: CVData) => void;
   onLangToggle: () => void;
   page: string;
   onSelectPlan: (plan: string) => void;
@@ -43,11 +45,30 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
   const [demoScore, setDemoScore] = useState(34);
   const [atsAnimated, setAtsAnimated] = useState(false);
   const [userReviews, setUserReviews] = useState<UserReview[]>([]);
+  const [importingCv, setImportingCv] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setUserReviews(getReviews());
     return subscribeToReviews(() => setUserReviews(getReviews()));
   }, []);
+
+  // Client-side only import: read + parse the file in the browser, then open the builder pre-filled.
+  async function handleHeroImport(file: File) {
+    setImportingCv(true);
+    track("pdf_imported", { source: "landing_hero" });
+    try {
+      const text = await extractTextFromFile(file);
+      if (!text.trim()) throw new Error(isAr ? "تعذر قراءة محتوى الملف" : "Could not extract text from file");
+      const parsed = smartCategorize(normalizeParsedCV(localParseCV(text)));
+      onNav("builder", parsed);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(isAr ? `فشل الاستيراد: ${msg}` : `Import failed: ${msg}`);
+    } finally {
+      setImportingCv(false);
+    }
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -93,10 +114,22 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform="translateY(-3px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow=`0 10px 40px ${P.violet}66`; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform=""; (e.currentTarget as HTMLButtonElement).style.boxShadow=`0 6px 32px ${P.violet}55`; }}
             >{t.cta}</button>
-            <button onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })} style={{ background: "transparent", border: `1px solid ${P.borderLight}`, color: P.text, borderRadius: 12, padding: "15px 32px", cursor: "pointer", fontSize: 16, fontWeight: 600, fontFamily: ff, transition: "border-color 0.2s" }}
+            <button onClick={() => importFileRef.current?.click()} disabled={importingCv} style={{ background: "transparent", border: `1px solid ${P.borderLight}`, color: P.text, borderRadius: 12, padding: "15px 32px", cursor: importingCv ? "wait" : "pointer", fontSize: 16, fontWeight: 600, fontFamily: ff, transition: "border-color 0.2s", display: "inline-flex", alignItems: "center", gap: 8, opacity: importingCv ? 0.7 : 1 }}
               onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet}
               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = P.borderLight}
-            >{isAr ? "استكشف المميزات" : "Explore Features"}</button>
+            >
+              <span aria-hidden="true">{importingCv ? "⏳" : "📄"}</span>
+              {importingCv
+                ? (isAr ? "جارٍ الاستيراد..." : "Importing...")
+                : (isAr ? "استيراد سيرة سابقة (PDF)" : "Import Previous CV (PDF)")}
+            </button>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".pdf,.docx,.doc,.txt"
+              style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleHeroImport(f); e.target.value = ""; }}
+            />
           </div>
           <p style={{ color: P.muted, fontSize: 12, animation: "fadeUp 0.6s ease 0.35s both" }}>{t.ctaSub}</p>
 
