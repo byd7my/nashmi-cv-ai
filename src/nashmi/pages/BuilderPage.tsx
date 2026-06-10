@@ -45,41 +45,21 @@ const Txta = memo(function Txta({ label, value, onChange, placeholder, rows = 4,
   );
 });
 
-// ── AI removed ─────────────────────────────────────────────────────────────
-// All AI client integrations were removed from this project. Any feature
-// that previously called the AI gateway now throws a localized error so the
-// caller can show a friendly toast.
-// ── Gemini API ─────────────────────────────────────────────────────────────
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-
 async function callGeminiRaw(prompt: string): Promise<string> {
-  const key = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!key) throw new Error("VITE_GEMINI_API_KEY is not set");
-  const res = await fetch(`${GEMINI_URL}?key=${key}`, {
+  const res = await fetch("/api/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-    }),
+    body: JSON.stringify({ prompt }),
   });
+
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const errorText = await res.text().catch(() => "");
-    let message = `Gemini error: ${res.status}`;
-    try {
-      const errorJson = JSON.parse(errorText);
-      message = errorJson?.error?.message || message;
-    } catch {
-      if (errorText) message = `${message} - ${errorText.slice(0, 180)}`;
-    }
-    throw new Error(message);
+    const retryAfter = data?.retryAfter ? ` ${data.retryAfter}` : "";
+    throw new Error(`${data?.error || `Gemini error: ${res.status}`}${retryAfter}`);
   }
-  const data = await res.json();
-  return (data?.candidates?.[0]?.content?.parts ?? [])
-    .map((part: { text?: string }) => part.text || "")
-    .join("")
-    .trim();
+
+  return (data?.text || "").trim();
 }
 
 async function callAI(task: string, text: string, lang: string, extra?: Record<string, unknown>): Promise<{ text?: string; json?: unknown }> {
