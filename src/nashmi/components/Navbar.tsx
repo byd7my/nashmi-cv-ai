@@ -136,4 +136,3 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
     </>
   );
 }
-
