@@ -10,6 +10,7 @@ type EventName =
   | "json_exported"
   | "json_imported"
   | "pdf_exported"
+  | "cv_emailed"
   | "language_selected"
   | "template_viewed";
 

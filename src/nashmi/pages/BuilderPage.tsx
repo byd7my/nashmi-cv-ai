@@ -855,6 +855,52 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return pdf.output("blob");
   }
 
+  function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const s = String(reader.result || "");
+        resolve(s.includes(",") ? s.slice(s.indexOf(",") + 1) : s);
+      };
+      reader.onerror = () => reject(new Error("Failed to read PDF"));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ── Email the exported CV to the address the client entered in the CV ──
+  async function emailCvCopy(files: { filename: string; blob: Blob }[]) {
+    const recipient = (cv.personal.email || "").trim();
+    if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return;
+    try {
+      const attachments: { filename: string; content: string }[] = [];
+      let total = 0;
+      for (const f of files) {
+        const content = await blobToBase64(f.blob);
+        total += content.length;
+        attachments.push({ filename: f.filename, content });
+      }
+      if (total > 4_000_000) {
+        showToast(isAr ? "✕ حجم الملف كبير جداً لإرساله بالبريد" : "✕ File too large to email", "error");
+        return;
+      }
+      showToast(isAr ? "📧 جارٍ إرسال نسخة إلى بريدك..." : "📧 Emailing a copy to you...");
+      const res = await fetch("/api/send-cv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: recipient, name: cv.personal.name, lang: isAr ? "ar" : "en", attachments }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        track("cv_emailed");
+        showToast(isAr ? `✓ تم إرسال السيرة إلى ${recipient}` : `✓ Resume sent to ${recipient}`);
+      } else {
+        showToast(isAr ? `✕ تعذر إرسال البريد: ${data?.error || res.status}` : `✕ Email failed: ${data?.error || res.status}`, "error");
+      }
+    } catch {
+      showToast(isAr ? "✕ تعذر إرسال البريد الإلكتروني" : "✕ Could not send the email", "error");
+    }
+  }
+
   function downloadBlob(blob: Blob, fileName: string) {
     try {
       const url = URL.createObjectURL(blob);
@@ -887,20 +933,27 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     track("pdf_exported");
     try {
       const baseName = cv.personal.name ? cv.personal.name.replace(/\s+/g, "-").toLowerCase() : "resume";
+      const exportedFiles: { filename: string; blob: Blob }[] = [];
 
       // 1. visible preview (current language)
       const visibleBlob = await renderElementToPdfBlob(cvPreviewRef.current);
       downloadBlob(visibleBlob, `nashmi-${baseName}-${activeCvLang}.pdf`);
+      exportedFiles.push({ filename: `nashmi-${baseName}-${activeCvLang}.pdf`, blob: visibleBlob });
 
       // 2. Elite: also export the hidden other-language preview
       if (isElite && hiddenCvPreviewRef.current && otherLangCv) {
         await new Promise(r => setTimeout(r, 800));
         const hiddenBlob = await renderElementToPdfBlob(hiddenCvPreviewRef.current);
         downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
+        exportedFiles.push({ filename: `nashmi-${baseName}-${otherLang}.pdf`, blob: hiddenBlob });
         showToast(isAr ? "✓ تم تصدير النسختين — شكراً لاستخدامك نشمي" : "✓ Both versions exported — thank you for using Nashmi");
       } else {
         showToast(isAr ? "✓ تم تصدير PDF بنجاح — شكراً لاستخدامك نشمي" : "✓ PDF exported — thank you for using Nashmi");
       }
+
+      // 3. Email a copy to the address the client put in the CV (best-effort:
+      // a failure here must never block the download or the session reset).
+      await emailCvCopy(exportedFiles);
 
       // ── Security: one purchase = one export session ──────────────────
       // After a successful download, wipe the local session (saved CV draft,
