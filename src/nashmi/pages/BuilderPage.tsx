@@ -1331,8 +1331,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           {isAr ? "◈ مطابقة JD" : "◈ JD Match"}
         </button>
 
-        {/* Edit mode toggle: click-on-CV canvas vs sidebar accordion */}
-        <div style={{ display: "flex", alignItems: "center", border: `1px solid ${P.border}`, borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
+        {/* Edit mode toggle: click-on-CV canvas vs sidebar accordion (desktop only) */}
+        <div className="tb-editmode" style={{ display: "flex", alignItems: "center", border: `1px solid ${P.border}`, borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
           {([["canvas", isAr ? "✎ على السيرة" : "✎ Click-on-CV"], ["sidebar", isAr ? "☰ القائمة" : "☰ Sidebar"]] as const).map(([mode, label]) => (
             <button key={mode} onClick={() => { setEditMode(mode); if (mode === "sidebar") setActivePanel(null); }}
               style={{ background: editMode === mode ? `${P.violet}33` : "transparent", border: "none", color: editMode === mode ? P.violetLight : P.muted, padding: "7px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap" }}>
@@ -1377,18 +1377,36 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
       {/* ── Main layout ──────────────────────────────────────── */}
       <style>{`
+        .mobile-bottomnav { display: none; }
         @media (max-width: 768px) {
           .builder-main { flex-direction: column !important; overflow: visible !important; }
-          .builder-sidebar { width: 100% !important; max-height: none; border-right: none !important; border-left: none !important; border-bottom: 1px solid ${P.border} !important; }
-          .builder-preview { padding: 12px !important; }
+          /* On mobile the section list lives in the fixed bottom nav instead of a sidebar */
+          .builder-sidebar { display: none !important; }
+          .builder-preview { padding: 14px 12px 96px !important; }
           .builder-topbar { flex-wrap: wrap; gap: 8px !important; height: auto !important; padding: 10px 12px !important; }
           .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }
+          .tb-editmode { display: none !important; }
+          .tb-row1 { height: 46px !important; gap: 6px !important; padding: 0 10px !important; }
+          .mobile-bottomnav {
+            display: flex;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 2500;
+            background: ${P.surface};
+            border-top: 1px solid ${P.border};
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            gap: 2px;
+            padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+          }
+          .mobile-bottomnav::-webkit-scrollbar { display: none; }
         }
       `}</style>
       <style>{`
         .cv-canvas-inner { padding: 40px; }
         @media (max-width: 768px) {
-          .cv-canvas-inner { padding: 20px !important; zoom: 0.85; }
+          .cv-canvas-inner { padding: 18px !important; zoom: 0.8; }
         }
       `}</style>
       <div className="builder-main" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -1675,8 +1693,50 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </div>
       )}
 
+      {/* ── Mobile bottom section nav: opens the bottom-sheet editor ── */}
+      <div className="mobile-bottomnav" style={{ direction: isAr ? "rtl" : "ltr", fontFamily: ff }}>
+        {([
+          ["personal", "👤"],
+          ["summary", "📝"],
+          ["experience-0", "💼"],
+          ["education-0", "🎓"],
+          ["certifications", "🏅"],
+          ["skills", "⚡"],
+          ["languages", "🌐"],
+        ] as const).map(([id, icon], i) => {
+          const isActive = activePanel === id
+            || (id === "experience-0" && (activePanel || "").startsWith("experience-"))
+            || (id === "education-0" && (activePanel || "").startsWith("education-"));
+          return (
+            <button
+              key={id}
+              onClick={() => setActivePanel(isActive ? null : id)}
+              style={{
+                flex: "1 0 auto",
+                minWidth: 58,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
+                background: isActive ? `${P.violet}26` : "transparent",
+                border: "none",
+                borderRadius: 10,
+                padding: "6px 6px",
+                cursor: "pointer",
+                fontFamily: ff,
+              }}
+            >
+              <span style={{ fontSize: 16, lineHeight: 1.2 }}>{icon}</span>
+              <span style={{ color: isActive ? P.violetLight : P.muted, fontSize: 9.5, fontWeight: isActive ? 800 : 600, whiteSpace: "nowrap" }}>
+                {SECTIONS[i]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── Click-to-edit editor panel: bottom sheet (mobile) / side panel (desktop) ── */}
-      {editMode === "canvas" && activePanel && (
+      {activePanel && (
         <>
           <style>{`
             @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
