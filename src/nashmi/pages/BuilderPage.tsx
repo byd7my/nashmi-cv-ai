@@ -897,10 +897,26 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         await new Promise(r => setTimeout(r, 800));
         const hiddenBlob = await renderElementToPdfBlob(hiddenCvPreviewRef.current);
         downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
-        showToast(isAr ? "✓ تم تصدير النسختين العربية والإنجليزية" : "✓ Exported both Arabic and English versions");
+        showToast(isAr ? "✓ تم تصدير النسختين — شكراً لاستخدامك نشمي" : "✓ Both versions exported — thank you for using Nashmi");
       } else {
-        showToast(isAr ? "✓ تم تصدير PDF بنجاح" : "✓ PDF exported successfully");
+        showToast(isAr ? "✓ تم تصدير PDF بنجاح — شكراً لاستخدامك نشمي" : "✓ PDF exported — thank you for using Nashmi");
       }
+
+      // ── Security: one purchase = one export session ──────────────────
+      // After a successful download, wipe the local session (saved CV draft,
+      // Elite snapshots, plan) and return to the landing page. The next visit
+      // starts as a brand-new free user, so a single payment cannot be reused
+      // to export unlimited resumes.
+      setTimeout(() => {
+        try {
+          window.localStorage.removeItem(CV_STORAGE_KEY);
+          window.localStorage.removeItem(STARTMODE_STORAGE_KEY);
+          window.localStorage.removeItem(ELITE_CV_KEYS.ar);
+          window.localStorage.removeItem(ELITE_CV_KEYS.en);
+        } catch { /* ignore */ }
+        setCurrentPlan("starter");
+        onNav("landing");
+      }, 2500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       showToast(isAr ? `✕ فشل تصدير PDF: ${msg}` : `✕ PDF export failed: ${msg}`, "error");

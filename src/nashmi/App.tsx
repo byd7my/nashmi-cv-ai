@@ -81,7 +81,9 @@ export default function App() {
         const picked = await ensureCvLang();
         if (!picked) return;
       }
-      if (cv) setInitialCV(cv);
+      // Without an explicit CV, clear any stale imported one so a fresh
+      // session after export truly starts from scratch.
+      setInitialCV(cv ?? null);
     }
     setPage(dest as Page);
   }
