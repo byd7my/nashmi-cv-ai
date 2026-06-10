@@ -755,48 +755,71 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   return (
     <div style={{ minHeight: "100vh", background: P.bg, direction: isAr ? "rtl" : "ltr", fontFamily: ff, display: "flex", flexDirection: "column" }}>
       {/* ── Top bar ─────────────────────────────────────────── */}
-      <div className="builder-topbar" style={{ height: 60, background: P.surface, borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", padding: "0 20px", gap: 14, flexShrink: 0, flexWrap: "wrap" }}>
-        <button onClick={() => onNav("landing")} style={{ background: "none", border: `1px solid ${P.border}`, color: P.muted, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontFamily: ff, whiteSpace: "nowrap" }}>
-          {isAr ? "→ الرئيسية" : "← Home"}
+      <style>{`
+        .tb-row1 { display: flex; align-items: center; padding: 0 16px; gap: 10; height: 52px; background: ${P.surface}; border-bottom: 1px solid ${P.border}; }
+        .tb-row2 { display: none; }
+        .tb-ats  { display: flex; }
+        .tb-jd   { display: flex; }
+        @media (max-width: 768px) {
+          .tb-row1 { height: 48px; }
+          .tb-row2 { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: ${P.surface}; border-bottom: 1px solid ${P.border}; flex-wrap: wrap; }
+          .tb-ats  { display: none; }
+          .tb-jd   { display: none; }
+          .tb-copilot-label { display: none; }
+        }
+      `}</style>
+
+      {/* صف 1: شعار + رجوع + ATS + تصدير */}
+      <div className="tb-row1" style={{ display: "flex", alignItems: "center", padding: "0 16px", gap: 10, height: 52, background: P.surface, borderBottom: `1px solid ${P.border}`, flexShrink: 0 }}>
+        <button onClick={() => onNav("landing")} style={{ background: "none", border: `1px solid ${P.border}`, color: P.muted, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, fontFamily: ff, whiteSpace: "nowrap", flexShrink: 0 }}>
+          {isAr ? "→" : "←"}
         </button>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: isAr ? 0 : "auto", marginRight: isAr ? "auto" : 0 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 7, background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, color: "#fff" }}>N</div>
-          <span style={{ color: P.text, fontWeight: 700, fontSize: 15 }}>{t.brand}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, color: "#fff" }}>N</div>
+          <span style={{ color: P.text, fontWeight: 700, fontSize: 14 }}>{t.brand}</span>
         </div>
 
         <div style={{ flex: 1 }}/>
 
-        {/* ATS score pill */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: P.card, border: `1px solid ${P.border}`, borderRadius: 10, padding: "6px 12px" }}>
-          <span style={{ color: P.muted, fontSize: 12, whiteSpace: "nowrap" }}>{t.atsScore}</span>
-          <span style={{ color: atsScore >= 80 ? P.green : atsScore >= 60 ? P.gold : P.red, fontWeight: 800, fontSize: 14 }}>{atsScore}%</span>
+        {/* ATS — desktop only */}
+        <div className="tb-ats" style={{ alignItems: "center", gap: 6, background: P.card, border: `1px solid ${P.border}`, borderRadius: 8, padding: "5px 10px" }}>
+          <span style={{ color: P.muted, fontSize: 11, whiteSpace: "nowrap" }}>{t.atsScore}</span>
+          <span style={{ color: atsScore >= 80 ? P.green : atsScore >= 60 ? P.gold : P.red, fontWeight: 800, fontSize: 13 }}>{atsScore}%</span>
         </div>
 
-        {/* ATS Match */}
-        <button onClick={() => setShowATSMatch(true)} style={{ background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap" }}>
+        {/* JD Match — desktop only */}
+        <button className="tb-jd" onClick={() => setShowATSMatch(true)} style={{ background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap" }}>
           {isAr ? "◈ مطابقة JD" : "◈ JD Match"}
         </button>
 
-        {/* AI Import (PDF/DOCX/TXT → AI parse) */}
-        <button onClick={() => fileRef.current?.click()} disabled={importing} title={isAr ? "استيراد ملف PDF/DOCX وتحليله بالذكاء الاصطناعي" : "Import PDF/DOCX and parse with AI"} style={{ background: P.card, border: `1px solid ${P.border}`, color: P.muted, borderRadius: 8, padding: "7px 11px", cursor: importing ? "not-allowed" : "pointer", fontSize: 12, fontFamily: ff, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
-          {importing ? "⏳" : "⬆"} {isAr ? "استيراد PDF" : "Import PDF"}
-        </button>
-        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
-
-        {/* Divider */}
-        <div style={{ width: 1, height: 22, background: P.border, flexShrink: 0 }}/>
-
         {/* Copilot */}
-        <button onClick={() => setShowCopilot(c => !c)} style={{ background: showCopilot ? `${P.violet}33` : `${P.violet}18`, border: `1px solid ${P.violet}${showCopilot ? "66" : "33"}`, color: P.violetLight, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap" }}>
-          ✧ {t.aiCopilot}
+        <button onClick={() => setShowCopilot(c => !c)} style={{ background: showCopilot ? `${P.violet}33` : `${P.violet}18`, border: `1px solid ${P.violet}${showCopilot ? "66" : "33"}`, color: P.violetLight, borderRadius: 8, padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
+          ✧ <span className="tb-copilot-label">{t.aiCopilot}</span>
         </button>
 
-        {/* PDF Export */}
-        <button onClick={() => { track("download_attempted", { tier: userTier }); exportPDF(); }} disabled={exportingPdf} style={{ background: canExport ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : P.surface, border: canExport ? "none" : `1px solid ${P.border}`, color: canExport ? "#fff" : P.muted, borderRadius: 8, padding: "8px 16px", cursor: exportingPdf ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 800, fontFamily: ff, display: "flex", alignItems: "center", gap: 6, boxShadow: canExport ? `0 4px 16px ${P.violet}44` : "none", whiteSpace: "nowrap", opacity: exportingPdf ? 0.75 : 1, transition: "opacity 0.2s" }}>
-          {exportingPdf ? "⏳" : canExport ? "⬇" : "🔒"} {exportingPdf ? (isAr ? "جارٍ..." : "Working…") : t.export}
+        {/* Export */}
+        <button onClick={() => { track("download_attempted", { tier: userTier }); exportPDF(); }} disabled={exportingPdf} style={{ background: canExport ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : P.surface, border: canExport ? "none" : `1px solid ${P.border}`, color: canExport ? "#fff" : P.muted, borderRadius: 8, padding: "7px 14px", cursor: exportingPdf ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 800, fontFamily: ff, display: "flex", alignItems: "center", gap: 5, boxShadow: canExport ? `0 4px 16px ${P.violet}44` : "none", whiteSpace: "nowrap", opacity: exportingPdf ? 0.75 : 1 }}>
+          {exportingPdf ? "⏳" : canExport ? "⬇" : "🔒"} {exportingPdf ? (isAr ? "جارٍ..." : "…") : t.export}
         </button>
       </div>
+
+      {/* صف 2: أدوات إضافية — جوال فقط */}
+      <div className="tb-row2" style={{ display: "none" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: P.card, border: `1px solid ${P.border}`, borderRadius: 8, padding: "5px 10px" }}>
+          <span style={{ color: P.muted, fontSize: 11 }}>{t.atsScore}</span>
+          <span style={{ color: atsScore >= 80 ? P.green : atsScore >= 60 ? P.gold : P.red, fontWeight: 800, fontSize: 13 }}>{atsScore}%</span>
+        </div>
+        <button onClick={() => setShowATSMatch(true)} style={{ background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap" }}>
+          {isAr ? "◈ JD" : "◈ JD"}
+        </button>
+        <button onClick={() => fileRef.current?.click()} disabled={importing} style={{ background: P.card, border: `1px solid ${P.border}`, color: P.muted, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, fontFamily: ff, whiteSpace: "nowrap" }}>
+          {importing ? "⏳" : "⬆"} PDF
+        </button>
+        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
+      </div>
+
+
 
       {importError && (
         <div style={{ background: `${P.red}1A`, borderBottom: `1px solid ${P.red}33`, color: P.red, padding: "8px 20px", fontSize: 13 }}>
