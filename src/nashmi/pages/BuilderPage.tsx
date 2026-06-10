@@ -6,7 +6,7 @@ import { P, FF } from "@/nashmi/lib/tokens";
 import { CVPreview } from "@/nashmi/components/CVPreview";
 import { ATSRing } from "@/nashmi/components/ATSRing";
 import { calcATS, calcATSMatch, type CVData } from "@/nashmi/lib/ats";
-import { INIT_CV, LANG_LEVELS, LANGUAGE_OPTIONS, DEGREE_LEVELS, HONORS_OPTIONS, extractTextFromFile, localParseCV, normalizeParsedCV, smartCategorize } from "@/nashmi/lib/cv-parser";
+import { INIT_CV, LANG_LEVELS, LANGUAGE_OPTIONS, DEGREE_LEVELS, HONORS_OPTIONS, EN_HEADERS, AR_HEADERS, extractTextFromFile, localParseCV, normalizeParsedCV, smartCategorize } from "@/nashmi/lib/cv-parser";
 import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
@@ -45,6 +45,153 @@ const Txta = memo(function Txta({ label, value, onChange, placeholder, rows = 4,
     </div>
   );
 });
+
+// ── Editable CV canvas (click-to-edit mode) ─────────────────────────────────
+// Mirrors CVPreview's visual layout but wraps every section in a clickable
+// region that opens the matching editor panel. The PDF export still renders
+// the untouched CVPreview component off-screen, so this never affects output.
+function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect }: {
+  cv: CVData;
+  cvIsAr: boolean;
+  activePanel: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const H = cvIsAr ? AR_HEADERS : EN_HEADERS;
+  const ffCv = cvIsAr
+    ? "'Cairo', 'Tajawal', 'Noto Naskh Arabic', Tahoma, Arial, sans-serif"
+    : "'Inter', 'Helvetica Neue', Arial, sans-serif";
+
+  const headStyle: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", borderBottom: "1px solid #333", paddingBottom: 3, marginBottom: 8 };
+
+  const Sec = ({ id, children, mb = 0 }: { id: string; children: React.ReactNode; mb?: number }) => {
+    const active = activePanel === id;
+    return (
+      <div
+        onClick={e => { e.stopPropagation(); onSelect(id); }}
+        style={{ cursor: "pointer", borderRadius: 6, transition: "outline 0.15s", outline: active ? `2px solid ${P.violet}88` : "2px solid transparent", outlineOffset: 3, marginBottom: mb }}
+        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLDivElement).style.outline = `2px solid ${P.violet}33`; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.outline = active ? `2px solid ${P.violet}88` : "2px solid transparent"; }}
+      >
+        {children}
+      </div>
+    );
+  };
+
+  const Placeholder = ({ label }: { label: string }) => (
+    <div style={{ border: "1.5px dashed #BBB", color: "#999", borderRadius: 6, padding: "8px 10px", fontSize: 9.5, textAlign: "center" }}>
+      + {label}
+    </div>
+  );
+
+  const certs = (cv.certifications || []);
+  const hasCerts = certs.some(c => c.title || c.issuer || c.date);
+
+  return (
+    <div className="cv-canvas-inner" style={{ background: "#fff", color: "#111", fontFamily: ffCv, fontSize: 10.5, lineHeight: 1.55, padding: 40, width: "100%", minHeight: 600, direction: cvIsAr ? "rtl" : "ltr" }}>
+      {/* Personal header */}
+      <Sec id="personal" mb={16}>
+        <div style={{ textAlign: "center", borderBottom: "2px solid #111", paddingBottom: 12 }}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{cv.personal.name || (cvIsAr ? "الاسم الكامل" : "Full Name")}</div>
+          {cv.personal.title && <div style={{ fontSize: 13, color: "#444", marginTop: 4 }}>{cv.personal.title}</div>}
+          <div style={{ fontSize: 10, color: "#555", marginTop: 6, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            {cv.personal.email && <span>{cv.personal.email}</span>}
+            {cv.personal.phone && <span>{cv.personal.phone}</span>}
+            {cv.personal.city && <span>{cv.personal.city}</span>}
+            {cv.personal.linkedin && <span>{cv.personal.linkedin}</span>}
+          </div>
+        </div>
+      </Sec>
+
+      {/* Summary */}
+      <Sec id="summary" mb={14}>
+        <div style={headStyle}>{H.summary}</div>
+        {cv.summary
+          ? <p style={{ color: "#222", fontSize: 10 }}>{cv.summary}</p>
+          : <Placeholder label={cvIsAr ? "أضف ملخصاً مهنياً" : "Add a professional summary"}/>}
+      </Sec>
+
+      {/* Experience */}
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ ...headStyle, marginBottom: 10 }}>{H.experience}</div>
+        {cv.experience.map((e, i) => (
+          <Sec key={i} id={`experience-${i}`} mb={12}>
+            {(e.company || e.role || e.desc) ? (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 10 }}>
+                  <span>{e.role}{e.company && ` — ${e.company}`}</span>
+                  <span style={{ color: "#666", fontSize: 9.5 }}>{e.from}{e.to ? ` – ${e.to}` : ""}</span>
+                </div>
+                {e.desc && <div style={{ marginTop: 4, fontSize: 9.5, color: "#333", whiteSpace: "pre-line" }}>• {e.desc}</div>}
+              </div>
+            ) : (
+              <Placeholder label={cvIsAr ? "أضف خبرة عملية" : "Add a work experience"}/>
+            )}
+          </Sec>
+        ))}
+      </div>
+
+      {/* Education */}
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ ...headStyle, marginBottom: 10 }}>{H.education}</div>
+        {cv.education.map((e, i) => {
+          const degreeText = [e.degree, e.field].filter(Boolean).join(cvIsAr ? " - " : " in ");
+          const parts = [degreeText, e.school].filter(Boolean);
+          return (
+            <Sec key={i} id={`education-${i}`} mb={10}>
+              {(e.school || e.degree) ? (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, fontSize: 10 }}>
+                    <span style={{ fontWeight: 700 }}>
+                      {parts.map((p, idx) => (<span key={idx}>{idx > 0 && <span style={{ color: "#999", fontWeight: 400, margin: "0 8px" }}>|</span>}{p}</span>))}
+                    </span>
+                    <span style={{ color: "#666", fontSize: 9.5, whiteSpace: "nowrap" }}>{e.from}{e.to ? ` – ${e.to}` : ""}</span>
+                  </div>
+                  {((e.showGpa && e.gpa) || e.honors) && (
+                    <div style={{ color: "#555", fontSize: 8.5, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      {e.showGpa && e.gpa && <span>{cvIsAr ? "المعدل" : "GPA"}: {e.gpa}{e.gpaScale ? `/${e.gpaScale}` : ""}</span>}
+                      {e.honors && <span>{cvIsAr ? "مرتبة الشرف" : "Honors"}: {e.honors}</span>}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Placeholder label={cvIsAr ? "أضف مؤهلاً تعليمياً" : "Add an education entry"}/>
+              )}
+            </Sec>
+          );
+        })}
+      </div>
+
+      {/* Certifications */}
+      <Sec id="certifications" mb={10}>
+        <div style={{ ...headStyle, marginBottom: 10 }}>{H.certifications}</div>
+        {hasCerts ? certs.filter(c => c.title || c.issuer || c.date).map((c, i) => (
+          <div key={i} style={{ marginBottom: 8, fontSize: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+              <span>{c.title}{c.issuer ? ` — ${c.issuer}` : ""}</span>
+              {c.date && <span style={{ color: "#666", fontSize: 9.5 }}>{c.date}</span>}
+            </div>
+          </div>
+        )) : <Placeholder label={cvIsAr ? "أضف شهادة أو دورة" : "Add a certification"}/>}
+      </Sec>
+
+      {/* Skills */}
+      <Sec id="skills" mb={14}>
+        <div style={{ ...headStyle, marginTop: 4 }}>{H.skills}</div>
+        {cv.skills.length > 0
+          ? <div style={{ color: "#222", fontSize: 10 }}>{cv.skills.join(" · ")}</div>
+          : <Placeholder label={cvIsAr ? "أضف مهاراتك" : "Add your skills"}/>}
+      </Sec>
+
+      {/* Languages */}
+      <Sec id="languages">
+        <div style={headStyle}>{H.languages}</div>
+        {cv.languages.some(l => l.lang)
+          ? <div style={{ color: "#222", fontSize: 10 }}>{cv.languages.filter(l => l.lang).map(l => `${l.lang}${l.level ? ` (${l.level})` : ""}`).join(" · ")}</div>
+          : <Placeholder label={cvIsAr ? "أضف اللغات" : "Add languages"}/>}
+      </Sec>
+    </div>
+  );
+}
 
 async function callGeminiRaw(prompt: string): Promise<string> {
   const res = await fetch("/api/gemini", {
@@ -374,6 +521,35 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const isPaid = hasElitePackage || hasPremiumPackage;
   const [exportingPdf, setExportingPdf] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
+
+  // ── Click-to-edit canvas mode ──────────────────────────────────────────
+  const EDITMODE_STORAGE_KEY = "nashmi-edit-mode";
+  const [editMode, setEditMode] = useState<"canvas" | "sidebar">(() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage.getItem(EDITMODE_STORAGE_KEY) === "sidebar") return "sidebar";
+    } catch { /* ignore */ }
+    return "canvas";
+  });
+  const [activePanel, setActivePanel] = useState<string | null>(null);
+  const editorPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }
+  }, [editMode]);
+
+  // Close the editor panel when clicking outside it (auto-save is continuous,
+  // so closing loses nothing). Clicking another CV section re-opens instantly
+  // because mousedown (close) fires before the section's click (open).
+  useEffect(() => {
+    if (!activePanel) return;
+    const onDown = (ev: MouseEvent) => {
+      if (editorPanelRef.current && !editorPanelRef.current.contains(ev.target as Node)) {
+        setActivePanel(null);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [activePanel]);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const jsonImportRef = useRef<HTMLInputElement>(null);
@@ -756,209 +932,285 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     </button>
   );
 
-  // ── Form panel ──────────────────────────────────────────────────────────
+  // ── Shared field renderers (used by sidebar accordion AND click-to-edit panels) ──
+  const renderPersonalFields = () => (
+    <div>
+      <Inp label={isAr ? "الاسم الكامل" : "Full Name"} value={cv.personal.name} onChange={v => setPersonal("name", v)} placeholder={isAr ? "اسمك الكامل" : "Your full name"} isAr={isAr}/>
+      <Inp label={isAr ? "المسمى الوظيفي" : "Job Title"} value={cv.personal.title} onChange={v => setPersonal("title", v)} placeholder={isAr ? "مثال: مهندس برمجيات أول" : "e.g. Senior Software Engineer"} isAr={isAr}/>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <Inp label={isAr ? "البريد الإلكتروني" : "Email"} type="email" value={cv.personal.email} onChange={v => setPersonal("email", v)} placeholder="you@email.com"/>
+        <Inp label={isAr ? "الهاتف" : "Phone"} type="tel" value={cv.personal.phone} onChange={v => setPersonal("phone", v)} placeholder="+966 5X XXX XXXX"/>
+      </div>
+      <Inp label={isAr ? "المدينة" : "City"} value={cv.personal.city} onChange={v => setPersonal("city", v)} placeholder={isAr ? "الرياض، السعودية" : "Riyadh, Saudi Arabia"} isAr={isAr}/>
+      <Inp label="LinkedIn" value={cv.personal.linkedin} onChange={v => setPersonal("linkedin", v)} placeholder="linkedin.com/in/username"/>
+      <Inp label={isAr ? "الموقع الشخصي" : "Website"} value={cv.personal.website} onChange={v => setPersonal("website", v)} placeholder="yoursite.com"/>
+    </div>
+  );
+
+  const renderSummaryFields = () => (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <label style={{ color: P.muted, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "الملخص المهني" : "Professional Summary"}</label>
+        <AIBtn section="summary" text={cv.summary}/>
+      </div>
+      <Txta value={cv.summary} onChange={setSummary} rows={6} placeholder={isAr ? "صف نفسك بإيجاز: خبرتك، مهاراتك الرئيسية، وما تسعى إليه..." : "Briefly describe yourself: your experience, core skills, and what you bring to the table..."} isAr={isAr}/>
+      <div style={{ color: P.muted, fontSize: 12, marginTop: 4 }}>
+        {cv.summary.split(/\s+/).filter(Boolean).length}/80 {isAr ? "كلمة" : "words"} — {cv.summary.length < 80 ? (isAr ? "اكتب المزيد للحصول على درجة ATS أعلى" : "Write more for a higher ATS score") : "✓ Good length"}
+      </div>
+    </div>
+  );
+
+  const renderExpItem = (i: number) => {
+    const e = cv.experience[i];
+    if (!e) return null;
+    return (
+      <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, padding: "16px 14px", marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `الخبرة ${i + 1}` : `Experience ${i + 1}`}</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <AIBtn section={`exp-${i}`} text={e.desc}/>
+            {cv.experience.length > 1 && (
+              <button onClick={() => setCv(prev => ({ ...prev, experience: prev.experience.filter((_, idx) => idx !== i) }))} style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11 }}>
+                {t.removeItem}
+              </button>
+            )}
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Inp label={isAr ? "المسمى الوظيفي" : "Job Title"} value={e.role} onChange={v => setExp(i, "role", v)} placeholder={isAr ? "مدير مشاريع" : "Project Manager"} isAr={isAr}/>
+          <Inp label={isAr ? "الشركة" : "Company"} value={e.company} onChange={v => setExp(i, "company", v)} placeholder={isAr ? "اسم الشركة" : "Company Name"} isAr={isAr}/>
+          <Inp label={isAr ? "من" : "From"} value={e.from} onChange={v => setExp(i, "from", v)} placeholder={isAr ? "يناير 2020" : "Jan 2020"}/>
+          <Inp label={isAr ? "إلى" : "To"} value={e.to} onChange={v => setExp(i, "to", v)} placeholder={isAr ? "الآن" : "Present"}/>
+        </div>
+        <Txta label={isAr ? "المهام والإنجازات" : "Responsibilities & Achievements"} value={e.desc} onChange={v => setExp(i, "desc", v)} rows={4} placeholder={isAr ? "• قدت فريقاً من 5 مطورين وأنجزت المشروع قبل الموعد بشهر\n• خفضت وقت التحميل بنسبة 40%" : "• Led a team of 5 engineers, delivered project 1 month early\n• Reduced load time by 40%, improving user retention"} isAr={isAr}/>
+      </div>
+    );
+  };
+
+  const renderAddExpBtn = (onAdded?: (newIndex: number) => void) => (
+    <button onClick={() => { const newIndex = cv.experience.length; setCv(prev => ({ ...prev, experience: [...prev.experience, { company:"", role:"", from:"", to:"", desc:"" }] })); onAdded?.(newIndex); }} style={{ width: "100%", background: "transparent", border: `1px dashed ${P.border}`, color: P.muted, borderRadius: 10, padding: "12px", cursor: "pointer", fontSize: 13, fontFamily: ff, transition: "border-color 0.2s, color 0.2s" }}
+      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.violet; (e.currentTarget as HTMLButtonElement).style.color=P.violetLight; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.border; (e.currentTarget as HTMLButtonElement).style.color=P.muted; }}
+    >{t.addItem} {isAr ? "خبرة" : "Experience"}</button>
+  );
+
+  const renderEduItem = (i: number) => {
+    const e = cv.education[i];
+    if (!e) return null;
+    return (
+      <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, padding: "16px 14px", marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `التعليم ${i + 1}` : `Education ${i + 1}`}</span>
+          {cv.education.length > 1 && (
+            <button onClick={() => setCv(prev => ({ ...prev, education: prev.education.filter((_, idx) => idx !== i) }))} style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11 }}>{t.removeItem}</button>
+          )}
+        </div>
+        <Inp label={isAr ? "الجامعة / المؤسسة" : "University / Institution"} value={e.school} onChange={v => setEdu(i, "school", v)} placeholder={isAr ? "جامعة الملك سعود" : "King Saud University"} isAr={isAr}/>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "الدرجة العلمية" : "Degree"}</label>
+          <select value={e.degree} onChange={ev => setEdu(i, "degree", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff }}>
+            <option value="">{isAr ? "اختر الدرجة العلمية" : "Select degree"}</option>
+            {DEGREE_LEVELS.map(d => <option key={d.en} value={isCvAr ? d.ar : d.en}>{isCvAr ? d.ar : d.en}</option>)}
+          </select>
+        </div>
+        <Inp label={isAr ? "التخصص" : "Field of Study"} value={e.field} onChange={v => setEdu(i, "field", v)} placeholder={isAr ? "علوم الحاسب" : "Computer Science"} isAr={isAr}/>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Inp label={isAr ? "من" : "From"} value={e.from} onChange={v => setEdu(i, "from", v)} placeholder="2018"/>
+          <Inp label={isAr ? "إلى" : "To"} value={e.to} onChange={v => setEdu(i, "to", v)} placeholder="2022"/>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <input type="checkbox" id={`gpa-${i}`} checked={!!e.showGpa} onChange={ev => setEdu(i, "showGpa", ev.target.checked)} style={{ accentColor: P.violet }}/>
+          <label htmlFor={`gpa-${i}`} style={{ color: P.muted, fontSize: 13, cursor: "pointer" }}>{isAr ? "إظهار المعدل (GPA)" : "Show GPA"}</label>
+        </div>
+        {e.showGpa && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Inp label="GPA" value={e.gpa} onChange={v => setEdu(i, "gpa", v)} placeholder="4.5"/>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "من" : "Out of"}</label>
+              <select value={e.gpaScale} onChange={ev => setEdu(i, "gpaScale", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff }}>
+                {["4","5","100"].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+        {/* Optional honors */}
+        <div style={{ marginBottom: 6 }}>
+          <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            {isAr ? "التقدير / مرتبة الشرف (اختياري)" : "Honors / Grade (optional)"}
+          </label>
+          <select value={e.honors || ""} onChange={ev => setEdu(i, "honors", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: e.honors ? P.text : P.muted, fontSize: 13, outline: "none", fontFamily: ff }}>
+            <option value="">{isAr ? "— بدون تقدير —" : "— No honors —"}</option>
+            {HONORS_OPTIONS.map(h => <option key={h.en} value={isCvAr ? h.ar : h.en}>{isCvAr ? h.ar : h.en}</option>)}
+          </select>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAddEduBtn = (onAdded?: (newIndex: number) => void) => (
+    <button onClick={() => { const newIndex = cv.education.length; setCv(prev => ({ ...prev, education: [...prev.education, { school:"", degree:"", field:"", from:"", to:"", gpa:"", gpaScale:"5", honors:"", showGpa:false }] })); onAdded?.(newIndex); }} style={{ width: "100%", background: "transparent", border: `1px dashed ${P.border}`, color: P.muted, borderRadius: 10, padding: "12px", cursor: "pointer", fontSize: 13, fontFamily: ff }}
+      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.violet; (e.currentTarget as HTMLButtonElement).style.color=P.violetLight; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.border; (e.currentTarget as HTMLButtonElement).style.color=P.muted; }}
+    >{t.addItem} {isAr ? "تعليم" : "Education"}</button>
+  );
+
+  const renderCertFields = () => (
+    <div>
+      {cv.certifications.map((c, i) => (
+        <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, padding: "14px", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `شهادة ${i + 1}` : `Cert ${i + 1}`}</span>
+            <button onClick={() => setCv(prev => ({ ...prev, certifications: prev.certifications.filter((_, idx) => idx !== i) }))} style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 10 }}>{t.removeItem}</button>
+          </div>
+          <Inp label={isAr ? "عنوان الشهادة" : "Certificate Title"} value={c.title} onChange={v => { const certs = [...cv.certifications]; certs[i] = { ...certs[i], title: v }; setCv(prev => ({ ...prev, certifications: certs })); }} placeholder={isAr ? "مثال: AWS Solutions Architect" : "e.g. AWS Solutions Architect"} isAr={isAr}/>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Inp label={isAr ? "الجهة المانحة" : "Issuer"} value={c.issuer} onChange={v => { const certs = [...cv.certifications]; certs[i] = { ...certs[i], issuer: v }; setCv(prev => ({ ...prev, certifications: certs })); }} placeholder="Amazon Web Services" isAr={isAr}/>
+            <Inp label={isAr ? "التاريخ" : "Date"} value={c.date} onChange={v => { const certs = [...cv.certifications]; certs[i] = { ...certs[i], date: v }; setCv(prev => ({ ...prev, certifications: certs })); }} placeholder="2024"/>
+          </div>
+        </div>
+      ))}
+      <div style={{ marginBottom: 14 }}>
+        <Inp label={isAr ? "إضافة شهادة أو دورة" : "Add Certificate / Course"} value={certInput} onChange={setCertInput} placeholder={isAr ? "اكتب عنوان الشهادة..." : "Enter certificate title..."} isAr={isAr}/>
+        <button onClick={() => { if (!certInput.trim()) return; setCv(prev => ({ ...prev, certifications: [...prev.certifications, { title: certInput.trim(), issuer: "", date: "" }] })); setCertInput(""); }} style={{ width: "100%", background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+          {t.addItem}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderSkillsFields = () => (
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        {cv.skills.map((skill, i) => (
+          <span key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "5px 10px", fontSize: 13 }}>
+            {skill}
+            <button onClick={() => setCv(prev => ({ ...prev, skills: prev.skills.filter((_, idx) => idx !== i) }))} style={{ background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+          </span>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <input value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && skillInput.trim()) { setCv(prev => ({ ...prev, skills: [...prev.skills, skillInput.trim()] })); setSkillInput(""); e.preventDefault(); } }} placeholder={isAr ? "مثال: React, Python, إدارة المشاريع…" : "e.g. React, Python, Project Management…"} style={{ flex: 1, background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff, direction: isAr ? "rtl" : "ltr" }}
+          onFocus={e => e.currentTarget.style.borderColor = P.violet}
+          onBlur={e => e.currentTarget.style.borderColor = P.border}
+        />
+        <button onClick={() => { if (skillInput.trim()) { setCv(prev => ({ ...prev, skills: [...prev.skills, skillInput.trim()] })); setSkillInput(""); } }} style={{ background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+          {t.addItem}
+        </button>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <p style={{ color: P.muted, fontSize: 12, marginBottom: 8 }}>{isAr ? "مقترحات:" : "Suggestions:"}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {(isAr ? ["React", "Python", "SQL", "Node.js", "إدارة المشاريع", "Excel", "تحليل البيانات", "التواصل الفعال"] : ["React", "Python", "SQL", "Node.js", "Project Management", "Excel", "Data Analysis", "Communication"]).filter(s => !cv.skills.includes(s)).slice(0, 8).map(s => (
+            <button key={s} onClick={() => setCv(prev => ({ ...prev, skills: [...prev.skills, s] }))} style={{ background: P.surface, border: `1px solid ${P.border}`, color: P.muted, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12, transition: "border-color 0.2s, color 0.2s" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.violet; (e.currentTarget as HTMLButtonElement).style.color=P.violetLight; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.border; (e.currentTarget as HTMLButtonElement).style.color=P.muted; }}
+            >+ {s}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <AIBtn section="skills" text={cv.skills.join(", ")} full/>
+      </div>
+    </div>
+  );
+
+  const renderLanguagesFields = () => (
+    <div>
+      {cv.languages.map((l, i) => (
+        <div key={i} style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "flex-end" }}>
+          <div style={{ flex: 1 }}>
+            {i === 0 && <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "اللغة" : "Language"}</label>}
+            <select value={l.lang} onChange={ev => setLangEntry(i, "lang", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: l.lang ? P.text : P.muted, fontSize: 13, outline: "none", fontFamily: ff, marginBottom: 14 }}>
+              <option value="">{isAr ? "— اختر اللغة —" : "— Select language —"}</option>
+              {LANGUAGE_OPTIONS.map(lo => <option key={lo.en} value={isCvAr ? lo.ar : lo.en}>{isCvAr ? lo.ar : lo.en}</option>)}
+            </select>
+          </div>
+          <div style={{ width: 140 }}>
+            {i === 0 && <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "المستوى" : "Level"}</label>}
+            <select value={l.level} onChange={ev => setLangEntry(i, "level", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 10px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff, marginBottom: 14 }}>
+              <option value="">{isAr ? "اختر" : "Select"}</option>
+              {LANG_LEVELS.map(lv => <option key={lv.en} value={isCvAr ? lv.ar : lv.en}>{isCvAr ? lv.ar : lv.en}</option>)}
+            </select>
+          </div>
+          {cv.languages.length > 1 && (
+            <button onClick={() => setCv(prev => ({ ...prev, languages: prev.languages.filter((_, idx) => idx !== i) }))} style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "10px", cursor: "pointer", fontSize: 13, marginBottom: 14 }}>×</button>
+          )}
+        </div>
+      ))}
+      <button onClick={() => setCv(prev => ({ ...prev, languages: [...prev.languages, { lang: "", level: "" }] }))} style={{ width: "100%", background: "transparent", border: `1px dashed ${P.border}`, color: P.muted, borderRadius: 10, padding: "12px", cursor: "pointer", fontSize: 13, fontFamily: ff }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.violet; (e.currentTarget as HTMLButtonElement).style.color=P.violetLight; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.border; (e.currentTarget as HTMLButtonElement).style.color=P.muted; }}
+      >{t.addItem} {isAr ? "لغة" : "Language"}</button>
+    </div>
+  );
+
+  // ── Form panel (sidebar accordion) ─────────────────────────────────────
   const renderFormSection = () => {
     switch (activeSection) {
-      case 0: return (
-        <div>
-          <Inp label={isAr ? "الاسم الكامل" : "Full Name"} value={cv.personal.name} onChange={v => setPersonal("name", v)} placeholder={isAr ? "اسمك الكامل" : "Your full name"} isAr={isAr}/>
-          <Inp label={isAr ? "المسمى الوظيفي" : "Job Title"} value={cv.personal.title} onChange={v => setPersonal("title", v)} placeholder={isAr ? "مثال: مهندس برمجيات أول" : "e.g. Senior Software Engineer"} isAr={isAr}/>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Inp label={isAr ? "البريد الإلكتروني" : "Email"} type="email" value={cv.personal.email} onChange={v => setPersonal("email", v)} placeholder="you@email.com"/>
-            <Inp label={isAr ? "الهاتف" : "Phone"} type="tel" value={cv.personal.phone} onChange={v => setPersonal("phone", v)} placeholder="+966 5X XXX XXXX"/>
-          </div>
-          <Inp label={isAr ? "المدينة" : "City"} value={cv.personal.city} onChange={v => setPersonal("city", v)} placeholder={isAr ? "الرياض، السعودية" : "Riyadh, Saudi Arabia"} isAr={isAr}/>
-          <Inp label="LinkedIn" value={cv.personal.linkedin} onChange={v => setPersonal("linkedin", v)} placeholder="linkedin.com/in/username"/>
-          <Inp label={isAr ? "الموقع الشخصي" : "Website"} value={cv.personal.website} onChange={v => setPersonal("website", v)} placeholder="yoursite.com"/>
-        </div>
-      );
-      case 1: return (
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <label style={{ color: P.muted, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "الملخص المهني" : "Professional Summary"}</label>
-            <AIBtn section="summary" text={cv.summary}/>
-          </div>
-          <Txta value={cv.summary} onChange={setSummary} rows={6} placeholder={isAr ? "صف نفسك بإيجاز: خبرتك، مهاراتك الرئيسية، وما تسعى إليه..." : "Briefly describe yourself: your experience, core skills, and what you bring to the table..."} isAr={isAr}/>
-          <div style={{ color: P.muted, fontSize: 12, marginTop: 4 }}>
-            {cv.summary.split(/\s+/).filter(Boolean).length}/80 {isAr ? "كلمة" : "words"} — {cv.summary.length < 80 ? (isAr ? "اكتب المزيد للحصول على درجة ATS أعلى" : "Write more for a higher ATS score") : "✓ Good length"}
-          </div>
-        </div>
-      );
-      case 2: return (
-        <div>
-          {cv.experience.map((e, i) => (
-            <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, padding: "16px 14px", marginBottom: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `الخبرة ${i + 1}` : `Experience ${i + 1}`}</span>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <AIBtn section={`exp-${i}`} text={e.desc}/>
-                  {cv.experience.length > 1 && (
-                    <button onClick={() => setCv(prev => ({ ...prev, experience: prev.experience.filter((_, idx) => idx !== i) }))} style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11 }}>
-                      {t.removeItem}
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Inp label={isAr ? "المسمى الوظيفي" : "Job Title"} value={e.role} onChange={v => setExp(i, "role", v)} placeholder={isAr ? "مدير مشاريع" : "Project Manager"} isAr={isAr}/>
-                <Inp label={isAr ? "الشركة" : "Company"} value={e.company} onChange={v => setExp(i, "company", v)} placeholder={isAr ? "اسم الشركة" : "Company Name"} isAr={isAr}/>
-                <Inp label={isAr ? "من" : "From"} value={e.from} onChange={v => setExp(i, "from", v)} placeholder={isAr ? "يناير 2020" : "Jan 2020"}/>
-                <Inp label={isAr ? "إلى" : "To"} value={e.to} onChange={v => setExp(i, "to", v)} placeholder={isAr ? "الآن" : "Present"}/>
-              </div>
-              <Txta label={isAr ? "المهام والإنجازات" : "Responsibilities & Achievements"} value={e.desc} onChange={v => setExp(i, "desc", v)} rows={4} placeholder={isAr ? "• قدت فريقاً من 5 مطورين وأنجزت المشروع قبل الموعد بشهر\n• خفضت وقت التحميل بنسبة 40%" : "• Led a team of 5 engineers, delivered project 1 month early\n• Reduced load time by 40%, improving user retention"} isAr={isAr}/>
-            </div>
-          ))}
-          <button onClick={() => setCv(prev => ({ ...prev, experience: [...prev.experience, { company:"", role:"", from:"", to:"", desc:"" }] }))} style={{ width: "100%", background: "transparent", border: `1px dashed ${P.border}`, color: P.muted, borderRadius: 10, padding: "12px", cursor: "pointer", fontSize: 13, fontFamily: ff, transition: "border-color 0.2s, color 0.2s" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.violet; (e.currentTarget as HTMLButtonElement).style.color=P.violetLight; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.border; (e.currentTarget as HTMLButtonElement).style.color=P.muted; }}
-          >{t.addItem} {isAr ? "خبرة" : "Experience"}</button>
-        </div>
-      );
-      case 3: return (
-        <div>
-          {cv.education.map((e, i) => (
-            <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, padding: "16px 14px", marginBottom: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `التعليم ${i + 1}` : `Education ${i + 1}`}</span>
-                {cv.education.length > 1 && (
-                  <button onClick={() => setCv(prev => ({ ...prev, education: prev.education.filter((_, idx) => idx !== i) }))} style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11 }}>{t.removeItem}</button>
-                )}
-              </div>
-              <Inp label={isAr ? "الجامعة / المؤسسة" : "University / Institution"} value={e.school} onChange={v => setEdu(i, "school", v)} placeholder={isAr ? "جامعة الملك سعود" : "King Saud University"} isAr={isAr}/>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "الدرجة العلمية" : "Degree"}</label>
-                <select value={e.degree} onChange={ev => setEdu(i, "degree", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff }}>
-                  <option value="">{isAr ? "اختر الدرجة العلمية" : "Select degree"}</option>
-                  {DEGREE_LEVELS.map(d => <option key={d.en} value={isCvAr ? d.ar : d.en}>{isCvAr ? d.ar : d.en}</option>)}
-                </select>
-              </div>
-              <Inp label={isAr ? "التخصص" : "Field of Study"} value={e.field} onChange={v => setEdu(i, "field", v)} placeholder={isAr ? "علوم الحاسب" : "Computer Science"} isAr={isAr}/>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Inp label={isAr ? "من" : "From"} value={e.from} onChange={v => setEdu(i, "from", v)} placeholder="2018"/>
-                <Inp label={isAr ? "إلى" : "To"} value={e.to} onChange={v => setEdu(i, "to", v)} placeholder="2022"/>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <input type="checkbox" id={`gpa-${i}`} checked={!!e.showGpa} onChange={ev => setEdu(i, "showGpa", ev.target.checked)} style={{ accentColor: P.violet }}/>
-                <label htmlFor={`gpa-${i}`} style={{ color: P.muted, fontSize: 13, cursor: "pointer" }}>{isAr ? "إظهار المعدل (GPA)" : "Show GPA"}</label>
-              </div>
-              {e.showGpa && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <Inp label="GPA" value={e.gpa} onChange={v => setEdu(i, "gpa", v)} placeholder="4.5"/>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "من" : "Out of"}</label>
-                    <select value={e.gpaScale} onChange={ev => setEdu(i, "gpaScale", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff }}>
-                      {["4","5","100"].map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                </div>
-              )}
-              {/* Optional honors */}
-              <div style={{ marginBottom: 6 }}>
-                <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                  {isAr ? "التقدير / مرتبة الشرف (اختياري)" : "Honors / Grade (optional)"}
-                </label>
-                <select value={e.honors || ""} onChange={ev => setEdu(i, "honors", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: e.honors ? P.text : P.muted, fontSize: 13, outline: "none", fontFamily: ff }}>
-                  <option value="">{isAr ? "— بدون تقدير —" : "— No honors —"}</option>
-                  {HONORS_OPTIONS.map(h => <option key={h.en} value={isCvAr ? h.ar : h.en}>{isCvAr ? h.ar : h.en}</option>)}
-                </select>
-              </div>
-            </div>
-          ))}
-          <button onClick={() => setCv(prev => ({ ...prev, education: [...prev.education, { school:"", degree:"", field:"", from:"", to:"", gpa:"", gpaScale:"5", honors:"", showGpa:false }] }))} style={{ width: "100%", background: "transparent", border: `1px dashed ${P.border}`, color: P.muted, borderRadius: 10, padding: "12px", cursor: "pointer", fontSize: 13, fontFamily: ff }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.violet; (e.currentTarget as HTMLButtonElement).style.color=P.violetLight; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.border; (e.currentTarget as HTMLButtonElement).style.color=P.muted; }}
-          >{t.addItem} {isAr ? "تعليم" : "Education"}</button>
-        </div>
-      );
-      case 4: return (
-        <div>
-          {cv.certifications.map((c, i) => (
-            <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, padding: "14px", marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `شهادة ${i + 1}` : `Cert ${i + 1}`}</span>
-                <button onClick={() => setCv(prev => ({ ...prev, certifications: prev.certifications.filter((_, idx) => idx !== i) }))} style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 10 }}>{t.removeItem}</button>
-              </div>
-              <Inp label={isAr ? "عنوان الشهادة" : "Certificate Title"} value={c.title} onChange={v => { const certs = [...cv.certifications]; certs[i] = { ...certs[i], title: v }; setCv(prev => ({ ...prev, certifications: certs })); }} placeholder={isAr ? "مثال: AWS Solutions Architect" : "e.g. AWS Solutions Architect"} isAr={isAr}/>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Inp label={isAr ? "الجهة المانحة" : "Issuer"} value={c.issuer} onChange={v => { const certs = [...cv.certifications]; certs[i] = { ...certs[i], issuer: v }; setCv(prev => ({ ...prev, certifications: certs })); }} placeholder="Amazon Web Services" isAr={isAr}/>
-                <Inp label={isAr ? "التاريخ" : "Date"} value={c.date} onChange={v => { const certs = [...cv.certifications]; certs[i] = { ...certs[i], date: v }; setCv(prev => ({ ...prev, certifications: certs })); }} placeholder="2024"/>
-              </div>
-            </div>
-          ))}
-          <div style={{ marginBottom: 14 }}>
-            <Inp label={isAr ? "إضافة شهادة أو دورة" : "Add Certificate / Course"} value={certInput} onChange={setCertInput} placeholder={isAr ? "اكتب عنوان الشهادة..." : "Enter certificate title..."} isAr={isAr}/>
-            <button onClick={() => { if (!certInput.trim()) return; setCv(prev => ({ ...prev, certifications: [...prev.certifications, { title: certInput.trim(), issuer: "", date: "" }] })); setCertInput(""); }} style={{ width: "100%", background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-              {t.addItem}
-            </button>
-          </div>
-        </div>
-      );
-      case 5: return (
-        <div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-            {cv.skills.map((skill, i) => (
-              <span key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "5px 10px", fontSize: 13 }}>
-                {skill}
-                <button onClick={() => setCv(prev => ({ ...prev, skills: prev.skills.filter((_, idx) => idx !== i) }))} style={{ background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
-              </span>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            <input value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && skillInput.trim()) { setCv(prev => ({ ...prev, skills: [...prev.skills, skillInput.trim()] })); setSkillInput(""); e.preventDefault(); } }} placeholder={isAr ? "مثال: React, Python, إدارة المشاريع…" : "e.g. React, Python, Project Management…"} style={{ flex: 1, background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff, direction: isAr ? "rtl" : "ltr" }}
-              onFocus={e => e.currentTarget.style.borderColor = P.violet}
-              onBlur={e => e.currentTarget.style.borderColor = P.border}
-            />
-            <button onClick={() => { if (skillInput.trim()) { setCv(prev => ({ ...prev, skills: [...prev.skills, skillInput.trim()] })); setSkillInput(""); } }} style={{ background: `${P.violet}22`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-              {t.addItem}
-            </button>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <p style={{ color: P.muted, fontSize: 12, marginBottom: 8 }}>{isAr ? "مقترحات:" : "Suggestions:"}</p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {(isAr ? ["React", "Python", "SQL", "Node.js", "إدارة المشاريع", "Excel", "تحليل البيانات", "التواصل الفعال"] : ["React", "Python", "SQL", "Node.js", "Project Management", "Excel", "Data Analysis", "Communication"]).filter(s => !cv.skills.includes(s)).slice(0, 8).map(s => (
-                <button key={s} onClick={() => setCv(prev => ({ ...prev, skills: [...prev.skills, s] }))} style={{ background: P.surface, border: `1px solid ${P.border}`, color: P.muted, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12, transition: "border-color 0.2s, color 0.2s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.violet; (e.currentTarget as HTMLButtonElement).style.color=P.violetLight; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.border; (e.currentTarget as HTMLButtonElement).style.color=P.muted; }}
-                >+ {s}</button>
-              ))}
-            </div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <AIBtn section="skills" text={cv.skills.join(", ")} full/>
-          </div>
-        </div>
-      );
-      case 6: return (
-        <div>
-          {cv.languages.map((l, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "flex-end" }}>
-              <div style={{ flex: 1 }}>
-                {i === 0 && <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "اللغة" : "Language"}</label>}
-                <select value={l.lang} onChange={ev => setLangEntry(i, "lang", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: l.lang ? P.text : P.muted, fontSize: 13, outline: "none", fontFamily: ff, marginBottom: 14 }}>
-                  <option value="">{isAr ? "— اختر اللغة —" : "— Select language —"}</option>
-                  {LANGUAGE_OPTIONS.map(lo => <option key={lo.en} value={isCvAr ? lo.ar : lo.en}>{isCvAr ? lo.ar : lo.en}</option>)}
-                </select>
-              </div>
-              <div style={{ width: 140 }}>
-                {i === 0 && <label style={{ display: "block", color: P.muted, fontSize: 11, fontWeight: 700, marginBottom: 5, letterSpacing: "0.06em", textTransform: "uppercase" }}>{isAr ? "المستوى" : "Level"}</label>}
-                <select value={l.level} onChange={ev => setLangEntry(i, "level", ev.target.value)} style={{ width: "100%", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 10px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff, marginBottom: 14 }}>
-                  <option value="">{isAr ? "اختر" : "Select"}</option>
-                  {LANG_LEVELS.map(lv => <option key={lv.en} value={isCvAr ? lv.ar : lv.en}>{isCvAr ? lv.ar : lv.en}</option>)}
-                </select>
-              </div>
-              {cv.languages.length > 1 && (
-                <button onClick={() => setCv(prev => ({ ...prev, languages: prev.languages.filter((_, idx) => idx !== i) }))} style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "10px", cursor: "pointer", fontSize: 13, marginBottom: 14 }}>×</button>
-              )}
-            </div>
-          ))}
-          <button onClick={() => setCv(prev => ({ ...prev, languages: [...prev.languages, { lang: "", level: "" }] }))} style={{ width: "100%", background: "transparent", border: `1px dashed ${P.border}`, color: P.muted, borderRadius: 10, padding: "12px", cursor: "pointer", fontSize: 13, fontFamily: ff }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.violet; (e.currentTarget as HTMLButtonElement).style.color=P.violetLight; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor=P.border; (e.currentTarget as HTMLButtonElement).style.color=P.muted; }}
-          >{t.addItem} {isAr ? "لغة" : "Language"}</button>
-        </div>
-      );
+      case 0: return renderPersonalFields();
+      case 1: return renderSummaryFields();
+      case 2: return <div>{cv.experience.map((_, i) => renderExpItem(i))}{renderAddExpBtn()}</div>;
+      case 3: return <div>{cv.education.map((_, i) => renderEduItem(i))}{renderAddEduBtn()}</div>;
+      case 4: return renderCertFields();
+      case 5: return renderSkillsFields();
+      case 6: return renderLanguagesFields();
     }
   };
+
+  // ── Click-to-edit panel: title + content per panel key ─────────────────
+  const panelTitle = (panel: string): string => {
+    if (panel === "personal") return SECTIONS[0];
+    if (panel === "summary") return SECTIONS[1];
+    if (panel.startsWith("experience-")) return `${SECTIONS[2]} ${Number(panel.slice("experience-".length)) + 1}`;
+    if (panel.startsWith("education-")) return `${SECTIONS[3]} ${Number(panel.slice("education-".length)) + 1}`;
+    if (panel === "certifications") return SECTIONS[4];
+    if (panel === "skills") return SECTIONS[5];
+    return SECTIONS[6];
+  };
+
+  const renderPanelContent = (panel: string) => {
+    if (panel === "personal") return renderPersonalFields();
+    if (panel === "summary") return renderSummaryFields();
+    if (panel.startsWith("experience-")) {
+      const i = Math.min(Number(panel.slice("experience-".length)) || 0, cv.experience.length - 1);
+      return <div>{renderExpItem(i)}{renderAddExpBtn(n => setActivePanel(`experience-${n}`))}</div>;
+    }
+    if (panel.startsWith("education-")) {
+      const i = Math.min(Number(panel.slice("education-".length)) || 0, cv.education.length - 1);
+      return <div>{renderEduItem(i)}{renderAddEduBtn(n => setActivePanel(`education-${n}`))}</div>;
+    }
+    if (panel === "certifications") return renderCertFields();
+    if (panel === "skills") return renderSkillsFields();
+    return renderLanguagesFields();
+  };
+
+  // Free-tier watermark grid overlaid on the on-screen preview (both edit modes)
+  const renderWatermarkGrid = () => (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", userSelect: "none", zIndex: 50, overflow: "hidden" }}>
+      {Array.from({ length: 54 }).map((_, i) => {
+        const cols = 6;
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        return (
+          <span key={i} style={{
+            position: "absolute",
+            left: `${(col / cols) * 100 + (100 / cols / 2)}%`,
+            top: `${(row / 9) * 100 + (100 / 9 / 2)}%`,
+            transform: "translate(-50%, -50%) rotate(-45deg)",
+            opacity: 0.1,
+            fontSize: 15,
+            fontWeight: 700,
+            color: "#000",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}>
+            NASHMI - نشمي
+          </span>
+        );
+      })}
+    </div>
+  );
 
   // ── Start-choice screen (before builder) ──────────────────────────────
   if (startMode === "choose") {
@@ -1079,6 +1331,16 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           {isAr ? "◈ مطابقة JD" : "◈ JD Match"}
         </button>
 
+        {/* Edit mode toggle: click-on-CV canvas vs sidebar accordion */}
+        <div style={{ display: "flex", alignItems: "center", border: `1px solid ${P.border}`, borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
+          {([["canvas", isAr ? "✎ على السيرة" : "✎ Click-on-CV"], ["sidebar", isAr ? "☰ القائمة" : "☰ Sidebar"]] as const).map(([mode, label]) => (
+            <button key={mode} onClick={() => { setEditMode(mode); if (mode === "sidebar") setActivePanel(null); }}
+              style={{ background: editMode === mode ? `${P.violet}33` : "transparent", border: "none", color: editMode === mode ? P.violetLight : P.muted, padding: "7px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Copilot */}
         <button onClick={() => setShowCopilot(c => !c)} style={{ background: showCopilot ? `${P.violet}33` : `${P.violet}18`, border: `1px solid ${P.violet}${showCopilot ? "66" : "33"}`, color: P.violetLight, borderRadius: 8, padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
           ✧ <span className="tb-copilot-label">{t.aiCopilot}</span>
@@ -1123,8 +1385,15 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }
         }
       `}</style>
+      <style>{`
+        .cv-canvas-inner { padding: 40px; }
+        @media (max-width: 768px) {
+          .cv-canvas-inner { padding: 20px !important; zoom: 0.85; }
+        }
+      `}</style>
       <div className="builder-main" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Form sidebar — Accordion */}
+        {/* Form sidebar — Accordion (fallback edit mode) */}
+        {editMode === "sidebar" && (
         <div className="builder-sidebar" style={{ width: 300, background: P.surface, borderRight: isAr ? "none" : `1px solid ${P.border}`, borderLeft: isAr ? `1px solid ${P.border}` : "none", display: "flex", flexDirection: "column", flexShrink: 0 }}>
           <div style={{ flex: 1, overflowY: "auto" }}>
             {SECTIONS.map((label, i) => {
@@ -1164,9 +1433,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             })}
           </div>
         </div>
+        )}
 
         {/* CV Preview */}
-        <div className="builder-preview" style={{ flex: 1, overflowY: "auto", padding: 24, background: "#2A2A3E22" }}>
+        <div className="builder-preview" style={{ flex: 1, overflowY: "auto", padding: 24, background: editMode === "canvas" ? "#0D0D1A" : "#2A2A3E22" }}>
           <EliteImportFeature
             userSubscriptionTier={currentPlan}
             uiLang={isAr ? "ar" : "en"}
@@ -1190,35 +1460,26 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               </div>
             </div>
           )}
-          <div ref={cvPreviewRef} style={{ maxWidth: 794, margin: "0 auto", boxShadow: "0 8px 40px rgba(0,0,0,0.5)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
-            <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
-            {!isPaid && (
-              <div style={{ position: "absolute", inset: 0, pointerEvents: "none", userSelect: "none", zIndex: 50, overflow: "hidden" }}>
-                {Array.from({ length: 54 }).map((_, i) => {
-                  const cols = 6;
-                  const col = i % cols;
-                  const row = Math.floor(i / cols);
-                  return (
-                    <span key={i} style={{
-                      position: "absolute",
-                      left: `${(col / cols) * 100 + (100 / cols / 2)}%`,
-                      top: `${(row / 9) * 100 + (100 / 9 / 2)}%`,
-                      transform: "translate(-50%, -50%) rotate(-45deg)",
-                      opacity: 0.1,
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: "#000",
-                      whiteSpace: "nowrap",
-                      pointerEvents: "none",
-                      userSelect: "none",
-                    }}>
-                      NASHMI - نشمي
-                    </span>
-                  );
-                })}
+          {editMode === "sidebar" ? (
+            <div ref={cvPreviewRef} style={{ maxWidth: 794, margin: "0 auto", boxShadow: "0 8px 40px rgba(0,0,0,0.5)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
+              <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
+              {!isPaid && renderWatermarkGrid()}
+            </div>
+          ) : (
+            <>
+              {/* Click-to-edit canvas: every section opens its editor panel */}
+              <div style={{ maxWidth: 794, margin: "0 auto", boxShadow: "0 8px 40px rgba(0,0,0,0.5)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
+                <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={setActivePanel}/>
+                {!isPaid && renderWatermarkGrid()}
               </div>
-            )}
-          </div>
+              {/* Hidden untouched CVPreview — the PDF export source (logic unchanged) */}
+              <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
+                <div ref={cvPreviewRef} style={{ width: 794 }}>
+                  <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Hidden off-screen preview of the OTHER language (Elite only) — used for dual-PDF export */}
           {isElite && otherLangCv && (
@@ -1412,6 +1673,63 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             </button>
           </div>
         </div>
+      )}
+
+      {/* ── Click-to-edit editor panel: bottom sheet (mobile) / side panel (desktop) ── */}
+      {editMode === "canvas" && activePanel && (
+        <>
+          <style>{`
+            @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+            @keyframes panelIn { from { transform: translateX(100%); opacity: 0.4; } to { transform: translateX(0); opacity: 1; } }
+            .editor-panel {
+              position: fixed; z-index: 3000; background: #1A1A2E;
+              display: flex; flex-direction: column;
+              box-shadow: 0 -8px 40px rgba(0,0,0,0.5);
+            }
+            @media (max-width: 767px) {
+              .editor-panel {
+                bottom: 0; left: 0; right: 0; width: 100%;
+                max-height: 70vh;
+                border-radius: 20px 20px 0 0;
+                border-top: 1px solid ${P.border};
+                animation: sheetUp 0.3s ease;
+              }
+              .editor-panel-handle { display: block; }
+            }
+            @media (min-width: 768px) {
+              .editor-panel {
+                top: 52px; right: 0; width: 360px;
+                height: calc(100vh - 52px);
+                border-left: 1px solid ${P.border};
+                animation: panelIn 0.3s ease;
+              }
+              .editor-panel-handle { display: none; }
+            }
+          `}</style>
+          <div ref={editorPanelRef} className="editor-panel" style={{ direction: isAr ? "rtl" : "ltr", fontFamily: ff }}>
+            {/* Drag handle (mobile bottom sheet) */}
+            <div className="editor-panel-handle" style={{ width: 40, height: 4, borderRadius: 99, background: P.borderLight, margin: "10px auto 0", flexShrink: 0 }}/>
+
+            {/* Header: title + Save + close */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 16px", borderBottom: `1px solid ${P.border}`, flexShrink: 0 }}>
+              <span style={{ color: P.text, fontWeight: 800, fontSize: 14 }}>✎ {panelTitle(activePanel)}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={() => setActivePanel(null)} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontSize: 12, fontWeight: 800, fontFamily: ff, boxShadow: `0 4px 16px ${P.violet}44` }}>
+                  {isAr ? "حفظ" : "Save"}
+                </button>
+                <button onClick={() => setActivePanel(null)} aria-label={isAr ? "إغلاق" : "Close"} style={{ background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+              </div>
+            </div>
+
+            {/* Fields */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px" }}>
+              {renderPanelContent(activePanel)}
+              <div style={{ color: P.muted, fontSize: 11, textAlign: "center", marginTop: 10 }}>
+                {isAr ? "يتم الحفظ تلقائياً أثناء الكتابة" : "Changes are saved automatically as you type"}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── Mandatory export confirmation + Nashmi rating modal ── */}
