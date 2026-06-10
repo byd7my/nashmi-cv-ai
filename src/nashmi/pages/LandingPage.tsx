@@ -217,7 +217,7 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
               {isAr ? "قبل وبعد تحسين AI" : "Before & After AI Improvement"}
             </h2>
           </div>
-          <div display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
             {/* Before */}
             <div style={{ background: P.card, border: `1px solid ${P.red}44`, borderRadius: 16, padding: "24px 22px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
