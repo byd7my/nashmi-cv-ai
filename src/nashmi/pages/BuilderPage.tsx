@@ -755,7 +755,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   return (
     <div style={{ minHeight: "100vh", background: P.bg, direction: isAr ? "rtl" : "ltr", fontFamily: ff, display: "flex", flexDirection: "column" }}>
       {/* ── Top bar ─────────────────────────────────────────── */}
-      <div style={{ height: 60, background: P.surface, borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", padding: "0 20px", gap: 14, flexShrink: 0 }}>
+      <div className="builder-topbar" style={{ height: 60, background: P.surface, borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", padding: "0 20px", gap: 14, flexShrink: 0, flexWrap: "wrap" }}>
         <button onClick={() => onNav("landing")} style={{ background: "none", border: `1px solid ${P.border}`, color: P.muted, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontFamily: ff, whiteSpace: "nowrap" }}>
           {isAr ? "→ الرئيسية" : "← Home"}
         </button>
@@ -805,9 +805,18 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       )}
 
       {/* ── Main layout ──────────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .builder-main { flex-direction: column !important; overflow: visible !important; }
+          .builder-sidebar { width: 100% !important; max-height: 420px; border-right: none !important; border-left: none !important; border-bottom: 1px solid ${P.border} !important; }
+          .builder-preview { padding: 12px !important; }
+          .builder-topbar { flex-wrap: wrap; gap: 8px !important; height: auto !important; padding: 10px 12px !important; }
+          .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }
+        }
+      `}</style>
+      <div className="builder-main" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Form sidebar */}
-        <div style={{ width: 300, background: P.surface, borderRight: isAr ? "none" : `1px solid ${P.border}`, borderLeft: isAr ? `1px solid ${P.border}` : "none", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <div className="builder-sidebar" style={{ width: 300, background: P.surface, borderRight: isAr ? "none" : `1px solid ${P.border}`, borderLeft: isAr ? `1px solid ${P.border}` : "none", display: "flex", flexDirection: "column", flexShrink: 0 }}>
           {/* Section nav */}
           <div style={{ padding: "12px 8px", borderBottom: `1px solid ${P.border}` }}>
             {SECTIONS.map((label, i) => (
@@ -829,7 +838,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </div>
 
         {/* CV Preview */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 24, background: "#2A2A3E22" }}>
+        <div className="builder-preview" style={{ flex: 1, overflowY: "auto", padding: 24, background: "#2A2A3E22" }}>
           <EliteImportFeature
             userSubscriptionTier={currentPlan}
             uiLang={isAr ? "ar" : "en"}
