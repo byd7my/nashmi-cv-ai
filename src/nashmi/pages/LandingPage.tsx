@@ -63,7 +63,7 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
   return (
     <PageShell lang={lang} t={t} onNav={onNav} onLangToggle={onLangToggle} page={page}>
       {/* ── HERO ─────────────────────────────────────────────── */}
-      <section style={{ paddingTop: 120, paddingBottom: 80, textAlign: "center", direction: isAr ? "rtl" : "ltr", position: "relative", overflow: "hidden" }}>
+      <section style={{ paddingTop: "clamp(80px, 15vw, 120px)", paddingBottom: "clamp(40px, 8vw, 80px)", textAlign: "center", direction: isAr ? "rtl" : "ltr", position: "relative", overflow: "hidden" }}>
         {/* Glow orbs */}
         <div style={{ position: "absolute", top: "10%", left: "20%", width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${P.violet}18 0%, transparent 70%)`, pointerEvents: "none", zIndex: 0 }}/>
         <div style={{ position: "absolute", top: "30%", right: "10%", width: 400, height: 400, borderRadius: "50%", background: `radial-gradient(circle, ${P.violetLight}10 0%, transparent 70%)`, pointerEvents: "none", zIndex: 0 }}/>
@@ -165,7 +165,7 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
       {/* ── ATS MATCH SCORE DEMO ──────────────────────────────── */}
       <Section>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 80px", direction: isAr ? "rtl" : "ltr" }}>
-          <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 24, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: 320 }}>
+          <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 24, overflow: "hidden", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", minHeight: 320}}>
             <div style={{ padding: "48px 40px", background: `linear-gradient(135deg, ${P.violet}14, transparent)`, borderRight: isAr ? "none" : `1px solid ${P.border}`, borderLeft: isAr ? `1px solid ${P.border}` : "none" }}>
               <div style={{ marginBottom: 12 }}><VioletBadge>{isAr ? "جديد" : "New"}</VioletBadge></div>
               <h2 style={{ color: P.text, fontSize: "clamp(20px,3vw,32px)", fontWeight: 900, fontFamily: ff, marginBottom: 14 }}>
@@ -217,7 +217,7 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
               {isAr ? "قبل وبعد تحسين AI" : "Before & After AI Improvement"}
             </h2>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20
             {/* Before */}
             <div style={{ background: P.card, border: `1px solid ${P.red}44`, borderRadius: 16, padding: "24px 22px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
