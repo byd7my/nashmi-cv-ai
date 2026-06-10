@@ -49,9 +49,198 @@ const Txta = memo(function Txta({ label, value, onChange, placeholder, rows = 4,
 // All AI client integrations were removed from this project. Any feature
 // that previously called the AI gateway now throws a localized error so the
 // caller can show a friendly toast.
-async function callAI(_task: string, _text: string, lang: string, _extra?: Record<string, unknown>): Promise<{ text?: string; json?: unknown }> {
+// ── Gemini API ─────────────────────────────────────────────────────────────
+const GEMINI_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
+async function callGeminiRaw(prompt: string): Promise<string> {
+  const key = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!key) throw new Error("VITE_GEMINI_API_KEY is not set");
+  const res = await fetch(`${GEMINI_URL}?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+    }),
+  });
+  if (!res.ok) throw new Error(`Gemini error: ${res.status}`);
+  const data = await res.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+}
+
+async function callAI(task: string, text: string, lang: string, extra?: Record<string, unknown>): Promise<{ text?: string; json?: unknown }> {
   const isAr = (lang || "").startsWith("ar");
-  throw new Error(isAr ? "ميزة الذكاء الاصطناعي غير متاحة حالياً." : "AI features are currently unavailable.");
+  const outLang = isAr
+    ? "اكتب الناتج باللغة العربية الفصحى المهنية فقط."
+    : "Write the output in professional English only.";
+
+  // ── برومت الملخص المهني ────────────────────────────────────────────────
+  if (task === "improve_summary") {
+    const cv = (extra as any)?.cv;
+    const expText = cv?.experience?.map((e: any) =>
+      `- ${e.role} في ${e.company} (${e.from} - ${e.to}): ${e.desc}`
+    ).join("\n") ?? text;
+    const eduText = cv?.education?.map((e: any) =>
+      `- ${e.degree} ${e.field} من ${e.school} (${e.from}-${e.to})${e.gpa ? ` | GPA: ${e.gpa}/${e.gpaScale}` : ""}${e.honors ? ` | ${e.honors}` : ""}`
+    ).join("\n") ?? "";
+    const certsText = cv?.certifications?.map((c: any) =>
+      `- ${c.title}${c.issuer ? ` | ${c.issuer}` : ""}${c.date ? ` (${c.date})` : ""}`
+    ).join("\n") ?? "";
+
+    const prompt = `
+أنت خبير في كتابة السير الذاتية الاحترافية المتوافقة مع أنظمة ATS.
+
+المهمة: أعد كتابة الملخص المهني بشكل احترافي ومتوافق مع ATS بناءً على جميع المعلومات المتاحة.
+
+الملخص الحالي:
+${text}
+
+الخبرة المهنية:
+${expText}
+
+${eduText ? `التعليم:\n${eduText}` : ""}
+${certsText ? `الشهادات والدورات:\n${certsText}` : ""}
+
+القواعد:
+- اكتب 3-5 جمل قوية ومركزة
+- ابدأ بالمسمى الوظيفي وسنوات الخبرة
+- اذكر أبرز الإنجازات والمهارات التقنية
+- استخدم كلمات مفتاحية مناسبة لأنظمة ATS
+- لا تستخدم ضمير المتكلم (أنا، I)
+- اذكر الشهادات والمؤهلات إن وجدت
+- لا تضف أي تعليق أو شرح، فقط الملخص المعاد كتابته
+
+${outLang}
+    `.trim();
+    const result = await callGeminiRaw(prompt);
+    return { text: result.trim() };
+  }
+
+  // ── برومت تحسين المهام والإنجازات ─────────────────────────────────────
+  if (task.startsWith("improve_exp-")) {
+    const cv = (extra as any)?.cv;
+    const idx = parseInt(task.replace("improve_exp-", ""), 10);
+    const exp = cv?.experience?.[idx];
+    const role = exp?.role ?? "";
+    const company = exp?.company ?? "";
+
+    const prompt = `
+أنت خبير في كتابة السير الذاتية الاحترافية المتوافقة مع أنظمة ATS.
+
+المهمة: حسّن نقاط المهام والإنجازات للوظيفة التالية.
+
+المسمى الوظيفي: ${role}
+الشركة: ${company}
+النقاط الحالية:
+${text}
+
+القواعد:
+- حافظ على نفس عدد النقاط أو أضف نقطة إضافية إن لزم
+- ابدأ كل نقطة بفعل قوي (طوّر، أدار، خفّض، حقق، نفّذ...)
+- أضف أرقاماً وإحصاءات إن أمكن استنتاجها من السياق
+- اجعل النقاط متوافقة مع ATS
+- لا تضف أي تعليق، فقط النقاط المحسّنة
+
+${outLang}
+    `.trim();
+    const result = await callGeminiRaw(prompt);
+    return { text: result.trim() };
+  }
+
+  // ── برومت اقتراح المهارات ──────────────────────────────────────────────
+  if (task === "improve_skills") {
+    const cv = (extra as any)?.cv;
+    const titles = cv?.experience?.map((e: any) => e.role).filter(Boolean).join(", ") ?? "";
+    const fields = cv?.education?.map((e: any) => `${e.degree} ${e.field}`).filter(Boolean).join(", ") ?? "";
+    const existing = cv?.skills?.join(", ") ?? text;
+
+    const prompt = `
+أنت خبير في كتابة السير الذاتية الاحترافية المتوافقة مع أنظمة ATS.
+
+المهمة: اقترح قائمة مهارات احترافية ومتوافقة مع ATS.
+
+المسميات الوظيفية: ${titles}
+التخصص الأكاديمي: ${fields}
+المهارات الحالية: ${existing}
+
+القواعد:
+- اقترح 10-15 مهارة مناسبة للتخصص والمسمى الوظيفي
+- اشمل مهارات تقنية وشخصية وإدارية
+- لا تكرر المهارات الموجودة
+- اكتب كل مهارة في سطر منفصل بدون ترقيم أو رموز
+- لا تضف أي تعليق، فقط قائمة المهارات
+
+${outLang}
+    `.trim();
+    const result = await callGeminiRaw(prompt);
+    // نحول النتيجة لقائمة نظيفة
+    const skills = result
+      .split("\n")
+      .map((s: string) => s.replace(/^[-•*\d.)\s]+/, "").trim())
+      .filter((s: string) => s.length > 1);
+    return { text: skills.join("\n"), json: skills };
+  }
+
+  // ── تحليل السيرة عند الاستيراد ─────────────────────────────────────────
+  if (task === "parse_cv") {
+    const prompt = `
+Extract resume data from the following text and return ONLY a valid JSON object with this exact structure:
+{
+  "personal": { "name": "", "title": "", "email": "", "phone": "", "city": "", "linkedin": "", "website": "" },
+  "summary": "",
+  "experience": [{ "role": "", "company": "", "from": "", "to": "", "desc": "" }],
+  "education": [{ "school": "", "degree": "", "field": "", "from": "", "to": "", "gpa": "", "gpaScale": "5", "honors": "", "showGpa": false }],
+  "certifications": [{ "title": "", "issuer": "", "date": "" }],
+  "skills": [],
+  "languages": [{ "lang": "", "level": "" }]
+}
+
+Resume text:
+${text}
+
+Return ONLY the JSON, no explanation, no markdown, no code blocks.
+    `.trim();
+    const result = await callGeminiRaw(prompt);
+    const clean = result.replace(/```json|```/g, "").trim();
+    try {
+      return { json: JSON.parse(clean) };
+    } catch {
+      return { text: result };
+    }
+  }
+
+  // ── Copilot ────────────────────────────────────────────────────────────
+  if (task === "copilot") {
+    const cv = (extra as any)?.cv;
+    const history = ((extra as any)?.history ?? []) as { role: string; content: string }[];
+    const cvSummary = JSON.stringify({
+      name: cv?.personal?.name,
+      title: cv?.personal?.title,
+      summary: cv?.summary,
+      skills: cv?.skills,
+      experience: cv?.experience?.map((e: any) => ({ role: e.role, company: e.company })),
+    });
+    const historyText = history.map((h: any) => `${h.role === "user" ? "User" : "Assistant"}: ${h.content}`).join("\n");
+    const prompt = `
+You are an expert resume writing assistant. Help the user improve their resume.
+
+Current resume data:
+${cvSummary}
+
+Conversation history:
+${historyText}
+
+User: ${text}
+
+Respond in ${isAr ? "Arabic" : "English"} concisely and helpfully.
+    `.trim();
+    const result = await callGeminiRaw(prompt);
+    return { text: result.trim() };
+  }
+
+  // fallback
+  throw new Error(isAr ? "مهمة AI غير معروفة." : "Unknown AI task.");
 }
 
 interface Props {
@@ -207,15 +396,26 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   // ── AI improve section ─────────────────────────────────────────────────
   async function aiImprove(section: string, text: string) {
-    if (!text.trim()) return;
+    if (!text.trim() && section === "summary") {
+      // allow empty summary — Gemini will use the rest of the CV
+    } else if (!text.trim()) return;
     setAiLoading(section);
     track("ai_improvement_used", { section });
     const before = text;
     try {
-      const data = await callAI(`improve_${section}`, text, aiLang);
+      const data = await callAI(`improve_${section}`, text, aiLang, { cv });
       const after = (data.text || "").trim();
       if (after) {
-        setBeforeAfter({ section, before, after });
+        // للمهارات: نضيف القائمة مباشرة بدل BeforeAfter
+        if (section === "skills" && Array.isArray(data.json)) {
+          const newSkills = (data.json as string[]).filter(s => !cv.skills.includes(s));
+          if (newSkills.length > 0) {
+            setCv(prev => ({ ...prev, skills: [...prev.skills, ...newSkills] }));
+            sonnerToast.success(isAr ? `✓ أُضيفت ${newSkills.length} مهارة` : `✓ Added ${newSkills.length} skills`);
+          }
+        } else {
+          setBeforeAfter({ section, before, after });
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
