@@ -5,6 +5,7 @@ import { ATSRing } from "@/nashmi/components/ATSRing";
 import { PageShell } from "@/nashmi/components/PageShell";
 import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
+import { getReviews, subscribeToReviews, type UserReview } from "@/nashmi/lib/reviews";
 
 interface Props {
   lang: TrLang;
@@ -41,6 +42,12 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
   const ff = FF;
   const [demoScore, setDemoScore] = useState(34);
   const [atsAnimated, setAtsAnimated] = useState(false);
+  const [userReviews, setUserReviews] = useState<UserReview[]>([]);
+
+  useEffect(() => {
+    setUserReviews(getReviews());
+    return subscribeToReviews(() => setUserReviews(getReviews()));
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -260,18 +267,58 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
         </div>
       </Section>
 
-      {/* ── TESTIMONIALS ─────────────────────────────────────── */}
-      <Section>
+      {/* ── TESTIMONIALS / تقييم أصدقاء نشمي ───────────────────── */}
+      <Section id="testimonials">
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 80px", direction: isAr ? "rtl" : "ltr" }}>
           <div style={{ textAlign: "center", marginBottom: 44 }}>
             <div style={{ marginBottom: 12 }}><VioletBadge>{isAr ? "آراء العملاء" : "Testimonials"}</VioletBadge></div>
             <h2 style={{ color: P.text, fontSize: "clamp(22px,3.5vw,38px)", fontWeight: 900, fontFamily: ff }}>
-              {isAr ? "قصص نجاح حقيقية" : "Real Success Stories"}
+              {isAr ? "تقييم أصدقاء نشمي" : "Reviews from Nashmi Friends"}
             </h2>
+            {userReviews.length > 0 && (
+              <p style={{ color: P.muted, fontSize: 13, marginTop: 10 }}>
+                {isAr
+                  ? `${userReviews.length} ${userReviews.length === 1 ? "تقييم" : "تقييماً"} من المستخدمين`
+                  : `${userReviews.length} review${userReviews.length === 1 ? "" : "s"} from real users`}
+              </p>
+            )}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+            {userReviews.map((r) => {
+              const stars = Math.min(5, Math.max(1, r.rating));
+              const displayName = r.name && r.name.trim()
+                ? r.name
+                : (isAr ? "صديق نشمي" : "Nashmi Friend");
+              const initials = displayName
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase() || (isAr ? "نش" : "N");
+              return (
+                <div key={r.id} style={{ background: `linear-gradient(160deg, ${P.violet}1A, ${P.card} 70%)`, border: `1px solid ${P.violet}55`, borderRadius: 18, padding: "26px 22px", position: "relative", boxShadow: `0 0 30px ${P.violet}1A` }}>
+                  <div style={{ position: "absolute", top: 16, [isAr ? "left" : "right"]: 16, background: `${P.violet}33`, color: P.violetLight, fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 99, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                    {isAr ? "جديد" : "New"}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: "50%", background: `linear-gradient(135deg, ${P.violet}66, ${P.violetLight}44)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: P.violetLight, flexShrink: 0 }}>{initials}</div>
+                    <div>
+                      <div style={{ color: P.text, fontWeight: 700, fontSize: 14, fontFamily: ff }}>{displayName}</div>
+                      <div style={{ color: P.muted, fontSize: 12 }}>
+                        {isAr ? "تقييم بعد التصدير" : "Posted after export"}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ color: P.gold, marginBottom: 8, letterSpacing: 2 }}>
+                    {"★".repeat(stars)}<span style={{ color: `${P.muted}66` }}>{"★".repeat(5 - stars)}</span>
+                  </div>
+                  <p style={{ color: P.textSub, fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>"{r.text}"</p>
+                </div>
+              );
+            })}
             {t.testimonials.map((tm, i) => (
-              <div key={i} style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 18, padding: "26px 22px", position: "relative" }}>
+              <div key={`seed-${i}`} style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 18, padding: "26px 22px", position: "relative" }}>
                 <div style={{ position: "absolute", top: 20, [isAr ? "left" : "right"]: 20 }}>
                   <ATSRing score={tm.score} size={48}/>
                 </div>

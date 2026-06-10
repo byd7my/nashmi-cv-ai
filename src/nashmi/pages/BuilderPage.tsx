@@ -11,6 +11,7 @@ import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImportFeature";
+import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 
 const FF2 = FF;
 
@@ -372,6 +373,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const hasPremiumPackage = userTier === "premium";
   const isPaid = hasElitePackage || hasPremiumPackage;
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const jsonImportRef = useRef<HTMLInputElement>(null);
@@ -689,6 +691,16 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch { /* ignore */ }
+  }
+
+  // Opens the mandatory confirmation/review modal before running the actual PDF export.
+  function requestExport() {
+    track("download_attempted", { tier: userTier });
+    if (!canExport) {
+      setShowUpgrade(true);
+      return;
+    }
+    setShowExportConfirm(true);
   }
 
   // ── PDF Export (client-side) ────────────────────────────────────────────
@@ -1073,7 +1085,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </button>
 
         {/* Export */}
-        <button onClick={() => { track("download_attempted", { tier: userTier }); exportPDF(); }} disabled={exportingPdf} style={{ background: canExport ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : P.surface, border: canExport ? "none" : `1px solid ${P.border}`, color: canExport ? "#fff" : P.muted, borderRadius: 8, padding: "7px 14px", cursor: exportingPdf ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 800, fontFamily: ff, display: "flex", alignItems: "center", gap: 5, boxShadow: canExport ? `0 4px 16px ${P.violet}44` : "none", whiteSpace: "nowrap", opacity: exportingPdf ? 0.75 : 1 }}>
+        <button onClick={requestExport} disabled={exportingPdf} style={{ background: canExport ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : P.surface, border: canExport ? "none" : `1px solid ${P.border}`, color: canExport ? "#fff" : P.muted, borderRadius: 8, padding: "7px 14px", cursor: exportingPdf ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 800, fontFamily: ff, display: "flex", alignItems: "center", gap: 5, boxShadow: canExport ? `0 4px 16px ${P.violet}44` : "none", whiteSpace: "nowrap", opacity: exportingPdf ? 0.75 : 1 }}>
           {exportingPdf ? "⏳" : canExport ? "⬇" : "🔒"} {exportingPdf ? (isAr ? "جارٍ..." : "…") : t.export}
         </button>
       </div>
@@ -1401,6 +1413,18 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           </div>
         </div>
       )}
+
+      {/* ── Mandatory export confirmation + Nashmi rating modal ── */}
+      <ExportConfirmModal
+        lang={lang}
+        open={showExportConfirm}
+        defaultName={cv.personal?.name}
+        onClose={() => setShowExportConfirm(false)}
+        onConfirm={() => {
+          setShowExportConfirm(false);
+          exportPDF();
+        }}
+      />
 
       {/* ── Toast notification ─────────────────────────────── */}
       {toast && (
