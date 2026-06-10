@@ -65,7 +65,7 @@ interface Props {
   setCurrentPlan: (plan: string) => void;
 }
 
-type Section = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+type Section = -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, currentPlan, setCurrentPlan }: Props) {
   const isAr = lang === "ar";
@@ -808,32 +808,51 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       <style>{`
         @media (max-width: 768px) {
           .builder-main { flex-direction: column !important; overflow: visible !important; }
-          .builder-sidebar { width: 100% !important; max-height: 420px; border-right: none !important; border-left: none !important; border-bottom: 1px solid ${P.border} !important; }
+          .builder-sidebar { width: 100% !important; max-height: none; border-right: none !important; border-left: none !important; border-bottom: 1px solid ${P.border} !important; }
           .builder-preview { padding: 12px !important; }
           .builder-topbar { flex-wrap: wrap; gap: 8px !important; height: auto !important; padding: 10px 12px !important; }
           .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }
         }
       `}</style>
       <div className="builder-main" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Form sidebar */}
+        {/* Form sidebar — Accordion */}
         <div className="builder-sidebar" style={{ width: 300, background: P.surface, borderRight: isAr ? "none" : `1px solid ${P.border}`, borderLeft: isAr ? `1px solid ${P.border}` : "none", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-          {/* Section nav */}
-          <div style={{ padding: "12px 8px", borderBottom: `1px solid ${P.border}` }}>
-            {SECTIONS.map((label, i) => (
-              <button key={i} onClick={() => setActiveSection(i as Section)} style={{
-                width: "100%", textAlign: isAr ? "right" : "left", padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: activeSection === i ? 700 : 400, fontFamily: ff, marginBottom: 2,
-                background: activeSection === i ? `${P.violet}22` : "transparent",
-                color: activeSection === i ? P.violetLight : P.muted,
-                transition: "all 0.15s",
-              }}>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Form content */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "20px 14px" }}>
-            {renderFormSection()}
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {SECTIONS.map((label, i) => {
+              const icons = ["👤","📝","💼","🎓","🏅","⚡","🌐"];
+              const isOpen = activeSection === i;
+              return (
+                <div key={i} style={{ borderBottom: `1px solid ${P.border}` }}>
+                  {/* Accordion header */}
+                  <button
+                    onClick={() => setActiveSection(isOpen ? -1 as Section : i as Section)}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center",
+                      justifyContent: "space-between", padding: "14px 16px",
+                      background: isOpen ? `${P.violet}18` : "transparent",
+                      border: "none", cursor: "pointer", direction: isAr ? "rtl" : "ltr",
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 16 }}>{icons[i]}</span>
+                      <span style={{ color: isOpen ? P.violetLight : P.text, fontSize: 14, fontWeight: isOpen ? 700 : 500, fontFamily: ff }}>
+                        {label}
+                      </span>
+                    </div>
+                    <span style={{ color: isOpen ? P.violetLight : P.muted, fontSize: 18, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", lineHeight: 1 }}>
+                      ‹
+                    </span>
+                  </button>
+                  {/* Accordion content */}
+                  {isOpen && (
+                    <div style={{ padding: "16px 14px", background: P.bg }}>
+                      {renderFormSection()}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
