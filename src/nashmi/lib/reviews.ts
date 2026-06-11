@@ -14,7 +14,43 @@ const EVENT_NAME = "nashmi-reviews-updated";
 
 // Rolling window: keep only the newest MAX_REVIEWS. A new review pushes out
 // the oldest one so the landing section always shows the latest feedback.
-const MAX_REVIEWS = 6;
+export const MAX_REVIEWS = 6;
+
+const SEED_REVIEW_NAMES = new Set([
+  "سارة المطيري",
+  "خالد الرشيدي",
+  "عمر الزهراني",
+  "ريان فهد",
+  "khalid al-rashidi",
+  "omar al-zahrani",
+  "sarah al-mutairi",
+  "ryan fahed",
+]);
+
+function isSeedReview(review: UserReview): boolean {
+  const name = review.name?.trim().toLowerCase() ?? "";
+  if (name && [...SEED_REVIEW_NAMES].some((seed) => name.includes(seed))) return true;
+  const text = review.text.toLowerCase();
+  return (
+    text.includes("62% ats to 97%") ||
+    text.includes("62% ats إلى 97%") ||
+    text.includes("hired at ministry of health") ||
+    text.includes("وزارة الصحة") ||
+    text.includes("snb hr called me") ||
+    text.includes("عروض العمل مباشرة")
+  );
+}
+
+function normalizeReviews(reviews: UserReview[]): UserReview[] {
+  return reviews
+    .filter(
+      (r): r is UserReview =>
+        r && typeof r === "object" && typeof r.rating === "number" && typeof r.text === "string",
+    )
+    .filter((r) => !isSeedReview(r))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, MAX_REVIEWS);
+}
 
 export function getReviews(): UserReview[] {
   if (typeof window === "undefined") return [];
@@ -23,10 +59,15 @@ export function getReviews(): UserReview[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
+    const stored = parsed.filter(
       (r): r is UserReview =>
         r && typeof r === "object" && typeof r.rating === "number" && typeof r.text === "string",
     );
+    const normalized = normalizeReviews(stored);
+    if (JSON.stringify(normalized) !== JSON.stringify(stored)) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
   } catch {
     return [];
   }
@@ -43,8 +84,7 @@ export function addReview(input: { name?: string; rating: number; text: string }
 
   if (typeof window !== "undefined") {
     try {
-      const all = getReviews();
-      const next = [review, ...all].slice(0, MAX_REVIEWS);
+      const next = normalizeReviews([review, ...getReviews()]);
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       window.dispatchEvent(new CustomEvent(EVENT_NAME));
     } catch {

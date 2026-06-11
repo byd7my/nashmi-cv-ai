@@ -97,11 +97,6 @@ export const TR = {
         ],
       },
     ],
-    testimonials: [
-      { name: "Khalid Al-Rashidi", role: "Senior Engineer · STC",                   score: 97, text: "Nashmi rewrote my entire resume in under 10 minutes. I went from 62% ATS to 97%. Got 3 interviews in one week.", avatar: "KA" },
-      { name: "سارة المطيري",      role: "Project Manager · Ministry of Health",    score: 95, text: "الذكاء الاصطناعي كتب سيرتي الذاتية بالعربي باحترافية عالية. حصلت على وظيفتي في وزارة الصحة خلال أسبوعين.", avatar: "SM" },
-      { name: "Omar Al-Zahrani",   role: "Financial Analyst · SNB",                 score: 96, text: "The ATS optimizer is incredible. My resume now passes every ATS system. SNB HR called me directly.", avatar: "OZ" },
-    ],
     faq: [
       { q: "Is Nashmi free to use?",              a: "Previewing your resume is always free — no credit card needed. However, downloading a high-quality PDF or DOCX file requires a paid subscription (Premium at 19.99 SAR or Elite at 34.99 SAR)." },
       { q: "Can I download my resume for free?",  a: "No. PDF and DOCX downloads require a paid plan. The Starter plan lets you preview your resume in full with ATS scoring, but the export button is locked. Upgrade to Premium or Elite to download." },
@@ -202,11 +197,6 @@ export const TR = {
           { text: "علامة تجارية مخصصة",              included: true  },
         ],
       },
-    ],
-    testimonials: [
-      { name: "خالد الرشيدي",  role: "مهندس برمجيات أول",           score: 97, text: "نشمي أعاد كتابة سيرتي الذاتية في أقل من 10 دقائق. انتقلت من 62% ATS إلى 97%. حصلت على 3 مقابلات في أسبوع واحد.", avatar: "خر" },
-      { name: "سارة المطيري",  role: "مديرة مشاريع معتمدة PMP",     score: 95, text: "الذكاء الاصطناعي كتب سيرتي الذاتية بالعربي باحترافية عالية. حصلت على وظيفتي المثالية خلال أسبوعين فقط.", avatar: "سم" },
-      { name: "عمر الزهراني", role: "محلل مالي معتمد CFA",          score: 96, text: "محلل ATS رائع. سيرتي الآن تتجاوز كل أنظمة الفرز الآلي. بدأت تصلني عروض العمل مباشرة.", avatar: "عز" },
     ],
     faq: [
       { q: "هل نشمي مجاني؟",                      a: "المعاينة مجانية دائماً — دون بطاقة ائتمانية. أما تحميل ملف PDF أو DOCX بجودة عالية فيتطلب دفعة واحدة فقط (مميز بـ 19.99 ريال أو النخبة بـ 34.99 ريال)." },

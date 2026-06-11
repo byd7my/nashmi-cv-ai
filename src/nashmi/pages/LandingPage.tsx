@@ -442,7 +442,7 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
               {isAr ? "ابدأ رحلتك المهنية اليوم" : "Start Your Career Journey Today"}
             </h2>
             <p style={{ color: P.muted, fontSize: 15, marginBottom: 28, lineHeight: 1.7, maxWidth: 500, margin: "0 auto 28px" }}>
-              {isAr ? "انضم إلى أكثر من 10,000 محترف استخدموا نشمي للحصول على وظيفة أحلامهم." : "Join 10,000+ professionals who used Nashmi to land their dream job."}
+              {isAr ? "أنشئ سيرة ذاتية احترافية متوافقة مع ATS في دقائق — مجاناً للمعاينة." : "Build a professional ATS-ready resume in minutes — preview free."}
             </p>
             <button onClick={() => onNav("builder")} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 12, padding: "16px 36px", cursor: "pointer", fontSize: 17, fontWeight: 800, fontFamily: ff, boxShadow: `0 6px 32px ${P.violet}55`, transition: "transform 0.2s" }}
               onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)"}
