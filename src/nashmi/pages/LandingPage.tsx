@@ -161,21 +161,6 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
               ))}
             </div>
           </div>
-
-          {/* Social proof */}
-          <div style={{ marginTop: 32, display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ display: "flex" }}>
-              {["KA","SM","OZ","NM","FA"].map((a, i) => (
-                <div key={i} style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${P.violet}66, ${P.violetLight}44)`, border: `2px solid ${P.bg}`, marginLeft: i === 0 ? 0 : -10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: P.violetLight }}>
-                  {a}
-                </div>
-              ))}
-            </div>
-            <div>
-              <div style={{ color: P.gold }}>★★★★★</div>
-              <div style={{ color: P.muted, fontSize: 12 }}>{isAr ? "أكثر من 10,000 سيرة ذاتية تم إنشاؤها" : "10,000+ resumes built"}</div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -316,57 +301,55 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
               </p>
             )}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
-            {userReviews.map((r) => {
-              const stars = Math.min(5, Math.max(1, r.rating));
-              const displayName = r.name && r.name.trim()
-                ? r.name
-                : (isAr ? "صديق نشمي" : "Nashmi Friend");
-              const initials = displayName
-                .split(/\s+/)
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((w) => w[0])
-                .join("")
-                .toUpperCase() || (isAr ? "نش" : "N");
-              return (
-                <div key={r.id} style={{ background: `linear-gradient(160deg, ${P.violet}1A, ${P.card} 70%)`, border: `1px solid ${P.violet}55`, borderRadius: 18, padding: "26px 22px", position: "relative", boxShadow: `0 0 30px ${P.violet}1A` }}>
-                  <div style={{ position: "absolute", top: 16, [isAr ? "left" : "right"]: 16, background: `${P.violet}33`, color: P.violetLight, fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 99, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                    {isAr ? "جديد" : "New"}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-                    <div style={{ width: 44, height: 44, borderRadius: "50%", background: `linear-gradient(135deg, ${P.violet}66, ${P.violetLight}44)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: P.violetLight, flexShrink: 0 }}>{initials}</div>
-                    <div>
-                      <div style={{ color: P.text, fontWeight: 700, fontSize: 14, fontFamily: ff }}>{displayName}</div>
-                      <div style={{ color: P.muted, fontSize: 12 }}>
-                        {isAr ? "تقييم بعد التصدير" : "Posted after export"}
+          {userReviews.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+              {userReviews.map((r) => {
+                const stars = Math.min(5, Math.max(1, r.rating));
+                const displayName = r.name && r.name.trim()
+                  ? r.name
+                  : (isAr ? "صديق نشمي" : "Nashmi Friend");
+                const initials = displayName
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w) => w[0])
+                  .join("")
+                  .toUpperCase() || (isAr ? "نش" : "N");
+                return (
+                  <div key={r.id} style={{ background: `linear-gradient(160deg, ${P.violet}1A, ${P.card} 70%)`, border: `1px solid ${P.violet}55`, borderRadius: 18, padding: "26px 22px", position: "relative", boxShadow: `0 0 30px ${P.violet}1A` }}>
+                    <div style={{ position: "absolute", top: 16, [isAr ? "left" : "right"]: 16, background: `${P.violet}33`, color: P.violetLight, fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 99, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                      {isAr ? "جديد" : "New"}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: "50%", background: `linear-gradient(135deg, ${P.violet}66, ${P.violetLight}44)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: P.violetLight, flexShrink: 0 }}>{initials}</div>
+                      <div>
+                        <div style={{ color: P.text, fontWeight: 700, fontSize: 14, fontFamily: ff }}>{displayName}</div>
+                        <div style={{ color: P.muted, fontSize: 12 }}>
+                          {isAr ? "تقييم بعد التصدير" : "Posted after export"}
+                        </div>
                       </div>
                     </div>
+                    <div style={{ color: P.gold, marginBottom: 8, letterSpacing: 2 }}>
+                      {"★".repeat(stars)}<span style={{ color: `${P.muted}66` }}>{"★".repeat(5 - stars)}</span>
+                    </div>
+                    <p style={{ color: P.textSub, fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>"{r.text}"</p>
                   </div>
-                  <div style={{ color: P.gold, marginBottom: 8, letterSpacing: 2 }}>
-                    {"★".repeat(stars)}<span style={{ color: `${P.muted}66` }}>{"★".repeat(5 - stars)}</span>
-                  </div>
-                  <p style={{ color: P.textSub, fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>"{r.text}"</p>
-                </div>
-              );
-            })}
-            {t.testimonials.map((tm, i) => (
-              <div key={`seed-${i}`} style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 18, padding: "26px 22px", position: "relative" }}>
-                <div style={{ position: "absolute", top: 20, [isAr ? "left" : "right"]: 20 }}>
-                  <ATSRing score={tm.score} size={48}/>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: `linear-gradient(135deg, ${P.violet}66, ${P.violetLight}44)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: P.violetLight, flexShrink: 0 }}>{tm.avatar}</div>
-                  <div>
-                    <div style={{ color: P.text, fontWeight: 700, fontSize: 14, fontFamily: ff }}>{tm.name}</div>
-                    <div style={{ color: P.muted, fontSize: 12 }}>{tm.role}</div>
-                  </div>
-                </div>
-                <div style={{ color: P.gold, marginBottom: 8 }}>★★★★★</div>
-                <p style={{ color: P.textSub, fontSize: 14, lineHeight: 1.7 }}>"{tm.text}"</p>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ maxWidth: 520, margin: "0 auto", textAlign: "center", background: `linear-gradient(160deg, ${P.violet}14, ${P.card} 70%)`, border: `1px dashed ${P.violet}55`, borderRadius: 18, padding: "40px 28px" }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>✦</div>
+              <div style={{ color: P.text, fontWeight: 800, fontSize: 17, fontFamily: ff, marginBottom: 8 }}>
+                {isAr ? "كن أول من يقيّم نشمي" : "Be the first to review Nashmi"}
               </div>
-            ))}
-          </div>
+              <p style={{ color: P.muted, fontSize: 14, lineHeight: 1.7 }}>
+                {isAr
+                  ? "أنشئ سيرتك الذاتية وقيّم تجربتك عند التصدير — سيظهر رأيك هنا مباشرة."
+                  : "Build your resume and rate your experience at export — your review will appear here instantly."}
+              </p>
+            </div>
+          )}
         </div>
       </Section>
 

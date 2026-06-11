@@ -12,6 +12,10 @@ export interface UserReview {
 const STORAGE_KEY = "nashmi-user-reviews";
 const EVENT_NAME = "nashmi-reviews-updated";
 
+// Rolling window: keep only the newest MAX_REVIEWS. A new review pushes out
+// the oldest one so the landing section always shows the latest feedback.
+const MAX_REVIEWS = 6;
+
 export function getReviews(): UserReview[] {
   if (typeof window === "undefined") return [];
   try {
@@ -40,7 +44,7 @@ export function addReview(input: { name?: string; rating: number; text: string }
   if (typeof window !== "undefined") {
     try {
       const all = getReviews();
-      const next = [review, ...all].slice(0, 50);
+      const next = [review, ...all].slice(0, MAX_REVIEWS);
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       window.dispatchEvent(new CustomEvent(EVENT_NAME));
     } catch {
