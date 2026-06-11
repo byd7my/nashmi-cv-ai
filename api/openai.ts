@@ -17,52 +17,80 @@ function formatRetryHours(ms: number): string {
   return hours === 1 ? "1 hour" : `${hours} hours`;
 }
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed", code: "METHOD_NOT_ALLOWED" });
+function jsonResponse(body: Record<string, unknown>, status: number): Response {
+  return Response.json(body, { status });
+}
+
+function toUsageRequest(request: Request) {
+  const headers: Record<string, string | string[] | undefined> = {};
+  request.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  return { headers };
+}
+
+export async function handleOpenAIRequest(request: Request): Promise<Response> {
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed", code: "METHOD_NOT_ALLOWED" }, 405);
   }
 
   const apiKey = getOpenAIApiKey();
   if (!apiKey) {
     const envInfo = describeOpenAIEnv();
     logApiError("Missing OPENAI_API_KEY", new Error("OPENAI_API_KEY is not configured"), envInfo);
-    return res.status(500).json({
-      error:
-        "OPENAI_API_KEY is not configured. Add OPENAI_API_KEY to your .env (local) or Vercel Environment Variables (production).",
-      code: "MISSING_OPENAI_KEY",
-      hint: envInfo.matchingEnvKeys.length
-        ? `Found related env keys: ${envInfo.matchingEnvKeys.join(", ")}`
-        : "No OPENAI_* environment variables were detected.",
-    });
+    return jsonResponse(
+      {
+        error:
+          "OPENAI_API_KEY is not configured. Add OPENAI_API_KEY to your .env (local) or Vercel Environment Variables (production).",
+        code: "MISSING_OPENAI_KEY",
+        hint: envInfo.matchingEnvKeys.length
+          ? `Found related env keys: ${envInfo.matchingEnvKeys.join(", ")}`
+          : "No OPENAI_* environment variables were detected.",
+      },
+      500,
+    );
   }
 
-  const prompt = req.body?.prompt;
-  const usageType = req.body?.usageType;
+  let body: { prompt?: unknown; usageType?: unknown };
+  try {
+    body = (await request.json()) as { prompt?: unknown; usageType?: unknown };
+  } catch {
+    return jsonResponse({ error: "Invalid JSON body", code: "INVALID_JSON" }, 400);
+  }
+
+  const prompt = body.prompt;
+  const usageType = body.usageType;
 
   if (!prompt || typeof prompt !== "string") {
-    return res.status(400).json({ error: "Missing prompt", code: "MISSING_PROMPT" });
+    return jsonResponse({ error: "Missing prompt", code: "MISSING_PROMPT" }, 400);
   }
 
   if (usageType === "improve") {
     try {
-      const usage = await checkAndConsumeAiImproveUsage(req);
+      const usage = await checkAndConsumeAiImproveUsage(toUsageRequest(request));
 
       if (!usage.allowed) {
         const retryIn = formatRetryHours(usage.retryAfterMs);
-        return res.status(429).json({
-          error: `You have reached the limit of ${usage.limit} AI Improve uses. Please try again in about ${retryIn}.`,
-          code: "AI_RATE_LIMIT",
-          limit: usage.limit,
-          remaining: 0,
-          retryAfterMs: usage.retryAfterMs,
-        });
+        return jsonResponse(
+          {
+            error: `You have reached the limit of ${usage.limit} AI Improve uses. Please try again in about ${retryIn}.`,
+            code: "AI_RATE_LIMIT",
+            limit: usage.limit,
+            remaining: 0,
+            retryAfterMs: usage.retryAfterMs,
+          },
+          429,
+        );
       }
     } catch (err: unknown) {
       logApiError("AI usage check failed", err, describeOpenAIEnv());
-      return res.status(500).json({
-        error: err instanceof Error ? err.message : "AI usage check failed",
-        code: "AI_USAGE_CHECK_FAILED",
-      });
+      return jsonResponse(
+        {
+          error: err instanceof Error ? err.message : "AI usage check failed",
+          code: "AI_USAGE_CHECK_FAILED",
+        },
+        500,
+      );
     }
   }
 
@@ -73,13 +101,16 @@ export default async function handler(req: any, res: any) {
 
     if (!text) {
       logApiError("Empty OpenAI response", new Error("OpenAI returned an empty response"), { model });
-      return res.status(502).json({
-        error: "OpenAI returned an empty response",
-        code: "OPENAI_EMPTY_RESPONSE",
-      });
+      return jsonResponse(
+        {
+          error: "OpenAI returned an empty response",
+          code: "OPENAI_EMPTY_RESPONSE",
+        },
+        502,
+      );
     }
 
-    return res.status(200).json({ text });
+    return jsonResponse({ text }, 200);
   } catch (err: unknown) {
     if (err instanceof OpenAI.APIError) {
       logApiError("OpenAI API error", err, {
@@ -96,19 +127,38 @@ export default async function handler(req: any, res: any) {
           ? `Try again in ${retryAfterHeader.trim()}.`
           : "";
 
-      return res.status(err.status ?? 500).json({
-        error: err.message || `OpenAI error ${err.status ?? 500}`,
-        code: "OPENAI_API_ERROR",
-        openaiCode: err.code ?? null,
-        retryAfter,
-      });
+      return jsonResponse(
+        {
+          error: err.message || `OpenAI error ${err.status ?? 500}`,
+          code: "OPENAI_API_ERROR",
+          openaiCode: err.code ?? null,
+          retryAfter,
+        },
+        err.status ?? 500,
+      );
     }
 
     logApiError("Unexpected handler error", err, { model, ...describeOpenAIEnv() });
     const message = err instanceof Error ? err.message : "OpenAI request failed";
-    return res.status(500).json({
-      error: message,
-      code: "OPENAI_REQUEST_FAILED",
-    });
+    return jsonResponse(
+      {
+        error: message,
+        code: "OPENAI_REQUEST_FAILED",
+      },
+      500,
+    );
   }
+}
+
+export default async function handler(req: { method?: string; body?: unknown; headers?: Record<string, string> }, res: {
+  status: (code: number) => { json: (body: unknown) => void };
+}) {
+  const request = new Request("http://localhost/api/openai", {
+    method: req.method ?? "POST",
+    headers: req.headers,
+    body: JSON.stringify(req.body ?? {}),
+  });
+  const response = await handleOpenAIRequest(request);
+  const payload = await response.json();
+  return res.status(response.status).json(payload);
 }
