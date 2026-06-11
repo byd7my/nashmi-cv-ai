@@ -527,6 +527,43 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const editorPanelRef = useRef<HTMLDivElement>(null);
 
+  type MobileTab = "preview" | "sections" | "copilot";
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
+  const [previewScale, setPreviewScale] = useState(1);
+  const scaledCvRef = useRef<HTMLDivElement>(null);
+  const [scaledCvHeight, setScaledCvHeight] = useState(1100);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const updateLayout = () => {
+      const mobile = mq.matches;
+      setIsMobile(mobile);
+      setPreviewScale(mobile ? Math.min(1, Math.max(0.36, (window.innerWidth - 28) / 794)) : 1);
+    };
+    updateLayout();
+    mq.addEventListener("change", updateLayout);
+    window.addEventListener("resize", updateLayout);
+    return () => {
+      mq.removeEventListener("change", updateLayout);
+      window.removeEventListener("resize", updateLayout);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile || !scaledCvRef.current) return;
+    const el = scaledCvRef.current;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) setScaledCvHeight(entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isMobile, mobileTab, cv, activeCvLang]);
+
+  useEffect(() => {
+    if (isMobile && activePanel) setMobileTab("sections");
+  }, [activePanel, isMobile]);
+
   useEffect(() => {
     try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }
   }, [editMode]);
@@ -732,6 +769,50 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     } finally {
       setIsTyping(false);
     }
+  }
+
+  function renderCopilotPanel(fullScreen = false) {
+    return (
+      <div style={{ width: fullScreen ? "100%" : 320, background: P.surface, borderLeft: fullScreen ? "none" : (isAr ? "none" : `1px solid ${P.border}`), borderRight: fullScreen ? "none" : (isAr ? `1px solid ${P.border}` : "none"), display: "flex", flexDirection: "column", flex: fullScreen ? 1 : undefined, minHeight: fullScreen ? "100%" : undefined }}>
+        {!fullScreen && (
+          <div style={{ padding: "14px 16px", borderBottom: `1px solid ${P.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: P.text, fontWeight: 700, fontSize: 14 }}>✧ {t.copilotTitle}</span>
+            <button onClick={() => setShowCopilot(false)} style={{ background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
+          </div>
+        )}
+        <div style={{ padding: "10px 12px", borderBottom: `1px solid ${P.border}`, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {t.copilotHints.map((h, i) => (
+            <button key={i} onClick={() => sendCopilot(h)} style={{ background: `${P.violet}1A`, border: `1px solid ${P.violet}33`, color: P.violetLight, borderRadius: 6, padding: "4px 9px", cursor: "pointer", fontSize: 11, fontFamily: ff }}>
+              {h}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+          {copilotHistory.map((m, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+              <div style={{ maxWidth: "85%", background: m.role === "user" ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : P.card, color: "#fff", borderRadius: m.role === "user" ? "12px 12px 4px 12px" : "12px 12px 12px 4px", padding: "10px 12px", fontSize: 13, lineHeight: 1.6 }}>
+                {m.content}
+              </div>
+            </div>
+          ))}
+          {isTyping && (
+            <div style={{ display: "flex", justifyContent: "flex-start" }}>
+              <div style={{ background: P.card, color: P.muted, borderRadius: "12px 12px 12px 4px", padding: "10px 14px", fontSize: 20 }}>···</div>
+            </div>
+          )}
+          <div ref={chatEndRef}/>
+        </div>
+        <div style={{ padding: "12px", borderTop: `1px solid ${P.border}`, display: "flex", gap: 8, paddingBottom: fullScreen ? "calc(12px + env(safe-area-inset-bottom))" : 12 }}>
+          <input value={copilotMsg} onChange={e => setCopilotMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendCopilot()} placeholder={t.copilotPlaceholder} style={{ flex: 1, background: P.card, border: `1px solid ${P.border}`, borderRadius: 8, padding: "9px 12px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff, direction: isAr ? "rtl" : "ltr" }}
+            onFocus={e => e.currentTarget.style.borderColor = P.violet}
+            onBlur={e => e.currentTarget.style.borderColor = P.border}
+          />
+          <button onClick={() => sendCopilot()} disabled={isTyping} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 8, padding: "9px 14px", cursor: "pointer", fontWeight: 700, fontSize: 13, opacity: isTyping ? 0.6 : 1 }}>
+            {isAr ? "←" : "→"}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // ── Toast helper ──────────────────────────────────────────────────────
@@ -1006,6 +1087,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   }
 
   const SECTIONS = t.builderNav;
+  const MOBILE_SECTION_IDS = ["personal", "summary", "experience-0", "education-0", "certifications", "skills", "languages"] as const;
+  const MOBILE_TAB_LABELS = isAr
+    ? { preview: "معاينة", sections: "الأقسام", copilot: "المساعد الذكي" }
+    : { preview: "Preview", sections: "Sections", copilot: "AI Assistant" };
 
   // ── UI helpers ─────────────────────────────────────────────────────────
   const AIBtn = ({ section, text, full = false }: { section: string; text: string; full?: boolean }) => (
@@ -1392,6 +1477,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           .tb-ats  { display: none; }
           .tb-jd   { display: none; }
           .tb-copilot-label { display: none; }
+          .tb-copilot-btn { display: none !important; }
         }
       `}</style>
 
@@ -1430,7 +1516,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </div>
 
         {/* Copilot */}
-        <button onClick={() => setShowCopilot(c => !c)} style={{ background: showCopilot ? `${P.violet}33` : `${P.violet}18`, border: `1px solid ${P.violet}${showCopilot ? "66" : "33"}`, color: P.violetLight, borderRadius: 8, padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
+        <button className="tb-copilot-btn" onClick={() => setShowCopilot(c => !c)} style={{ background: showCopilot ? `${P.violet}33` : `${P.violet}18`, border: `1px solid ${P.violet}${showCopilot ? "66" : "33"}`, color: P.violetLight, borderRadius: 8, padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
           ✧ <span className="tb-copilot-label">{t.aiCopilot}</span>
         </button>
 
@@ -1466,35 +1552,104 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       {/* ── Main layout ──────────────────────────────────────── */}
       <style>{`
         .mobile-bottomnav { display: none; }
+        .mobile-tab-view { display: none; }
+        @keyframes mobileTabIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes sheetUpSmooth {
+          from { transform: translateY(100%); opacity: 0.6; }
+          to { transform: translateY(0); opacity: 1; }
+        }
         @media (max-width: 768px) {
-          .builder-main { flex-direction: column !important; overflow: visible !important; }
-          /* On mobile the section list lives in the fixed bottom nav instead of a sidebar */
+          .builder-main { flex-direction: column !important; overflow: hidden !important; }
           .builder-sidebar { display: none !important; }
-          .builder-preview { padding: 14px 12px 96px !important; }
+          .builder-preview {
+            padding: 12px 0 calc(72px + env(safe-area-inset-bottom)) !important;
+            background: #C8C8D4 !important;
+            align-items: flex-start !important;
+          }
           .builder-topbar { flex-wrap: wrap; gap: 8px !important; height: auto !important; padding: 10px 12px !important; }
           .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }
           .tb-editmode { display: none !important; }
           .tb-row1 { height: 46px !important; gap: 6px !important; padding: 0 10px !important; }
+          .mobile-tab-view {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            animation: mobileTabIn 0.38s cubic-bezier(0.32, 0.72, 0, 1);
+          }
           .mobile-bottomnav {
             display: flex;
             position: fixed;
             bottom: 0; left: 0; right: 0;
             z-index: 2500;
-            background: ${P.surface};
+            background: rgba(26, 26, 46, 0.96);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border-top: 1px solid ${P.border};
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-            gap: 2px;
-            padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+            padding: 4px 8px calc(6px + env(safe-area-inset-bottom));
+            gap: 4px;
           }
-          .mobile-bottomnav::-webkit-scrollbar { display: none; }
+          .mobile-bottomnav.is-hidden { display: none !important; }
+          .mobile-tab-btn {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            border: none;
+            border-radius: 12px;
+            padding: 8px 4px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.25s cubic-bezier(0.32, 0.72, 0, 1), transform 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+          }
+          .mobile-tab-btn:active { transform: scale(0.94); }
+          .mobile-tab-btn.is-active { background: ${P.violet}28; }
+          .cv-preview-scaler-wrap {
+            margin: 0 auto;
+            overflow: hidden;
+            border-radius: 4px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+          }
+          .before-after-overlay {
+            align-items: flex-end !important;
+            padding: 0 !important;
+            z-index: 10000 !important;
+          }
+          .before-after-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            border-radius: 20px 20px 0 0 !important;
+            max-height: 88vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            padding: 20px 16px calc(12px + env(safe-area-inset-bottom)) !important;
+            animation: sheetUpSmooth 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+          }
+          .before-after-grid {
+            grid-template-columns: 1fr !important;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+          }
+          .before-after-actions {
+            flex-direction: column !important;
+            gap: 8px !important;
+            padding-top: 12px;
+            flex-shrink: 0;
+          }
+          .before-after-actions button { width: 100% !important; }
         }
       `}</style>
       <style>{`
         .cv-canvas-inner { padding: 40px; }
         @media (max-width: 768px) {
-          .cv-canvas-inner { padding: 18px !important; zoom: 0.8; }
+          .cv-canvas-inner { padding: 28px !important; }
         }
       `}</style>
       <div className="builder-main" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -1541,8 +1696,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </div>
         )}
 
-        {/* CV Preview */}
-        <div className="builder-preview" style={{ flex: 1, overflowY: "auto", padding: 24, background: editMode === "canvas" ? "#0D0D1A" : "#2A2A3E22" }}>
+        {/* CV Preview — desktop always; mobile only on Preview tab */}
+        {(!isMobile || mobileTab === "preview") && (
+        <div className="builder-preview" style={{ flex: 1, overflowY: "auto", padding: 24, background: editMode === "canvas" && !isMobile ? "#0D0D1A" : "#2A2A3E22", display: "flex", flexDirection: "column" }}>
           <EliteImportFeature
             userSubscriptionTier={currentPlan}
             uiLang={isAr ? "ar" : "en"}
@@ -1566,19 +1722,26 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               </div>
             </div>
           )}
-          {editMode === "sidebar" ? (
+          {isMobile ? (
+            <div className="cv-preview-scaler-wrap" style={{ width: 794 * previewScale, height: scaledCvHeight * previewScale }}>
+              <div ref={scaledCvRef} style={{ width: 794, transform: `scale(${previewScale})`, transformOrigin: "top left" }}>
+                <div style={{ width: 794, borderRadius: 4, overflow: "hidden", position: "relative" }}>
+                  <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
+                  {!isPaid && renderWatermarkGrid()}
+                </div>
+              </div>
+            </div>
+          ) : editMode === "sidebar" ? (
             <div ref={cvPreviewRef} style={{ maxWidth: 794, margin: "0 auto", boxShadow: "0 8px 40px rgba(0,0,0,0.5)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
               <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
               {!isPaid && renderWatermarkGrid()}
             </div>
           ) : (
             <>
-              {/* Click-to-edit canvas: every section opens its editor panel */}
               <div style={{ maxWidth: 794, margin: "0 auto", boxShadow: "0 8px 40px rgba(0,0,0,0.5)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
                 <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={setActivePanel}/>
                 {!isPaid && renderWatermarkGrid()}
               </div>
-              {/* Hidden untouched CVPreview — the PDF export source (logic unchanged) */}
               <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
                 <div ref={cvPreviewRef} style={{ width: 794 }}>
                   <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
@@ -1587,60 +1750,72 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             </>
           )}
 
-          {/* Hidden off-screen preview of the OTHER language (Elite only) — used for dual-PDF export */}
-          {isElite && otherLangCv && (
-            <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
-              <div ref={hiddenCvPreviewRef} style={{ width: 794 }}>
-                <CVPreview cv={otherLangCv} lang={lang} cvLanguage={otherLang} userTier={userTier}/>
-              </div>
-            </div>
-          )}
         </div>
+        )}
 
-
-        {/* Copilot panel */}
-        {showCopilot && (
-          <div style={{ width: 320, background: P.surface, borderLeft: isAr ? "none" : `1px solid ${P.border}`, borderRight: isAr ? `1px solid ${P.border}` : "none", display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${P.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ color: P.text, fontWeight: 700, fontSize: 14 }}>✧ {t.copilotTitle}</span>
-              <button onClick={() => setShowCopilot(false)} style={{ background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
+        {isElite && otherLangCv && (
+          <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
+            <div ref={hiddenCvPreviewRef} style={{ width: 794 }}>
+              <CVPreview cv={otherLangCv} lang={lang} cvLanguage={otherLang} userTier={userTier}/>
             </div>
+          </div>
+        )}
 
-            {/* Hints */}
-            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${P.border}`, display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {t.copilotHints.map((h, i) => (
-                <button key={i} onClick={() => sendCopilot(h)} style={{ background: `${P.violet}1A`, border: `1px solid ${P.violet}33`, color: P.violetLight, borderRadius: 6, padding: "4px 9px", cursor: "pointer", fontSize: 11, fontFamily: ff }}>
-                  {h}
-                </button>
-              ))}
+        {/* Mobile: Sections tab */}
+        {isMobile && mobileTab === "sections" && (
+          <div key="sections" className="mobile-tab-view" style={{ background: P.bg, padding: "16px 14px calc(80px + env(safe-area-inset-bottom))", overflowY: "auto" }}>
+            <h2 style={{ color: P.text, fontSize: 17, fontWeight: 800, margin: "0 0 14px", fontFamily: ff }}>
+              {isAr ? "اختر قسم للتعديل" : "Choose a section to edit"}
+            </h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {MOBILE_SECTION_IDS.map((id, i) => {
+                const icons = ["👤", "📝", "💼", "🎓", "🏅", "⚡", "🌐"];
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setActivePanel(id)}
+                    style={{
+                      background: P.card,
+                      border: `1px solid ${P.border}`,
+                      borderRadius: 14,
+                      padding: "16px 12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 8,
+                      fontFamily: ff,
+                      transition: "transform 0.2s ease, border-color 0.2s",
+                    }}
+                  >
+                    <span style={{ fontSize: 24 }}>{icons[i]}</span>
+                    <span style={{ color: P.text, fontSize: 13, fontWeight: 700 }}>{SECTIONS[i]}</span>
+                  </button>
+                );
+              })}
             </div>
+          </div>
+        )}
 
-            {/* Chat history */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {copilotHistory.map((m, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{ maxWidth: "85%", background: m.role === "user" ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : P.card, color: "#fff", borderRadius: m.role === "user" ? "12px 12px 4px 12px" : "12px 12px 12px 4px", padding: "10px 12px", fontSize: 13, lineHeight: 1.6 }}>
-                    {m.content}
-                  </div>
-                </div>
-              ))}
-              {isTyping && (
-                <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                  <div style={{ background: P.card, color: P.muted, borderRadius: "12px 12px 12px 4px", padding: "10px 14px", fontSize: 20 }}>···</div>
-                </div>
-              )}
-              <div ref={chatEndRef}/>
+        {/* Mobile: AI Copilot tab */}
+        {isMobile && mobileTab === "copilot" && (
+          <div key="copilot" className="mobile-tab-view" style={{ background: P.bg, paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}>
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${P.border}`, background: P.surface }}>
+              <span style={{ color: P.text, fontWeight: 800, fontSize: 16 }}>✧ {t.copilotTitle}</span>
             </div>
+            {renderCopilotPanel(true)}
+          </div>
+        )}
 
-            {/* Input */}
-            <div style={{ padding: "12px", borderTop: `1px solid ${P.border}`, display: "flex", gap: 8 }}>
-              <input value={copilotMsg} onChange={e => setCopilotMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendCopilot()} placeholder={t.copilotPlaceholder} style={{ flex: 1, background: P.card, border: `1px solid ${P.border}`, borderRadius: 8, padding: "9px 12px", color: P.text, fontSize: 13, outline: "none", fontFamily: ff, direction: isAr ? "rtl" : "ltr" }}
-                onFocus={e => e.currentTarget.style.borderColor = P.violet}
-                onBlur={e => e.currentTarget.style.borderColor = P.border}
-              />
-              <button onClick={() => sendCopilot()} disabled={isTyping} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 8, padding: "9px 14px", cursor: "pointer", fontWeight: 700, fontSize: 13, opacity: isTyping ? 0.6 : 1 }}>
-                {isAr ? "←" : "→"}
-              </button>
+
+        {/* Copilot panel — desktop only */}
+        {showCopilot && !isMobile && renderCopilotPanel(false)}
+
+        {/* Mobile PDF export source — always mounted */}
+        {isMobile && (
+          <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
+            <div ref={cvPreviewRef} style={{ width: 794 }}>
+              <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
             </div>
           </div>
         )}
@@ -1706,16 +1881,16 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
       {/* ── Before/After AI Modal ───────────────────────────── */}
       {beforeAfter && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,11,0.92)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ width: "100%", maxWidth: 680, background: P.card, border: `1px solid ${P.border}`, borderRadius: 20, padding: "28px 24px", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+        <div className="before-after-overlay" style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(10,10,11,0.92)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div className="before-after-card" style={{ width: "100%", maxWidth: 680, background: P.card, border: `1px solid ${P.border}`, borderRadius: 20, padding: "28px 24px", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexShrink: 0 }}>
               <h3 style={{ color: P.text, fontWeight: 800, fontSize: 18, fontFamily: ff }}>
                 ✦ {isAr ? "اختر النص المناسب" : "Choose the Version You Want"}
               </h3>
               <button onClick={() => setBeforeAfter(null)} style={{ background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 20 }}>×</button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 }}>
+            <div className="before-after-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 }}>
               <div>
                 <div style={{ color: P.red, fontSize: 11, fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>✕ {isAr ? "النص الحالي" : "Current Text"}</div>
                 <div style={{ background: P.surface, border: `1px solid ${P.red}33`, borderRadius: 10, padding: "12px 14px", color: P.muted, fontSize: 13, lineHeight: 1.7, minHeight: 80, direction: isAr ? "rtl" : "ltr" }}>
@@ -1730,7 +1905,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <div className="before-after-actions" style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setBeforeAfter(null)} style={{ background: "transparent", border: `1px solid ${P.border}`, color: P.muted, borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 14, fontFamily: ff }}>
                 {isAr ? "استخدام النص الحالي" : "Use Current Text"}
               </button>
@@ -1781,42 +1956,27 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </div>
       )}
 
-      {/* ── Mobile bottom section nav: opens the bottom-sheet editor ── */}
-      <div className="mobile-bottomnav" style={{ direction: isAr ? "rtl" : "ltr", fontFamily: ff }}>
+      {/* ── Mobile bottom tab bar: Preview | Sections | AI ── */}
+      <div className={`mobile-bottomnav${beforeAfter || (isMobile && activePanel) ? " is-hidden" : ""}`} style={{ direction: isAr ? "rtl" : "ltr", fontFamily: ff }}>
         {([
-          ["personal", "👤"],
-          ["summary", "📝"],
-          ["experience-0", "💼"],
-          ["education-0", "🎓"],
-          ["certifications", "🏅"],
-          ["skills", "⚡"],
-          ["languages", "🌐"],
-        ] as const).map(([id, icon], i) => {
-          const isActive = activePanel === id
-            || (id === "experience-0" && (activePanel || "").startsWith("experience-"))
-            || (id === "education-0" && (activePanel || "").startsWith("education-"));
+          { id: "preview" as const, icon: "👁", label: MOBILE_TAB_LABELS.preview },
+          { id: "sections" as const, icon: "✎", label: MOBILE_TAB_LABELS.sections },
+          { id: "copilot" as const, icon: "✧", label: MOBILE_TAB_LABELS.copilot },
+        ]).map(tab => {
+          const isActive = mobileTab === tab.id;
           return (
             <button
-              key={id}
-              onClick={() => setActivePanel(isActive ? null : id)}
-              style={{
-                flex: "1 0 auto",
-                minWidth: 58,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-                background: isActive ? `${P.violet}26` : "transparent",
-                border: "none",
-                borderRadius: 10,
-                padding: "6px 6px",
-                cursor: "pointer",
-                fontFamily: ff,
+              key={tab.id}
+              className={`mobile-tab-btn${isActive ? " is-active" : ""}`}
+              onClick={() => {
+                setMobileTab(tab.id);
+                if (tab.id !== "sections") setActivePanel(null);
               }}
+              style={{ background: isActive ? `${P.violet}28` : "transparent" }}
             >
-              <span style={{ fontSize: 16, lineHeight: 1.2 }}>{icon}</span>
-              <span style={{ color: isActive ? P.violetLight : P.muted, fontSize: 9.5, fontWeight: isActive ? 800 : 600, whiteSpace: "nowrap" }}>
-                {SECTIONS[i]}
+              <span style={{ fontSize: 20, lineHeight: 1 }}>{tab.icon}</span>
+              <span style={{ color: isActive ? P.violetLight : P.muted, fontSize: 10, fontWeight: isActive ? 800 : 600, whiteSpace: "nowrap" }}>
+                {tab.label}
               </span>
             </button>
           );
@@ -1827,7 +1987,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       {activePanel && (
         <>
           <style>{`
-            @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+            @keyframes sheetUp { from { transform: translateY(100%); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
             @keyframes panelIn { from { transform: translateX(100%); opacity: 0.4; } to { transform: translateX(0); opacity: 1; } }
             .editor-panel {
               position: fixed; z-index: 3000; background: #1A1A2E;
@@ -1837,10 +1997,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             @media (max-width: 767px) {
               .editor-panel {
                 bottom: 0; left: 0; right: 0; width: 100%;
-                max-height: 70vh;
+                max-height: 88vh;
                 border-radius: 20px 20px 0 0;
                 border-top: 1px solid ${P.border};
-                animation: sheetUp 0.3s ease;
+                animation: sheetUp 0.42s cubic-bezier(0.32, 0.72, 0, 1);
               }
               .editor-panel-handle { display: block; }
             }
