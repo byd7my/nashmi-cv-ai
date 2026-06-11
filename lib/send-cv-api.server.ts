@@ -48,9 +48,21 @@ function buildText(name: string, isAr: boolean): string {
 }
 
 function resolveFromAddress(): string {
+  const defaultFrom = "Nashmi <no-reply@nashmi.club>";
   const configured = process.env.EMAIL_FROM?.trim();
-  if (configured) return configured;
-  return "Nashmi <no-reply@nashmi.club>";
+  if (!configured) return defaultFrom;
+
+  // Resend requires: "Name <email@domain.com>"
+  const namedFormat = /^.+\s+<[^@\s]+@[^>\s]+>$/;
+  if (namedFormat.test(configured)) return configured;
+
+  const angleEmail = configured.match(/^<([^>\s]+@[^>\s]+)>$/);
+  if (angleEmail) return `Nashmi <${angleEmail[1]}>`;
+
+  if (EMAIL_RE.test(configured)) return `Nashmi <${configured}>`;
+
+  console.warn("[api/send-cv] Invalid EMAIL_FROM format, using default:", configured);
+  return defaultFrom;
 }
 
 export async function handleSendCvRequest(request: Request): Promise<Response> {
@@ -127,11 +139,12 @@ export async function handleSendCvRequest(request: Request): Promise<Response> {
     const data = await resendRes.json().catch(() => ({}));
 
     if (!resendRes.ok) {
+      const errMsg = (data as { message?: string; error?: string })?.message || (data as { error?: string })?.error || `Email service error ${resendRes.status}`;
       console.error("[api/send-cv] Resend error", { status: resendRes.status, data, from, to: to.trim() });
-      return Response.json(
-        { error: (data as { message?: string; error?: string })?.message || (data as { error?: string })?.error || `Email service error ${resendRes.status}` },
-        { status: resendRes.status },
-      );
+      const friendly = /invalid.*from/i.test(errMsg)
+        ? "Invalid sender address. Set EMAIL_FROM to: Nashmi <no-reply@nashmi.club>"
+        : errMsg;
+      return Response.json({ error: friendly }, { status: resendRes.status });
     }
 
     console.info("[api/send-cv] Sent", { id: (data as { id?: string })?.id, to: to.trim(), from });
