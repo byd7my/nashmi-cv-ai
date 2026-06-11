@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { resetCvSessionId } from "@/nashmi/lib/session";
 import { P, FF } from "@/nashmi/lib/tokens";
 import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
@@ -26,6 +27,7 @@ export function CheckoutPage({ lang, t, onNav, plan, onPaid }: Props) {
     track("payment_page_reached", { plan, method: payMethod });
     await new Promise(r => setTimeout(r, 1400));
     setLoading(false);
+    resetCvSessionId();
     onPaid(plan);
     setStep("success");
   };

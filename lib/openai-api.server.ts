@@ -51,40 +51,56 @@ export async function handleOpenAIRequest(request: Request): Promise<Response> {
     );
   }
 
-  let body: { prompt?: unknown; usageType?: unknown };
+  let body: { prompt?: unknown; usageType?: unknown; usageFeature?: unknown };
   try {
-    body = (await request.json()) as { prompt?: unknown; usageType?: unknown };
+    body = (await request.json()) as {
+      prompt?: unknown;
+      usageType?: unknown;
+      usageFeature?: unknown;
+    };
   } catch {
     return jsonResponse({ error: "Invalid JSON body", code: "INVALID_JSON" }, 400);
   }
 
   const prompt = body.prompt;
   const usageType = body.usageType;
+  const usageFeature = body.usageFeature;
 
   if (!prompt || typeof prompt !== "string") {
     return jsonResponse({ error: "Missing prompt", code: "MISSING_PROMPT" }, 400);
   }
 
   if (usageType === "improve") {
+    if (typeof usageFeature !== "string" || !usageFeature.trim()) {
+      return jsonResponse({ error: "Missing usageFeature", code: "MISSING_USAGE_FEATURE" }, 400);
+    }
+
     try {
-      const usage = await checkAndConsumeAiImproveUsage(toUsageRequest(request));
+      const usage = await checkAndConsumeAiImproveUsage(toUsageRequest(request), usageFeature);
 
       if (!usage.allowed) {
         const retryIn = formatRetryHours(usage.retryAfterMs);
         return jsonResponse(
           {
-            error: `You have reached the limit of ${usage.limit} AI Improve uses. Please try again in about ${retryIn}.`,
+            error: `You have reached the limit of ${usage.limit} uses for this button on this resume. Please try again in about ${retryIn}.`,
             code: "AI_RATE_LIMIT",
             limit: usage.limit,
             remaining: 0,
             retryAfterMs: usage.retryAfterMs,
+            feature: usageFeature,
           },
           429,
         );
       }
     } catch (err: unknown) {
-      // Don't block AI when Supabase rate-limit storage is unavailable.
-      logApiError("AI usage check failed — continuing without rate limit", err, describeOpenAIEnv());
+      logApiError("AI usage check failed", err, describeOpenAIEnv());
+      return jsonResponse(
+        {
+          error: err instanceof Error ? err.message : "AI usage check failed",
+          code: "AI_USAGE_CHECK_FAILED",
+        },
+        500,
+      );
     }
   }
 
@@ -132,7 +148,8 @@ export async function handleOpenAIRequest(request: Request): Promise<Response> {
       );
     }
 
-    logApiError("Unexpected handler error", err, { model, ...describeOpenAIEnv() });
+    const envInfo = describeOpenAIEnv();
+    logApiError("Unexpected handler error", err, { openaiModel: model, configuredModel: envInfo.model });
     const message = err instanceof Error ? err.message : "OpenAI request failed";
     return jsonResponse(
       {

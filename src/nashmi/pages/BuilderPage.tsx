@@ -12,7 +12,7 @@ import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImportFeature";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
-import { getSessionId } from "@/nashmi/lib/session";
+import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
 
 const FF2 = FF;
 
@@ -205,10 +205,10 @@ class AiRateLimitError extends Error {
 
 async function callOpenAIRaw(
   prompt: string,
-  options?: { usageType?: "improve" },
+  options?: { usageType?: "improve"; usageFeature?: string },
 ): Promise<string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const sessionId = getSessionId();
+  const sessionId = getCvSessionId();
   if (sessionId) headers["x-nashmi-session-id"] = sessionId;
 
   const res = await fetch("/api/openai", {
@@ -217,6 +217,7 @@ async function callOpenAIRaw(
     body: JSON.stringify({
       prompt,
       usageType: options?.usageType,
+      usageFeature: options?.usageFeature,
     }),
   });
 
@@ -291,7 +292,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callOpenAIRaw(prompt, { usageType: "improve" });
+    const result = await callOpenAIRaw(prompt, { usageType: "improve", usageFeature: "summary" });
     return { text: result.trim() };
   }
 
@@ -334,7 +335,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callOpenAIRaw(prompt, { usageType: "improve" });
+    const result = await callOpenAIRaw(prompt, { usageType: "improve", usageFeature: `exp-${idx}` });
     return { text: result.trim() };
   }
 
@@ -378,7 +379,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callOpenAIRaw(prompt, { usageType: "improve" });
+    const result = await callOpenAIRaw(prompt, { usageType: "improve", usageFeature: "skills" });
     // نحول النتيجة لقائمة نظيفة
     const skills = result
       .split("\n")
@@ -652,8 +653,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       if (err instanceof AiRateLimitError) {
         sonnerToast.error(
           isAr
-            ? "تجاوزت الحد المسموح (3 محاولات تحسين AI خلال 24 ساعة). حاول مجدداً لاحقاً."
-            : "You have used all 3 AI Improve attempts for today. Please try again later.",
+            ? "تجاوزت 3 محاولات لهذا الزر في هذه السيرة. ادفع لسيرة جديدة أو حاول بعد 24 ساعة."
+            : "You used all 3 attempts for this button on this resume. Pay for a new resume or try again in 24 hours.",
         );
         return;
       }
@@ -983,6 +984,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           window.localStorage.removeItem(STARTMODE_STORAGE_KEY);
           window.localStorage.removeItem(ELITE_CV_KEYS.ar);
           window.localStorage.removeItem(ELITE_CV_KEYS.en);
+          resetCvSessionId();
         } catch { /* ignore */ }
         setCurrentPlan("starter");
         onNav("landing");
