@@ -19,8 +19,10 @@ import process from "node:process";
 export function getServerConfig() {
   return {
     nodeEnv: process.env.NODE_ENV,
-    // Add server-only values here, e.g.:
-    //   databaseUrl: process.env.DATABASE_URL,
+    // Server-only secrets (read per-request in handlers, not at module scope on Workers):
+    //   supabaseUrl: process.env.SUPABASE_URL,
+    //   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    //   geminiApiKey: process.env.GEMINI_API_KEY,
     //   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
   };
 }

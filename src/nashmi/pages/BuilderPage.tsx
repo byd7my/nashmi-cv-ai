@@ -12,6 +12,7 @@ import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImportFeature";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
+import { getSessionId } from "@/nashmi/lib/session";
 
 const FF2 = FF;
 
@@ -193,16 +194,42 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect }: {
   );
 }
 
-async function callGeminiRaw(prompt: string): Promise<string> {
+class AiRateLimitError extends Error {
+  readonly code = "AI_RATE_LIMIT";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "AiRateLimitError";
+  }
+}
+
+async function callGeminiRaw(
+  prompt: string,
+  options?: { usageType?: "improve" },
+): Promise<string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const sessionId = getSessionId();
+  if (sessionId) headers["x-nashmi-session-id"] = sessionId;
+
   const res = await fetch("/api/gemini", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    headers,
+    body: JSON.stringify({
+      prompt,
+      usageType: options?.usageType,
+    }),
   });
 
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if (res.status === 429 && data?.code === "AI_RATE_LIMIT") {
+      throw new AiRateLimitError(
+        typeof data?.error === "string"
+          ? data.error
+          : "You have reached the AI Improve limit.",
+      );
+    }
     const retryAfter = data?.retryAfter ? ` ${data.retryAfter}` : "";
     throw new Error(`${data?.error || `Gemini error: ${res.status}`}${retryAfter}`);
   }
@@ -289,7 +316,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callGeminiRaw(prompt);
+    const result = await callGeminiRaw(prompt, { usageType: "improve" });
     return { text: result.trim() };
   }
 
@@ -334,7 +361,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callGeminiRaw(prompt);
+    const result = await callGeminiRaw(prompt, { usageType: "improve" });
     return { text: result.trim() };
   }
 
@@ -385,7 +412,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callGeminiRaw(prompt);
+    const result = await callGeminiRaw(prompt, { usageType: "improve" });
     // نحول النتيجة لقائمة نظيفة
     const skills = result
       .split("\n")
@@ -656,6 +683,14 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         setBeforeAfter({ section, before, after });
       }
     } catch (err) {
+      if (err instanceof AiRateLimitError) {
+        sonnerToast.error(
+          isAr
+            ? "تجاوزت الحد المسموح (3 محاولات تحسين AI خلال 24 ساعة). حاول مجدداً لاحقاً."
+            : "You have used all 3 AI Improve attempts for today. Please try again later.",
+        );
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       sonnerToast.error(isAr ? `فشل تحسين AI: ${msg}` : `AI improve failed: ${msg}`);
     } finally {

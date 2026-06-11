@@ -1,3 +1,5 @@
+import { checkAndConsumeAiImproveUsage } from "../lib/ai-usage.server";
+
 const DEFAULT_MODEL = "gemini-2.0-flash-lite";
 
 function getRetryMessage(headers: Headers) {
@@ -10,6 +12,11 @@ function getRetryMessage(headers: Headers) {
   }
 
   return `Try again after ${retryAfter}.`;
+}
+
+function formatRetryHours(ms: number): string {
+  const hours = Math.max(1, Math.ceil(ms / (60 * 60 * 1000)));
+  return hours === 1 ? "1 hour" : `${hours} hours`;
 }
 
 export default async function handler(req: any, res: any) {
@@ -26,11 +33,34 @@ export default async function handler(req: any, res: any) {
   }
 
   const prompt = req.body?.prompt;
+  const usageType = req.body?.usageType;
 
   if (!prompt || typeof prompt !== "string") {
     return res.status(400).json({
       error: "Missing prompt",
     });
+  }
+
+  if (usageType === "improve") {
+    try {
+      const usage = await checkAndConsumeAiImproveUsage(req);
+
+      if (!usage.allowed) {
+        const retryIn = formatRetryHours(usage.retryAfterMs);
+        return res.status(429).json({
+          error: `You have reached the limit of ${usage.limit} AI Improve uses. Please try again in about ${retryIn}.`,
+          code: "AI_RATE_LIMIT",
+          limit: usage.limit,
+          remaining: 0,
+          retryAfterMs: usage.retryAfterMs,
+        });
+      }
+    } catch (err: any) {
+      return res.status(500).json({
+        error: err?.message || "AI usage check failed",
+        code: "AI_USAGE_CHECK_FAILED",
+      });
+    }
   }
 
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
