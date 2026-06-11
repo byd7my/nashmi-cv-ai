@@ -7,7 +7,7 @@ import { P, FF } from "@/nashmi/lib/tokens";
 import { CVPreview } from "@/nashmi/components/CVPreview";
 import { ATSRing } from "@/nashmi/components/ATSRing";
 import { calcATS, calcATSMatch, type CVData } from "@/nashmi/lib/ats";
-import { INIT_CV, LANG_LEVELS, LANGUAGE_OPTIONS, DEGREE_LEVELS, HONORS_OPTIONS, EN_HEADERS, AR_HEADERS, extractTextFromFile, localParseCV, normalizeParsedCV, smartCategorize } from "@/nashmi/lib/cv-parser";
+import { INIT_CV, LANG_LEVELS, LANGUAGE_OPTIONS, DEGREE_LEVELS, HONORS_OPTIONS, EN_HEADERS, AR_HEADERS, extractTextFromFile, localParseCV, normalizeParsedCV, smartCategorize, isResumeJsonFile, parseResumeJsonFile, persistBilingualImport, describeImportError, isPdfFile } from "@/nashmi/lib/cv-parser";
 import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
@@ -820,8 +820,15 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setImporting(true); setImportError("");
     track("pdf_imported");
     try {
+      if (isResumeJsonFile(file)) {
+        applyNashmiJsonImport(await parseResumeJsonFile(file));
+        return;
+      }
+
       const text = await extractTextFromFile(file);
-      if (!text.trim()) throw new Error("Could not extract text from file");
+      if (!text.trim()) {
+        throw new Error(isPdfFile(file) ? "PDF_IMAGE_ONLY" : "EMPTY_FILE");
+      }
 
       // Try AI parsing first, fall back to local parser
       let parsed: CVData;
@@ -848,11 +855,22 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       setActiveSection(0);
       setStartMode("ready");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setImportError(isAr ? `فشل الاستيراد: ${msg}` : `Import failed: ${msg}`);
+      setImportError(isAr ? `فشل الاستيراد: ${describeImportError(e, isAr)}` : `Import failed: ${describeImportError(e, false)}`);
     } finally {
       setImporting(false);
     }
+  }
+
+  function applyNashmiJsonImport(imported: Awaited<ReturnType<typeof parseResumeJsonFile>>) {
+    track("json_imported");
+    persistBilingualImport(imported.bilingual);
+    setCv({ ...INIT_CV, ...smartCategorize(imported.cv) });
+    if (imported.activeLang === "ar" || imported.activeLang === "en") {
+      setActiveCvLang(imported.activeLang);
+    }
+    setActiveSection(0);
+    setStartMode("ready");
+    showToast(isAr ? "✓ تم تحميل السيرة بنجاح" : "✓ Resume loaded successfully");
   }
 
   // ── AI copilot ─────────────────────────────────────────────────────────
@@ -954,53 +972,24 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setShowUpgrade(true);
   }
 
-  // ── JSON Export ────────────────────────────────────────────────────────
+  // ── JSON Export / Import ───────────────────────────────────────────────
   function exportJSON() {
     track("json_exported");
-    const payload = { _nashmi: true, version: 1, exportedAt: new Date().toISOString(), cv };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `nashmi-resume-${cv.personal.name ? cv.personal.name.replace(/\s+/g, "-").toLowerCase() : "draft"}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadJsonBackup();
     showToast(isAr ? "✓ تم حفظ السيرة بصيغة JSON" : "✓ Resume saved as JSON");
   }
 
-  // ── JSON Import ────────────────────────────────────────────────────────
   function importJSON(file: File) {
-    track("json_imported");
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    void (async () => {
       try {
-        const raw = e.target?.result as string;
-        if (!raw) throw new Error("Empty file");
-        const parsed = JSON.parse(raw);
-
-        // Accept either { _nashmi: true, cv: {...} } wrapper or a raw CVData object
-        const data: CVData = parsed._nashmi && parsed.cv ? parsed.cv : parsed;
-
-        // Basic structure validation
-        if (typeof data !== "object" || data === null) throw new Error("Not a valid resume object");
-        if (!data.personal && !data.summary && !data.experience) {
-          throw new Error("Does not look like a Nashmi resume file");
-        }
-
-        setCv({ ...INIT_CV, ...data });
-        setActiveSection(0);
-        setStartMode("ready");
-        showToast(isAr ? "✓ تم تحميل السيرة بنجاح" : "✓ Resume loaded successfully");
+        applyNashmiJsonImport(await parseResumeJsonFile(file));
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
         showToast(
-          isAr ? `✕ الملف غير صالح: ${msg}` : `✕ Invalid file: ${msg}`,
-          "error"
+          isAr ? `✕ ${describeImportError(err, isAr)}` : `✕ ${describeImportError(err, false)}`,
+          "error",
         );
       }
-    };
-    reader.onerror = () => showToast(isAr ? "✕ فشل قراءة الملف" : "✕ Failed to read file", "error");
-    reader.readAsText(file);
+    })();
   }
 
   async function renderElementToPdfBlob(el: HTMLElement): Promise<Blob> {
@@ -1145,6 +1134,33 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch { /* ignore */ }
+  }
+
+  function buildNashmiJsonPayload() {
+    const payload: Record<string, unknown> = {
+      _nashmi: true,
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      lang: activeCvLang,
+      cv,
+    };
+    if (isElite) {
+      const bilingual: Partial<Record<"ar" | "en", CVData>> = {};
+      for (const langKey of ["ar", "en"] as const) {
+        try {
+          const raw = window.localStorage.getItem(ELITE_CV_KEYS[langKey]);
+          if (raw) bilingual[langKey] = JSON.parse(raw) as CVData;
+        } catch { /* ignore */ }
+      }
+      if (bilingual.ar || bilingual.en) payload.bilingual = bilingual;
+    }
+    return payload;
+  }
+
+  function downloadJsonBackup() {
+    const baseName = cv.personal.name ? cv.personal.name.replace(/\s+/g, "-").toLowerCase() : "resume";
+    const blob = new Blob([JSON.stringify(buildNashmiJsonPayload(), null, 2)], { type: "application/json" });
+    downloadBlob(blob, `nashmi-${baseName}-backup.json`);
   }
 
   async function switchEliteCvLang(target: "ar" | "en") {
@@ -1310,6 +1326,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       } else {
         showToast(isAr ? "✓ تم تصدير PDF بنجاح — شكراً لاستخدامك نشمي" : "✓ PDF exported — thank you for using Nashmi");
       }
+
+      downloadJsonBackup();
 
       // 3. Email a copy to the address the client put in the CV (best-effort:
       // a failure here must never block the download or the session reset).
@@ -1683,7 +1701,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return (
       <div style={{ minHeight: "100vh", background: P.bg, direction: isAr ? "rtl" : "ltr", fontFamily: ff, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
         {/* hidden inputs so refs work */}
-        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
+        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt,.json,application/json" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
         <input ref={jsonImportRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) importJSON(f); e.target.value = ""; }}/>
 
         {/* Logo */}
@@ -1726,10 +1744,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           >
             <div style={{ fontSize: 40, marginBottom: 12 }}>{importing ? "⏳" : "📄"}</div>
             <div style={{ color: P.text, fontWeight: 800, fontSize: 17, marginBottom: 6, fontFamily: ff }}>
-              {importing ? (isAr ? "جارٍ التحليل…" : "Analysing…") : (isAr ? "استيراد PDF / DOCX" : "Import PDF / DOCX")}
+              {importing ? (isAr ? "جارٍ التحليل…" : "Analysing…") : (isAr ? "استيراد PDF / JSON" : "Import PDF / JSON")}
             </div>
             <div style={{ color: P.muted, fontSize: 13, lineHeight: 1.5 }}>
-              {isAr ? "حلّل سيرتك الحالية بالذكاء الاصطناعي وأدخلها تلقائياً" : "AI parses your existing resume and auto-fills the form"}
+              {isAr ? "PDF من نشمي يحتاج ملف JSON — يُحمّل تلقائياً مع التصدير" : "Nashmi PDFs need the JSON backup — downloaded automatically on export"}
             </div>
           </button>
 
@@ -1838,7 +1856,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         <button onClick={() => fileRef.current?.click()} disabled={importing} style={{ background: P.card, border: `1px solid ${P.border}`, color: P.muted, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, fontFamily: ff, whiteSpace: "nowrap" }}>
           {importing ? "⏳" : "⬆"} PDF
         </button>
-        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
+        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt,.json,application/json" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
       </div>
 
 

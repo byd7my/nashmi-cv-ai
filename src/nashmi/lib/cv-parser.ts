@@ -401,6 +401,93 @@ export async function extractTextFromFile(file: File): Promise<string> {
   return extractTextFromDOCX(file);
 }
 
+export function isResumeJsonFile(file: File): boolean {
+  const name = (file.name || "").toLowerCase();
+  return name.endsWith(".json") || file.type === "application/json";
+}
+
+export function isPdfFile(file: File): boolean {
+  const name = (file.name || "").toLowerCase();
+  return name.endsWith(".pdf") || file.type === "application/pdf";
+}
+
+export type NashmiJsonImport = {
+  cv: CVData;
+  activeLang?: "ar" | "en";
+  bilingual?: Partial<Record<"ar" | "en", CVData>>;
+};
+
+export async function parseResumeJsonFile(file: File): Promise<NashmiJsonImport> {
+  const raw = await file.text();
+  if (!raw.trim()) throw new Error("EMPTY_FILE");
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("INVALID_JSON");
+  }
+
+  if (typeof parsed !== "object" || parsed === null) throw new Error("INVALID_JSON");
+
+  const doc = parsed as Record<string, unknown>;
+  const activeLang = doc.lang === "ar" || doc.lang === "en" ? doc.lang : undefined;
+
+  let bilingual: Partial<Record<"ar" | "en", CVData>> | undefined;
+  if (doc.bilingual && typeof doc.bilingual === "object" && doc.bilingual !== null) {
+    const src = doc.bilingual as Record<string, unknown>;
+    bilingual = {};
+    if (src.ar && typeof src.ar === "object") bilingual.ar = normalizeParsedCV(src.ar as CVData);
+    if (src.en && typeof src.en === "object") bilingual.en = normalizeParsedCV(src.en as CVData);
+    if (!bilingual.ar && !bilingual.en) bilingual = undefined;
+  }
+
+  let cvRaw: unknown;
+  if (doc._nashmi && doc.cv) cvRaw = doc.cv;
+  else if (doc.personal || doc.summary || doc.experience) cvRaw = doc;
+  else if (bilingual?.ar) cvRaw = bilingual.ar;
+  else if (bilingual?.en) cvRaw = bilingual.en;
+  else throw new Error("NOT_RESUME");
+
+  return {
+    cv: normalizeParsedCV(cvRaw as CVData),
+    activeLang,
+    bilingual,
+  };
+}
+
+export function describeImportError(err: unknown, isAr: boolean): string {
+  const code = err instanceof Error ? err.message : String(err);
+  switch (code) {
+    case "PDF_IMAGE_ONLY":
+      return isAr
+        ? "ملف PDF من نشمي (صورة) لا يمكن استيراده. استخدم ملف JSON الذي يُحمّل مع التصدير، أو Word/TXT."
+        : "Nashmi PDF exports are image-only and cannot be re-imported. Use the JSON backup downloaded with export, or Word/TXT.";
+    case "EMPTY_FILE":
+    case "Could not extract text from file":
+      return isAr ? "تعذر قراءة محتوى الملف" : "Could not extract text from file";
+    case "INVALID_JSON":
+      return isAr ? "ملف JSON غير صالح" : "Invalid JSON file";
+    case "NOT_RESUME":
+      return isAr ? "الملف لا يبدو كسيرة نشمي" : "File does not look like a Nashmi resume";
+    default:
+      return code;
+  }
+}
+
+export function persistBilingualImport(bilingual?: Partial<Record<"ar" | "en", CVData>>): void {
+  if (!bilingual) return;
+  for (const lang of ["ar", "en"] as const) {
+    if (!bilingual[lang]) continue;
+    try {
+      window.localStorage.setItem(
+        lang === "ar" ? "nashmi-cv-draft-ar" : "nashmi-cv-draft-en",
+        JSON.stringify(bilingual[lang]),
+      );
+    } catch { /* ignore */ }
+  }
+}
+
 export const EN_HEADERS = { summary:"SUMMARY", experience:"EXPERIENCE", education:"EDUCATION", skills:"SKILLS", languages:"LANGUAGES", certifications:"CERTIFICATIONS & TRAINING" };
 export const AR_HEADERS = { summary:"الملخص", experience:"الخبرة", education:"التعليم", skills:"المهارات", languages:"اللغات", certifications:"الشهادات والدورات" };
 export const FIXED_SECTIONS = ["summary", "experience", "education", "skills", "languages"];

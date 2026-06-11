@@ -7,7 +7,7 @@ import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import { getReviews, loadReviews, subscribeToReviews, type UserReview } from "@/nashmi/lib/reviews";
 import { ReviewsSection } from "@/nashmi/components/ReviewsSection";
-import { extractTextFromFile, localParseCV, normalizeParsedCV, smartCategorize } from "@/nashmi/lib/cv-parser";
+import { extractTextFromFile, localParseCV, normalizeParsedCV, smartCategorize, isResumeJsonFile, parseResumeJsonFile, persistBilingualImport, describeImportError, isPdfFile } from "@/nashmi/lib/cv-parser";
 import type { CVData } from "@/nashmi/lib/ats";
 
 interface Props {
@@ -62,13 +62,21 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
     setImportingCv(true);
     track("pdf_imported", { source: "landing_hero" });
     try {
+      if (isResumeJsonFile(file)) {
+        const imported = await parseResumeJsonFile(file);
+        persistBilingualImport(imported.bilingual);
+        onNav("builder", smartCategorize(imported.cv));
+        return;
+      }
+
       const text = await extractTextFromFile(file);
-      if (!text.trim()) throw new Error(isAr ? "تعذر قراءة محتوى الملف" : "Could not extract text from file");
+      if (!text.trim()) {
+        throw new Error(isPdfFile(file) ? "PDF_IMAGE_ONLY" : "EMPTY_FILE");
+      }
       const parsed = smartCategorize(normalizeParsedCV(localParseCV(text)));
       onNav("builder", parsed);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(isAr ? `فشل الاستيراد: ${msg}` : `Import failed: ${msg}`);
+      alert(isAr ? `فشل الاستيراد: ${describeImportError(err, isAr)}` : `Import failed: ${describeImportError(err, false)}`);
     } finally {
       setImportingCv(false);
     }
@@ -125,12 +133,12 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
               <span aria-hidden="true">{importingCv ? "⏳" : "📄"}</span>
               {importingCv
                 ? (isAr ? "جارٍ الاستيراد..." : "Importing...")
-                : (isAr ? "استيراد سيرة سابقة (PDF)" : "Import Previous CV (PDF)")}
+                : (isAr ? "استيراد سيرة (PDF / JSON)" : "Import CV (PDF / JSON)")}
             </button>
             <input
               ref={importFileRef}
               type="file"
-              accept=".pdf,.docx,.doc,.txt"
+              accept=".pdf,.docx,.doc,.txt,.json,application/json"
               style={{ display: "none" }}
               onChange={e => { const f = e.target.files?.[0]; if (f) handleHeroImport(f); e.target.value = ""; }}
             />
