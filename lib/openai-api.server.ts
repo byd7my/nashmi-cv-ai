@@ -4,6 +4,7 @@ import {
   checkAndConsumeSessionUsage,
   type SessionUsageType,
 } from "./ai-usage.server";
+import { getPlanUsageLimits, normalizePlanTier } from "./plan-limits.server";
 import { describeOpenAIEnv, getOpenAIApiKey, getOpenAIModel } from "./env.server";
 import { createChatCompletion } from "./openai.server";
 
@@ -22,18 +23,45 @@ function formatRetryHours(ms: number): string {
   return hours === 1 ? "1 hour" : `${hours} hours`;
 }
 
-function rateLimitMessage(type: SessionUsageType, limit: number, feature?: string): string {
+function rateLimitMessage(
+  type: SessionUsageType,
+  limit: number,
+  feature?: string,
+  planTier?: string,
+): string {
+  const tier = normalizePlanTier(planTier);
   switch (type) {
     case "improve":
-      return `You have reached the limit of ${limit} uses for this button (${feature ?? "improve"}) on this resume. Please try again in about 24 hours or start a new paid session.`;
+      return `You have reached the limit of ${limit} uses for this button (${feature ?? "improve"}) on this resume (${tier} plan). Export or start a new session to continue.`;
     case "translate":
-      return `You have reached the translation limit (${limit} requests) for this resume session. Export your CV or purchase a new session to continue.`;
+      return tier === "premium"
+        ? "Bilingual translation is available on the Elite plan only."
+        : `You have reached the translation limit (${limit} requests) for this resume session (${tier} plan). Export or start a new session to continue.`;
     case "copilot":
-      return `You have reached the AI assistant limit (${limit} messages) for this resume session. Export your CV or purchase a new session to continue.`;
+      return `You have reached the AI assistant limit (${limit} messages) for this resume session (${tier} plan). Export or start a new session to continue.`;
     case "parse":
-      return `You have reached the CV import limit (${limit} imports) for this session.`;
+      return `You have reached the CV import limit (${limit} imports) for this session (${tier} plan).`;
     default:
-      return `You have reached the AI usage limit for this session.`;
+      return "You have reached the AI usage limit for this session.";
+  }
+}
+
+function planFeatureUnavailableMessage(type: SessionUsageType, planTier?: string): string {
+  const tier = normalizePlanTier(planTier);
+  const limits = getPlanUsageLimits(tier);
+  switch (type) {
+    case "improve":
+      return "AI Improve requires a paid plan (Premium or Elite).";
+    case "translate":
+      return limits.translateChunks <= 0
+        ? "Bilingual translation is available on the Elite plan only."
+        : "Translation is not available on your current plan.";
+    case "copilot":
+      return "AI assistant requires a paid plan (Premium or Elite).";
+    case "parse":
+      return "AI-powered CV import requires a paid plan (Premium or Elite).";
+    default:
+      return "This AI feature is not available on your current plan.";
   }
 }
 
@@ -117,12 +145,26 @@ export async function handleOpenAIRequest(request: Request): Promise<Response> {
       );
 
       if (!usage.allowed) {
+        if (usage.limit <= 0) {
+          return jsonResponse(
+            {
+              error: planFeatureUnavailableMessage(usageType, usage.planTier),
+              code: "PLAN_FEATURE_UNAVAILABLE",
+              usageType,
+              planTier: usage.planTier,
+              limit: 0,
+            },
+            403,
+          );
+        }
+
         const retryIn = formatRetryHours(usage.retryAfterMs);
         return jsonResponse(
           {
-            error: `${rateLimitMessage(usageType, usage.limit, typeof usageFeature === "string" ? usageFeature : undefined)} Retry in about ${retryIn}.`,
+            error: `${rateLimitMessage(usageType, usage.limit, typeof usageFeature === "string" ? usageFeature : undefined, usage.planTier)} Retry in about ${retryIn}.`,
             code: "AI_RATE_LIMIT",
             usageType,
+            planTier: usage.planTier,
             limit: usage.limit,
             remaining: 0,
             retryAfterMs: usage.retryAfterMs,

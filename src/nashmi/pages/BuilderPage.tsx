@@ -15,6 +15,7 @@ import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImpo
 import { cvMatchesLanguage, translateCvDetailed } from "@/nashmi/lib/cv-translate";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
+import { getSessionPlanTier, setSessionPlanTier } from "@/nashmi/lib/plan-session";
 
 const FF2 = FF;
 
@@ -241,6 +242,7 @@ async function callOpenAIRaw(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const sessionId = getCvSessionId();
   if (sessionId) headers["x-nashmi-session-id"] = sessionId;
+  headers["x-nashmi-plan-tier"] = getSessionPlanTier();
 
   const res = await fetch("/api/openai", {
     method: "POST",
@@ -575,6 +577,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [previewScale, setPreviewScale] = useState(1);
   const scaledCvRef = useRef<HTMLDivElement>(null);
   const [scaledCvHeight, setScaledCvHeight] = useState(1100);
+
+  useEffect(() => {
+    setSessionPlanTier(currentPlan || "starter");
+  }, [currentPlan]);
 
   useEffect(() => {
     try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }

@@ -1,3 +1,4 @@
+import { getPlanUsageLimits, resolvePlanTierFromRequest, type PlanTier } from "./plan-limits.server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase.server";
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -5,54 +6,15 @@ const WINDOW_MS = 24 * 60 * 60 * 1000;
 export type SessionUsageType = "improve" | "translate" | "copilot" | "parse";
 
 export type AiUsageCheckResult =
-  | { allowed: true; remaining: number; limit: number; usageType: SessionUsageType }
+  | { allowed: true; remaining: number; limit: number; usageType: SessionUsageType; planTier: PlanTier }
   | {
       allowed: false;
       remaining: 0;
       limit: number;
       retryAfterMs: number;
       usageType: SessionUsageType;
+      planTier: PlanTier;
     };
-
-function readLimitEnv(name: string, fallback: number): number {
-  const raw = Number(process.env[name] ?? fallback);
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : fallback;
-}
-
-/** Per AI Improve button on one CV session (summary, exp-0, skills, …). */
-export function getImproveLimit(): number {
-  return readLimitEnv("AI_RATE_LIMIT_MAX", 3);
-}
-
-/** Shared bucket for all translation API chunks in one CV session. */
-export function getTranslateLimit(): number {
-  return readLimitEnv("AI_TRANSLATE_LIMIT_MAX", 40);
-}
-
-/** Copilot chat messages per CV session. */
-export function getCopilotLimit(): number {
-  return readLimitEnv("AI_COPILOT_LIMIT_MAX", 35);
-}
-
-/** CV file/text imports parsed by AI per session. */
-export function getParseLimit(): number {
-  return readLimitEnv("AI_PARSE_LIMIT_MAX", 3);
-}
-
-function getLimitForType(type: SessionUsageType): number {
-  switch (type) {
-    case "improve":
-      return getImproveLimit();
-    case "translate":
-      return getTranslateLimit();
-    case "copilot":
-      return getCopilotLimit();
-    case "parse":
-      return getParseLimit();
-    default:
-      return 3;
-  }
-}
 
 function normalizeFeature(raw: string): string {
   const trimmed = raw.trim().slice(0, 64);
@@ -78,6 +40,25 @@ function resolveSessionId(req: {
   return sessionId;
 }
 
+function getLimitForType(
+  type: SessionUsageType,
+  planTier: PlanTier,
+): number {
+  const limits = getPlanUsageLimits(planTier);
+  switch (type) {
+    case "improve":
+      return limits.improvePerButton;
+    case "translate":
+      return limits.translateChunks;
+    case "copilot":
+      return limits.assistantMessages;
+    case "parse":
+      return limits.parseImports;
+    default:
+      return 0;
+  }
+}
+
 function buildIdentifier(sessionId: string, type: SessionUsageType, feature?: string): string {
   if (type === "improve") {
     if (!feature) throw new Error("usageFeature is required for AI Improve rate limiting");
@@ -96,7 +77,19 @@ export async function checkAndConsumeSessionUsage(
   usageType: SessionUsageType,
   usageFeature?: string,
 ): Promise<AiUsageCheckResult> {
-  const limit = getLimitForType(usageType);
+  const planTier = resolvePlanTierFromRequest(req);
+  const limit = getLimitForType(usageType, planTier);
+
+  if (limit <= 0) {
+    return {
+      allowed: false,
+      remaining: 0,
+      limit: 0,
+      retryAfterMs: WINDOW_MS,
+      usageType,
+      planTier,
+    };
+  }
 
   if (!isSupabaseConfigured()) {
     throw new Error("Supabase is not configured for AI rate limiting");
@@ -128,7 +121,7 @@ export async function checkAndConsumeSessionUsage(
 
   if (attemptCount >= limit) {
     const retryAfterMs = lastUsedAt ? Math.max(WINDOW_MS - (now - lastUsedAt), 0) : WINDOW_MS;
-    return { allowed: false, remaining: 0, limit, retryAfterMs, usageType };
+    return { allowed: false, remaining: 0, limit, retryAfterMs, usageType, planTier };
   }
 
   const nextCount = attemptCount + 1;
@@ -154,6 +147,7 @@ export async function checkAndConsumeSessionUsage(
     remaining: Math.max(limit - nextCount, 0),
     limit,
     usageType,
+    planTier,
   };
 }
 

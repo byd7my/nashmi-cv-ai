@@ -1,5 +1,6 @@
 import type { CVData } from "@/nashmi/lib/ats";
 import { getCvSessionId } from "@/nashmi/lib/session";
+import { getSessionPlanTier } from "@/nashmi/lib/plan-session";
 
 export type CvTranslateLang = "ar" | "en";
 
@@ -102,6 +103,7 @@ async function callOpenAI(prompt: string): Promise<string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const sessionId = getCvSessionId();
   if (sessionId) headers["x-nashmi-session-id"] = sessionId;
+  headers["x-nashmi-plan-tier"] = getSessionPlanTier();
 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 120_000);
