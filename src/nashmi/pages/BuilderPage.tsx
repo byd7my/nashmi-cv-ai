@@ -231,7 +231,8 @@ async function callOpenAIRaw(
       );
     }
     const retryAfter = data?.retryAfter ? ` ${data.retryAfter}` : "";
-    throw new Error(`${data?.error || `OpenAI error: ${res.status}`}${retryAfter}`);
+    const codeSuffix = data?.code ? ` (${data.code})` : "";
+    throw new Error(`${data?.error || `OpenAI error: ${res.status}`}${codeSuffix}${retryAfter}`);
   }
 
   return (data?.text || "").trim();
@@ -247,72 +248,46 @@ async function callAI(task: string, text: string, lang: string, extra?: Record<s
   if (task === "improve_summary") {
     const cv = (extra as any)?.cv;
 
-    const personalText = `
-Name: ${cv?.personal?.name || ""}
-Title: ${cv?.personal?.title || ""}
-City: ${cv?.personal?.city || ""}
-`.trim();
-
     const expText = cv?.experience?.map((e: any) =>
-      `- Job Title: ${e.role || ""}
-Company: ${e.company || ""}
-Period: ${e.from || ""} - ${e.to || ""}
-Responsibilities/Achievements:
+      `- ${e.role || ""} @ ${e.company || ""} (${e.from || ""} - ${e.to || ""})
 ${e.desc || ""}`
     ).join("\n\n") || "";
 
     const eduText = cv?.education?.map((e: any) =>
-      `- Degree: ${e.degree || ""}
-Field: ${e.field || ""}
-Institution: ${e.school || ""}
-Period: ${e.from || ""} - ${e.to || ""}
-GPA: ${e.showGpa && e.gpa ? `${e.gpa}/${e.gpaScale}` : ""}
-Honors: ${e.honors || ""}`
-    ).join("\n\n") || "";
+      `- ${e.degree || ""} ${e.field ? `in ${e.field}` : ""} — ${e.school || ""} (${e.from || ""} - ${e.to || ""})${e.honors ? `, ${e.honors}` : ""}`
+    ).join("\n") || "";
 
     const certsText = cv?.certifications?.map((c: any) =>
-      `- Certificate/Course: ${c.title || ""}
-Issuer: ${c.issuer || ""}
-Date: ${c.date || ""}`
-    ).join("\n\n") || "";
-
-    const skillsText = cv?.skills?.join(", ") || "";
+      `- ${c.title || ""}${c.issuer ? ` — ${c.issuer}` : ""}${c.date ? ` (${c.date})` : ""}`
+    ).join("\n") || "";
 
     const prompt = `
 You are a professional resume writer and ATS optimization expert.
 
 Task:
-Rewrite the professional summary using ALL available resume information.
+Rewrite the professional summary using the current summary, work experience, educational background, and professional certifications together.
+The result must be comprehensive, well-structured, and fully ATS-compatible while reflecting all available information.
 
 Current summary:
 ${text || "No current summary provided."}
 
-Personal information:
-${personalText}
-
 Work experience:
 ${expText || "No work experience provided."}
 
-Education:
+Educational background:
 ${eduText || "No education provided."}
 
-Professional certificates, courses, or training:
-${certsText || "No certificates provided."}
-
-Skills:
-${skillsText || "No skills provided."}
+Professional certifications and courses:
+${certsText || "No certifications provided."}
 
 Rules:
-- Write one strong professional summary.
-- Use the current summary if it has useful information, but improve it.
-- Base the summary on experience, education, certificates, courses, and skills.
-- Mention certificates or education only if they are actually provided.
-- Make it ATS-friendly with relevant keywords.
-- Make it clear, polished, and suitable for a CV.
-- Do not invent fake companies, fake years, fake degrees, or fake certificates.
-- Do not use first person pronouns like "I", "my", "أنا".
-- Keep it between 3 and 5 sentences.
-- Return only the improved summary, with no explanation.
+- Synthesize the summary, experience, education, and certifications into one cohesive professional summary.
+- Keep it comprehensive yet concise (3 to 5 sentences).
+- Use ATS-friendly keywords that match the candidate's field and experience.
+- Mention education or certifications only when they are actually provided.
+- Do not invent companies, dates, degrees, or certificates.
+- Do not use first person pronouns like "I", "my", "أنا", "ني".
+- Return only the improved summary with no explanation.
 
 ${outLang}
     `.trim();
@@ -334,7 +309,8 @@ ${outLang}
 You are a professional resume writer and ATS optimization expert.
 
 Task:
-Improve the responsibilities and achievements for this work experience.
+Improve the responsibilities and achievements for this role using the job title and the written tasks/achievements.
+Use strong, ATS-optimized wording with a powerful action verb at the start of every bullet.
 
 Job title:
 ${role || "Not provided"}
@@ -345,19 +321,16 @@ ${company || "Not provided"}
 Period:
 ${from || ""} - ${to || ""}
 
-Current responsibilities and achievements:
+Current tasks and achievements:
 ${text || "No responsibilities provided."}
 
 Rules:
-- Rewrite the content specifically for the job title.
-- Keep it relevant to the role and the current written tasks.
-- Make each bullet strong, professional, and ATS-friendly.
-- Start bullets with powerful action verbs.
-- Add measurable impact only when it is reasonable from the provided context.
-- Do not invent fake numbers, fake tools, or fake achievements.
-- Use bullet points.
-- Return only the improved responsibilities and achievements.
-- No explanations before or after.
+- Rewrite specifically for the job title above.
+- Start every bullet with a strong action verb (e.g. Led, Built, Optimized, أدار، طوّر، حسّن).
+- Make each bullet professional, results-oriented, and ATS-friendly.
+- Preserve the meaning of the original tasks; do not invent fake numbers, tools, or achievements.
+- Use bullet points only.
+- Return only the improved tasks and achievements with no explanation.
 
 ${outLang}
     `.trim();
@@ -368,46 +341,39 @@ ${outLang}
   // ── برومت اقتراح المهارات ──────────────────────────────────────────────
   if (task === "improve_skills") {
     const cv = (extra as any)?.cv;
+    const specialty = cv?.personal?.title || "";
     const titles = cv?.experience?.map((e: any) => e.role).filter(Boolean).join(", ") || "";
-    const responsibilities = cv?.experience?.map((e: any) => e.desc).filter(Boolean).join("\n") || "";
-    const education = cv?.education?.map((e: any) =>
-      `${e.degree || ""} ${e.field || ""} - ${e.school || ""}`.trim()
-    ).filter(Boolean).join("\n") || "";
-    const certs = cv?.certifications?.map((c: any) =>
-      `${c.title || ""} ${c.issuer || ""}`.trim()
-    ).filter(Boolean).join("\n") || "";
+    const experienceDetails = cv?.experience?.map((e: any) =>
+      `${e.role || ""} @ ${e.company || ""}:\n${e.desc || ""}`
+    ).filter(Boolean).join("\n\n") || "";
     const existing = cv?.skills?.join(", ") || text || "";
 
     const prompt = `
 You are an ATS resume optimization expert.
 
 Task:
-Suggest strong resume skills based on the candidate's job titles, responsibilities, education, certificates, and existing skills.
+Suggest skills that match the candidate's specialization, job titles, and experience.
+Skills must be relevant to the job market and optimized for ATS screening.
+
+Specialization / target role:
+${specialty || titles || "Not provided"}
 
 Job titles:
 ${titles || "No job titles provided."}
 
-Responsibilities and achievements:
-${responsibilities || "No responsibilities provided."}
-
-Education:
-${education || "No education provided."}
-
-Certificates and courses:
-${certs || "No certificates provided."}
+Work experience:
+${experienceDetails || "No experience details provided."}
 
 Existing skills:
 ${existing || "No existing skills provided."}
 
 Rules:
-- Suggest 10 to 15 skills.
-- Skills must be relevant to the candidate's specialization and experience.
-- Include ATS-friendly keywords.
-- Include a balanced mix of technical skills, professional skills, tools, and domain skills when appropriate.
+- Suggest 10 to 15 skills that fit the specialization and experience.
+- Prioritize in-demand, market-relevant, ATS-friendly keywords.
+- Include a balanced mix of technical skills, tools, and professional competencies when appropriate.
 - Do not duplicate existing skills.
 - Do not suggest unrelated skills.
-- Write one skill per line.
-- Do not use numbering, bullets, commas, or explanations.
+- Write one skill per line with no numbering, bullets, commas, or explanations.
 - Return only the skills list.
 
 ${outLang}
@@ -692,6 +658,22 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         return;
       }
       const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("MISSING_OPENAI_KEY") || msg.includes("OPENAI_API_KEY")) {
+        sonnerToast.error(
+          isAr
+            ? "مفتاح OpenAI غير مضبوط. أضف OPENAI_API_KEY في متغيرات البيئة."
+            : "OpenAI API key is missing. Add OPENAI_API_KEY to your environment variables.",
+        );
+        return;
+      }
+      if (msg.includes("AI_USAGE_CHECK_FAILED") || msg.includes("Supabase")) {
+        sonnerToast.error(
+          isAr
+            ? "تعذر التحقق من حد الاستخدام. تأكد من إعداد Supabase وجدول ai_usage."
+            : "Could not verify usage limits. Check Supabase config and the ai_usage table.",
+        );
+        return;
+      }
       sonnerToast.error(isAr ? `فشل تحسين AI: ${msg}` : `AI improve failed: ${msg}`);
     } finally {
       setAiLoading(null);
