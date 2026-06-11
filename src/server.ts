@@ -1,6 +1,6 @@
 import "./lib/error-capture";
 
-import { handleOpenAIRequest } from "../api/openai";
+import { handleOpenAIRequest } from "../lib/openai-api.server";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
@@ -42,7 +42,15 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const { pathname } = new URL(request.url);
     if (pathname === "/api/openai") {
-      return handleOpenAIRequest(request);
+      try {
+        return await handleOpenAIRequest(request);
+      } catch (error) {
+        console.error("[api/openai] Unhandled handler error", error);
+        return Response.json(
+          { error: "Internal server error", code: "OPENAI_HANDLER_CRASH" },
+          { status: 500 },
+        );
+      }
     }
 
     try {

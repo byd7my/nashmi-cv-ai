@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 
-import { checkAndConsumeAiImproveUsage } from "../lib/ai-usage.server";
-import { describeOpenAIEnv, getOpenAIApiKey, getOpenAIModel } from "../lib/env.server";
-import { createChatCompletion } from "../lib/openai.server";
+import { checkAndConsumeAiImproveUsage } from "./ai-usage.server";
+import { describeOpenAIEnv, getOpenAIApiKey, getOpenAIModel } from "./env.server";
+import { createChatCompletion } from "./openai.server";
 
 function logApiError(context: string, err: unknown, extra?: Record<string, unknown>) {
   console.error(`[api/openai] ${context}`, {
@@ -148,17 +148,4 @@ export async function handleOpenAIRequest(request: Request): Promise<Response> {
       500,
     );
   }
-}
-
-export default async function handler(req: { method?: string; body?: unknown; headers?: Record<string, string> }, res: {
-  status: (code: number) => { json: (body: unknown) => void };
-}) {
-  const request = new Request("http://localhost/api/openai", {
-    method: req.method ?? "POST",
-    headers: req.headers,
-    body: JSON.stringify(req.body ?? {}),
-  });
-  const response = await handleOpenAIRequest(request);
-  const payload = await response.json();
-  return res.status(response.status).json(payload);
 }
