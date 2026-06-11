@@ -601,9 +601,48 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return () => ro.disconnect();
   }, [isMobile, mobileTab, cv, activeCvLang]);
 
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const [isSheetDragging, setIsSheetDragging] = useState(false);
+  const sheetDragStartY = useRef(0);
+
   useEffect(() => {
-    if (isMobile && activePanel) setMobileTab("sections");
-  }, [activePanel, isMobile]);
+    setSheetDragY(0);
+    setIsSheetDragging(false);
+  }, [activePanel]);
+
+  const onSheetDragStart = (clientY: number) => {
+    sheetDragStartY.current = clientY;
+    setIsSheetDragging(true);
+  };
+
+  const onSheetDragEnd = useCallback(() => {
+    setSheetDragY(y => {
+      if (y > 100) setActivePanel(null);
+      return 0;
+    });
+    setIsSheetDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isSheetDragging) return;
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+      const dy = Math.max(0, clientY - sheetDragStartY.current);
+      setSheetDragY(dy);
+      if ("touches" in e) e.preventDefault();
+    };
+    const onEnd = () => onSheetDragEnd();
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onEnd);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onEnd);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, [isSheetDragging, onSheetDragEnd]);
 
   const isElite = userTier === "elite" || userTier === "enterprise";
   const otherLang: "ar" | "en" = activeCvLang === "ar" ? "en" : "ar";
@@ -1405,8 +1444,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   const handleSectionSelect = useCallback((id: string) => {
     setActivePanel(id);
-    if (isMobile) setMobileTab("sections");
-  }, [isMobile]);
+  }, []);
 
   const renderMobileScaledCv = (interactive: boolean) => {
     const scaledW = Math.round(794 * previewScale);
@@ -1534,6 +1572,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           background-image: ${CANVAS.pattern};
           background-size: 20px 20px;
         }
+        .builder-canvas-mobile {
+          background: ${P.bg};
+          background-image: none;
+        }
       `}</style>
 
       {/* صف 1: شعار + رجوع + ATS + تصدير */}
@@ -1630,14 +1672,14 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           display: flex;
           align-items: center;
           gap: 8px;
-          background: rgba(255,255,255,0.92);
-          border: 1px solid ${CANVAS.lightBorder};
+          background: ${P.surface};
+          border: 1px solid ${P.border};
           border-radius: 999px;
           padding: 10px 16px;
-          color: ${CANVAS.lightMuted};
+          color: ${P.muted};
           font-size: 13px;
           font-weight: 600;
-          box-shadow: 0 4px 16px rgba(15,23,42,0.08);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.25);
         }
         @keyframes mobileTabIn {
           from { opacity: 0; transform: translateY(10px); }
@@ -1653,6 +1695,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           .builder-preview {
             padding: 0 0 calc(68px + env(safe-area-inset-bottom)) !important;
             align-items: center !important;
+            background: ${P.bg} !important;
           }
           .builder-topbar { flex-wrap: wrap; gap: 8px !important; height: auto !important; padding: 10px 12px !important; }
           .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }
@@ -1670,11 +1713,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             position: fixed;
             bottom: 0; left: 0; right: 0;
             z-index: 2500;
-            background: rgba(255,255,255,0.97);
+            background: rgba(17, 17, 24, 0.97);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            border-top: 1px solid ${CANVAS.lightBorder};
-            box-shadow: 0 -4px 24px rgba(15,23,42,0.08);
+            border-top: 1px solid ${P.border};
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.35);
             padding: 4px 6px calc(6px + env(safe-area-inset-bottom));
             gap: 2px;
           }
@@ -1696,7 +1739,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             -webkit-tap-highlight-color: transparent;
           }
           .mobile-tab-btn:active { transform: scale(0.94); }
-          .mobile-tab-btn.is-active { background: ${P.violet}14; }
+          .mobile-tab-btn.is-active { background: ${P.violet}28; }
           .before-after-overlay {
             align-items: flex-end !important;
             padding: 0 !important;
@@ -1725,8 +1768,29 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             flex-shrink: 0;
           }
           .before-after-actions button { width: 100% !important; }
-          .editor-panel-light .editor-panel-title { color: ${CANVAS.lightText}; }
-          .editor-panel-light .editor-panel-sub { color: ${CANVAS.lightMuted}; }
+          .editor-sheet-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 2999;
+            background: rgba(10,10,11,0.55);
+            backdrop-filter: blur(2px);
+            animation: fadeIn 0.25s ease;
+          }
+          @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+          .editor-panel-handle-zone {
+            touch-action: none;
+            cursor: grab;
+            padding: 10px 0 4px;
+            flex-shrink: 0;
+          }
+          .editor-panel-handle-zone:active { cursor: grabbing; }
+          .editor-panel-handle {
+            width: 40px;
+            height: 4px;
+            border-radius: 99px;
+            background: ${P.borderLight};
+            margin: 0 auto;
+          }
         }
       `}</style>
       <style>{`
@@ -1781,7 +1845,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
         {/* CV Preview — desktop always; mobile only on Preview tab */}
         {(!isMobile || mobileTab === "preview") && (
-        <div className="builder-preview builder-canvas" style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div className={`builder-preview${isMobile ? " builder-canvas-mobile" : " builder-canvas"}`} style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
           {!isMobile && (
             <EliteImportFeature
               userSubscriptionTier={currentPlan}
@@ -1839,8 +1903,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
         {/* Mobile: Sections tab */}
         {isMobile && mobileTab === "sections" && (
-          <div key="sections" className="mobile-tab-view builder-canvas" style={{ padding: "16px 14px calc(80px + env(safe-area-inset-bottom))", overflowY: "auto" }}>
-            <h2 style={{ color: CANVAS.lightText, fontSize: 17, fontWeight: 800, margin: "0 0 14px", fontFamily: ff }}>
+          <div key="sections" className="mobile-tab-view builder-canvas-mobile" style={{ padding: "16px 14px calc(80px + env(safe-area-inset-bottom))", overflowY: "auto" }}>
+            <h2 style={{ color: P.text, fontSize: 17, fontWeight: 800, margin: "0 0 14px", fontFamily: ff }}>
               {isAr ? "اختر قسم للتعديل" : "Choose a section to edit"}
             </h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -1851,8 +1915,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                     key={id}
                     onClick={() => setActivePanel(id)}
                     style={{
-                      background: "#fff",
-                      border: `1px solid ${CANVAS.lightBorder}`,
+                      background: P.card,
+                      border: `1px solid ${P.border}`,
                       borderRadius: 14,
                       padding: "16px 12px",
                       cursor: "pointer",
@@ -1861,12 +1925,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                       alignItems: "center",
                       gap: 8,
                       fontFamily: ff,
-                      boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
                       transition: "transform 0.2s ease, border-color 0.2s",
                     }}
                   >
                     <span style={{ fontSize: 24 }}>{icons[i]}</span>
-                    <span style={{ color: CANVAS.lightText, fontSize: 13, fontWeight: 700 }}>{SECTIONS[i]}</span>
+                    <span style={{ color: P.text, fontSize: 13, fontWeight: 700 }}>{SECTIONS[i]}</span>
                   </button>
                 );
               })}
@@ -1875,11 +1938,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         )}
 
         {isMobile && mobileTab === "export" && (
-          <div key="export" className="mobile-tab-view builder-canvas" style={{ padding: "24px 16px calc(80px + env(safe-area-inset-bottom))", overflowY: "auto", alignItems: "center" }}>
-            <div style={{ width: "100%", maxWidth: 360, background: "#fff", border: `1px solid ${CANVAS.lightBorder}`, borderRadius: 16, padding: "24px 20px", textAlign: "center", boxShadow: CANVAS.paperShadow }}>
+          <div key="export" className="mobile-tab-view builder-canvas-mobile" style={{ padding: "24px 16px calc(80px + env(safe-area-inset-bottom))", overflowY: "auto", alignItems: "center" }}>
+            <div style={{ width: "100%", maxWidth: 360, background: P.card, border: `1px solid ${P.border}`, borderRadius: 16, padding: "24px 20px", textAlign: "center" }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>{canExport ? "⬇" : "🔒"}</div>
-              <h2 style={{ color: CANVAS.lightText, fontSize: 18, fontWeight: 800, marginBottom: 8, fontFamily: ff }}>{t.export}</h2>
-              <p style={{ color: CANVAS.lightMuted, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
+              <h2 style={{ color: P.text, fontSize: 18, fontWeight: 800, marginBottom: 8, fontFamily: ff }}>{t.export}</h2>
+              <p style={{ color: P.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
                 {canExport
                   ? (isAr ? "حمّل سيرتك بصيغة PDF عالية الجودة." : "Download your resume as a high-quality PDF.")
                   : (isAr ? "التصدير متاح للباقات المدفوعة فقط." : "Export is available on paid plans only.")}
@@ -1887,12 +1950,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               <button
                 onClick={requestExport}
                 disabled={exportingPdf}
-                style={{ width: "100%", background: canExport ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : CANVAS.lightBg, border: canExport ? "none" : `1px solid ${CANVAS.lightBorder}`, color: canExport ? "#fff" : CANVAS.lightMuted, borderRadius: 12, padding: "12px 20px", cursor: exportingPdf ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 800, fontFamily: ff }}
+                style={{ width: "100%", background: canExport ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : P.surface, border: canExport ? "none" : `1px solid ${P.border}`, color: canExport ? "#fff" : P.muted, borderRadius: 12, padding: "12px 20px", cursor: exportingPdf ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 800, fontFamily: ff }}
               >
                 {exportingPdf ? (isAr ? "جارٍ التصدير…" : "Exporting…") : (canExport ? (isAr ? "تحميل PDF" : "Download PDF") : (isAr ? "ترقية للتصدير" : "Upgrade to Export"))}
               </button>
               {!canExport && (
-                <button onClick={() => setShowUpgrade(true)} style={{ marginTop: 10, background: "none", border: "none", color: P.violet, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: ff }}>
+                <button onClick={() => setShowUpgrade(true)} style={{ marginTop: 10, background: "none", border: "none", color: P.violetLight, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: ff }}>
                   {isAr ? "عرض الباقات" : "View plans"}
                 </button>
               )}
@@ -1902,11 +1965,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
         {/* Mobile: AI Copilot tab */}
         {isMobile && mobileTab === "copilot" && (
-          <div key="copilot" className="mobile-tab-view" style={{ background: "#fff", paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}>
-            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${CANVAS.lightBorder}`, background: "#fff" }}>
-              <span style={{ color: CANVAS.lightText, fontWeight: 800, fontSize: 16 }}>✧ {t.copilotTitle}</span>
+          <div key="copilot" className="mobile-tab-view builder-canvas-mobile" style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}>
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${P.border}`, background: P.surface }}>
+              <span style={{ color: P.text, fontWeight: 800, fontSize: 16 }}>✧ {t.copilotTitle}</span>
             </div>
-            {renderCopilotPanel(true, true)}
+            {renderCopilotPanel(true, false)}
           </div>
         )}
 
@@ -2082,8 +2145,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 if (tab.id !== "sections") setActivePanel(null);
               }}
             >
-              <span style={{ fontSize: 18, lineHeight: 1, color: isActive ? P.violet : CANVAS.lightMuted }}>{tab.icon}</span>
-              <span style={{ color: isActive ? P.violet : CANVAS.lightMuted, fontSize: 9.5, fontWeight: isActive ? 800 : 600, whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 18, lineHeight: 1, color: isActive ? P.violetLight : P.muted }}>{tab.icon}</span>
+              <span style={{ color: isActive ? P.violetLight : P.muted, fontSize: 9.5, fontWeight: isActive ? 800 : 600, whiteSpace: "nowrap" }}>
                 {tab.label}
               </span>
             </button>
@@ -2092,6 +2155,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       </div>
 
       {/* ── Click-to-edit editor panel: bottom sheet (mobile) / side panel (desktop) ── */}
+      {activePanel && isMobile && (
+        <div className="editor-sheet-backdrop" onClick={() => setActivePanel(null)} aria-hidden="true" />
+      )}
+
       {activePanel && (
         <>
           <style>{`
@@ -2100,18 +2167,18 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             .editor-panel {
               position: fixed; z-index: 3000;
               display: flex; flex-direction: column;
-              box-shadow: 0 -8px 40px rgba(15,23,42,0.12);
+              box-shadow: 0 -8px 40px rgba(0,0,0,0.5);
             }
             @media (max-width: 767px) {
               .editor-panel {
                 bottom: 0; left: 0; right: 0; width: 100%;
                 max-height: 88vh;
-                background: #fff;
+                background: ${P.surface};
                 border-radius: 20px 20px 0 0;
-                border-top: 1px solid ${CANVAS.lightBorder};
+                border-top: 1px solid ${P.border};
                 animation: sheetUp 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+                will-change: transform;
               }
-              .editor-panel-handle { display: block; background: ${CANVAS.lightBorder} !important; }
             }
             @media (min-width: 768px) {
               .editor-panel {
@@ -2121,25 +2188,40 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 border-left: 1px solid ${CANVAS.lightBorder};
                 animation: panelIn 0.3s ease;
               }
-              .editor-panel-handle { display: none; }
+              .editor-panel-handle-zone { display: none; }
             }
           `}</style>
-          <div ref={editorPanelRef} className="editor-panel editor-panel-light" style={{ direction: isAr ? "rtl" : "ltr", fontFamily: ff }}>
-            <div className="editor-panel-handle" style={{ width: 40, height: 4, borderRadius: 99, margin: "10px auto 0", flexShrink: 0 }}/>
+          <div
+            ref={editorPanelRef}
+            className="editor-panel"
+            style={{
+              direction: isAr ? "rtl" : "ltr",
+              fontFamily: ff,
+              transform: isMobile && sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined,
+              transition: isSheetDragging ? "none" : "transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)",
+            }}
+          >
+            <div
+              className="editor-panel-handle-zone"
+              onTouchStart={e => onSheetDragStart(e.touches[0].clientY)}
+              onMouseDown={e => { e.preventDefault(); onSheetDragStart(e.clientY); }}
+            >
+              <div className="editor-panel-handle" />
+            </div>
 
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 16px", borderBottom: `1px solid ${CANVAS.lightBorder}`, flexShrink: 0 }}>
-              <span className="editor-panel-title" style={{ color: CANVAS.lightText, fontWeight: 800, fontSize: 15 }}>✎ {panelTitle(activePanel)}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 16px 14px", borderBottom: `1px solid ${isMobile ? P.border : CANVAS.lightBorder}`, flexShrink: 0 }}>
+              <span style={{ color: isMobile ? P.text : CANVAS.lightText, fontWeight: 800, fontSize: 15 }}>✎ {panelTitle(activePanel)}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button onClick={() => setActivePanel(null)} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 10, padding: "7px 16px", cursor: "pointer", fontSize: 12, fontWeight: 800, fontFamily: ff, boxShadow: `0 4px 16px ${P.violet}33` }}>
                   {isAr ? "حفظ" : "Save"}
                 </button>
-                <button onClick={() => setActivePanel(null)} aria-label={isAr ? "إغلاق" : "Close"} style={{ background: "none", border: "none", color: CANVAS.lightMuted, cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+                <button onClick={() => setActivePanel(null)} aria-label={isAr ? "إغلاق" : "Close"} style={{ background: "none", border: "none", color: isMobile ? P.muted : CANVAS.lightMuted, cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
               </div>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: "#fff" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", background: isMobile ? P.bg : "#fff" }}>
               {renderPanelContent(activePanel)}
-              <div className="editor-panel-sub" style={{ color: CANVAS.lightMuted, fontSize: 11, textAlign: "center", marginTop: 10 }}>
+              <div style={{ color: isMobile ? P.muted : CANVAS.lightMuted, fontSize: 11, textAlign: "center", marginTop: 10 }}>
                 {isAr ? "يتم الحفظ تلقائياً أثناء الكتابة" : "Changes are saved automatically as you type"}
               </div>
             </div>
