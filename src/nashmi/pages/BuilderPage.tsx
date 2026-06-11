@@ -203,7 +203,7 @@ class AiRateLimitError extends Error {
   }
 }
 
-async function callGeminiRaw(
+async function callOpenAIRaw(
   prompt: string,
   options?: { usageType?: "improve" },
 ): Promise<string> {
@@ -211,7 +211,7 @@ async function callGeminiRaw(
   const sessionId = getSessionId();
   if (sessionId) headers["x-nashmi-session-id"] = sessionId;
 
-  const res = await fetch("/api/gemini", {
+  const res = await fetch("/api/openai", {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -231,7 +231,7 @@ async function callGeminiRaw(
       );
     }
     const retryAfter = data?.retryAfter ? ` ${data.retryAfter}` : "";
-    throw new Error(`${data?.error || `Gemini error: ${res.status}`}${retryAfter}`);
+    throw new Error(`${data?.error || `OpenAI error: ${res.status}`}${retryAfter}`);
   }
 
   return (data?.text || "").trim();
@@ -316,7 +316,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callGeminiRaw(prompt, { usageType: "improve" });
+    const result = await callOpenAIRaw(prompt, { usageType: "improve" });
     return { text: result.trim() };
   }
 
@@ -361,7 +361,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callGeminiRaw(prompt, { usageType: "improve" });
+    const result = await callOpenAIRaw(prompt, { usageType: "improve" });
     return { text: result.trim() };
   }
 
@@ -412,7 +412,7 @@ Rules:
 
 ${outLang}
     `.trim();
-    const result = await callGeminiRaw(prompt, { usageType: "improve" });
+    const result = await callOpenAIRaw(prompt, { usageType: "improve" });
     // نحول النتيجة لقائمة نظيفة
     const skills = result
       .split("\n")
@@ -440,7 +440,7 @@ ${text}
 
 Return ONLY the JSON, no explanation, no markdown, no code blocks.
     `.trim();
-    const result = await callGeminiRaw(prompt);
+    const result = await callOpenAIRaw(prompt);
     const clean = result.replace(/```json|```/g, "").trim();
     try {
       return { json: JSON.parse(clean) };
@@ -474,7 +474,7 @@ User: ${text}
 
 Respond in ${isAr ? "Arabic" : "English"} concisely and helpfully.
     `.trim();
-    const result = await callGeminiRaw(prompt);
+    const result = await callOpenAIRaw(prompt);
     return { text: result.trim() };
   }
 
@@ -671,7 +671,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       return;
     }
     if (!text.trim() && section === "summary") {
-      // allow empty summary — Gemini will use the rest of the CV
+      // allow empty summary — OpenAI will use the rest of the CV
     } else if (!text.trim()) return;
     setAiLoading(section);
     track("ai_improvement_used", { section });

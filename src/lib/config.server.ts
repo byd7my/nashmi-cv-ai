@@ -22,7 +22,7 @@ export function getServerConfig() {
     // Server-only secrets (read per-request in handlers, not at module scope on Workers):
     //   supabaseUrl: process.env.SUPABASE_URL,
     //   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    //   geminiApiKey: process.env.GEMINI_API_KEY,
+    //   openaiApiKey: process.env.OPENAI_API_KEY,
     //   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
   };
 }

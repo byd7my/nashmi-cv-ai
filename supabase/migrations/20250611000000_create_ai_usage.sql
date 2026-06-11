@@ -14,7 +14,7 @@ create index if not exists ai_usage_last_used_at_idx on public.ai_usage (last_us
 
 alter table public.ai_usage enable row level security;
 
-comment on table public.ai_usage is 'Rate-limit counters for /api/gemini AI Improve requests';
+comment on table public.ai_usage is 'Rate-limit counters for /api/openai AI Improve requests';
 comment on column public.ai_usage.identifier is 'Lookup key: session:<uuid> or ip:<address>';
 comment on column public.ai_usage.session_id is 'Client session id when provided';
 comment on column public.ai_usage.ip is 'Client IP fallback when no session id';
