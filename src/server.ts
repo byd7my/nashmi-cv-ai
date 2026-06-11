@@ -40,7 +40,7 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
-    const { pathname } = new URL(request.url);
+    const pathname = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
     if (pathname === "/api/openai") {
       try {
         return await handleOpenAIRequest(request);

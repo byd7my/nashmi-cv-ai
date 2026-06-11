@@ -3,6 +3,7 @@
   "outputDirectory": ".vercel/output",
   "framework": null,
   "routes": [
-    { "src": "/api/openai", "dest": "/__server" }
+    { "src": "/api/openai", "dest": "/__server" },
+    { "src": "/api/openai/", "dest": "/__server" }
   ]
 }

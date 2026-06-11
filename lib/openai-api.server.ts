@@ -83,14 +83,8 @@ export async function handleOpenAIRequest(request: Request): Promise<Response> {
         );
       }
     } catch (err: unknown) {
-      logApiError("AI usage check failed", err, describeOpenAIEnv());
-      return jsonResponse(
-        {
-          error: err instanceof Error ? err.message : "AI usage check failed",
-          code: "AI_USAGE_CHECK_FAILED",
-        },
-        500,
-      );
+      // Don't block AI when Supabase rate-limit storage is unavailable.
+      logApiError("AI usage check failed — continuing without rate limit", err, describeOpenAIEnv());
     }
   }
 
