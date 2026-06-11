@@ -57,10 +57,10 @@ export function ExportConfirmModal({
     ? "أتعهد بأن جميع معلوماتي صحيحة وتمت مراجعتها، والموقع غير مسؤول عن أي أخطاء، ولا يحق لي التعديل عليها بعد التصدير"
     : "I confirm that all my information is correct and has been reviewed. The website is not responsible for any errors, and I cannot modify it after export.";
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!canSubmit || submitted) return;
     setSubmitted(true);
-    addReview({
+    await addReview({
       name: defaultName,
       rating,
       text: feedbackTrimmed,

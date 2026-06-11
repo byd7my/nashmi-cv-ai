@@ -6,6 +6,8 @@
     { "src": "/api/openai", "dest": "/__server" },
     { "src": "/api/openai/", "dest": "/__server" },
     { "src": "/api/send-cv", "dest": "/__server" },
-    { "src": "/api/send-cv/", "dest": "/__server" }
+    { "src": "/api/send-cv/", "dest": "/__server" },
+    { "src": "/api/reviews", "dest": "/__server" },
+    { "src": "/api/reviews/", "dest": "/__server" }
   ]
 }

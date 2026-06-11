@@ -1,4 +1,4 @@
-// Lightweight client-side review store used by the export confirmation modal
+// Client-side review store used by the export confirmation modal
 // and the landing-page "تقييم أصدقاء نشمي" section.
 
 export interface UserReview {
@@ -12,8 +12,6 @@ export interface UserReview {
 const STORAGE_KEY = "nashmi-user-reviews";
 const EVENT_NAME = "nashmi-reviews-updated";
 
-// Rolling window: keep only the newest MAX_REVIEWS. A new review pushes out
-// the oldest one so the landing section always shows the latest feedback.
 export const MAX_REVIEWS = 6;
 
 const SEED_REVIEW_NAMES = new Set([
@@ -52,7 +50,7 @@ function normalizeReviews(reviews: UserReview[]): UserReview[] {
     .slice(0, MAX_REVIEWS);
 }
 
-export function getReviews(): UserReview[] {
+function readLocalReviews(): UserReview[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -73,7 +71,47 @@ export function getReviews(): UserReview[] {
   }
 }
 
-export function addReview(input: { name?: string; rating: number; text: string }): UserReview {
+function writeLocalReviews(reviews: UserReview[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeReviews(reviews)));
+  } catch {
+    /* ignore quota / privacy errors */
+  }
+}
+
+function notifyReviewListeners(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(EVENT_NAME));
+}
+
+export function getReviews(): UserReview[] {
+  return readLocalReviews();
+}
+
+export async function loadReviews(): Promise<UserReview[]> {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const res = await fetch("/api/reviews");
+    if (res.ok) {
+      const data = (await res.json()) as { reviews?: UserReview[] };
+      const remote = normalizeReviews(Array.isArray(data.reviews) ? data.reviews : []);
+      writeLocalReviews(remote);
+      return remote;
+    }
+  } catch {
+    /* fall back to local cache */
+  }
+
+  return readLocalReviews();
+}
+
+export async function addReview(input: {
+  name?: string;
+  rating: number;
+  text: string;
+}): Promise<UserReview> {
   const review: UserReview = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: input.name?.trim() || undefined,
@@ -82,21 +120,43 @@ export function addReview(input: { name?: string; rating: number; text: string }
     createdAt: new Date().toISOString(),
   };
 
-  if (typeof window !== "undefined") {
-    try {
-      const next = normalizeReviews([review, ...getReviews()]);
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      window.dispatchEvent(new CustomEvent(EVENT_NAME));
-    } catch {
-      /* ignore quota / privacy errors */
+  try {
+    const res = await fetch("/api/reviews", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: review.name,
+        rating: review.rating,
+        text: review.text,
+      }),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as { review?: UserReview };
+      if (data.review) {
+        const saved = data.review;
+        writeLocalReviews(normalizeReviews([saved, ...readLocalReviews()]));
+        notifyReviewListeners();
+        return saved;
+      }
     }
+  } catch {
+    /* fall back to local-only storage */
   }
+
+  if (typeof window !== "undefined") {
+    writeLocalReviews(normalizeReviews([review, ...readLocalReviews()]));
+    notifyReviewListeners();
+  }
+
   return review;
 }
 
 export function subscribeToReviews(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {};
-  const handler = () => callback();
+  const handler = () => {
+    void loadReviews().finally(callback);
+  };
   window.addEventListener(EVENT_NAME, handler);
   window.addEventListener("storage", (e: StorageEvent) => {
     if (e.key === STORAGE_KEY) handler();
