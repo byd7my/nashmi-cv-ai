@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { CVData } from "@/nashmi/lib/ats";
-import { cvMatchesLanguage, translateCv } from "@/nashmi/lib/cv-translate";
+import { cvMatchesLanguage, translateCvDetailed } from "@/nashmi/lib/cv-translate";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 
 type EliteLang = Exclude<CvLang, "bi">;
@@ -54,7 +54,8 @@ export function EliteImportFeature({
   }, [currentResumeData, activeLang, isElite]);
 
   async function handleSwitch(target: EliteLang) {
-    if (target === activeLang || busy) return;
+    if (busy) return;
+    if (target === activeLang && cvMatchesLanguage(currentResumeData, target)) return;
 
     // 1. snapshot current language before leaving
     try {
@@ -70,6 +71,13 @@ export function EliteImportFeature({
       const raw = window.localStorage.getItem(ELITE_CV_KEYS[target]);
       if (raw) saved = JSON.parse(raw) as CVData;
     } catch { /* ignore */ }
+
+    if (saved && !cvMatchesLanguage(saved, target)) {
+      try {
+        window.localStorage.removeItem(ELITE_CV_KEYS[target]);
+      } catch { /* ignore */ }
+      saved = null;
+    }
 
     if (saved && cvMatchesLanguage(saved, target)) {
       updateResumeData(saved, target);
@@ -88,24 +96,20 @@ export function EliteImportFeature({
         ? `جاري ترجمة السيرة إلى ${target === "ar" ? "العربية" : "الإنجليزية"}...`
         : `Translating resume to ${target === "ar" ? "Arabic" : "English"}...`,
     );
-    const translated = await translateCv(currentResumeData, target);
-    toast.dismiss(tid);
-    setBusy(null);
-
-    if (translated) {
-      try {
-        window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(translated));
-      } catch { /* ignore */ }
-      updateResumeData(translated, target);
-      toast.success(
-        isAr ? "تمت الترجمة بنجاح" : "Translated successfully",
-      );
-    } else {
-      toast.error(
-        isAr
-          ? "تعذّرت الترجمة التلقائية. تحقق من اتصال OpenAI وحاول مرة أخرى."
-          : "Auto-translate failed. Check your OpenAI connection and try again.",
-      );
+    try {
+      const result = await translateCvDetailed(currentResumeData, target);
+      if (result.ok) {
+        try {
+          window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(result.cv));
+        } catch { /* ignore */ }
+        updateResumeData(result.cv, target);
+        toast.success(isAr ? "تمت الترجمة بنجاح" : "Translated successfully");
+      } else {
+        toast.error(result.error);
+      }
+    } finally {
+      toast.dismiss(tid);
+      setBusy(null);
     }
   }
 
@@ -144,7 +148,7 @@ export function EliteImportFeature({
           if (!active) e.currentTarget.style.background = P.inactive;
         }}
       >
-        <span>{isAr ? labelAr : labelEn}</span>
+        <span>{loading ? "⏳" : isAr ? labelAr : labelEn}</span>
         <span>{flag}</span>
       </button>
     );

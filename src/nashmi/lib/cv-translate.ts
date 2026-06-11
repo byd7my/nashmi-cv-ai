@@ -3,33 +3,33 @@ import { getCvSessionId } from "@/nashmi/lib/session";
 
 export type CvTranslateLang = "ar" | "en";
 
+export type TranslateCvResult =
+  | { ok: true; cv: CVData }
+  | { ok: false; error: string };
+
 function scriptCount(text: string, pattern: RegExp): number {
   return (text.match(pattern) || []).join("").length;
 }
 
-export function cvTextSample(cv: CVData): string {
+function narrativeText(cv: CVData): string {
   return [
-    cv.personal?.title,
     cv.summary,
-    ...(cv.experience?.map((e) => `${e.role} ${e.company} ${e.desc}`) || []),
-    ...(cv.education?.map((e) => `${e.degree} ${e.field} ${e.school} ${e.honors}`) || []),
-    ...(cv.skills || []),
-    ...(cv.certifications?.map((c) => `${c.title} ${c.issuer}`) || []),
-    ...(cv.languages?.map((l) => `${l.lang} ${l.level}`) || []),
+    ...(cv.experience?.map((e) => `${e.role} ${e.desc}`) || []),
+    ...(cv.education?.map((e) => `${e.degree} ${e.field}`) || []),
   ]
     .filter(Boolean)
     .join(" ");
 }
 
-/** Heuristic: does resume body text look like the requested language? */
+/** Heuristic: does resume narrative look like the requested language? */
 export function cvMatchesLanguage(cv: CVData, lang: CvTranslateLang): boolean {
-  const sample = cvTextSample(cv).trim();
+  const sample = narrativeText(cv).trim();
   if (!sample) return true;
 
   const arabic = scriptCount(sample, /[\u0600-\u06FF]/g);
   const latin = scriptCount(sample, /[A-Za-z]/g);
-  if (lang === "ar") return arabic >= Math.max(24, latin * 0.35);
-  return latin >= Math.max(24, arabic * 0.35);
+  if (lang === "ar") return arabic >= 20;
+  return latin >= 20;
 }
 
 function mergeTranslatedCv(source: CVData, parsed: Partial<CVData>): CVData {
@@ -54,10 +54,125 @@ function mergeTranslatedCv(source: CVData, parsed: Partial<CVData>): CVData {
   };
 }
 
-export async function translateCv(
+function extractJsonObject(text: string): Partial<CVData> {
+  const clean = text.replace(/```json|```/gi, "").trim();
+  try {
+    return JSON.parse(clean) as Partial<CVData>;
+  } catch {
+    const start = clean.indexOf("{");
+    const end = clean.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(clean.slice(start, end + 1)) as Partial<CVData>;
+    }
+    throw new Error("Invalid translation JSON");
+  }
+}
+
+async function callOpenAI(prompt: string): Promise<string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const sessionId = getCvSessionId();
+  if (sessionId) headers["x-nashmi-session-id"] = sessionId;
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 120_000);
+
+  try {
+    const res = await fetch("/api/openai", {
+      method: "POST",
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({ prompt, usageType: "translate" }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(typeof data?.error === "string" ? data.error : `OpenAI error ${res.status}`);
+    }
+    if (typeof data?.text !== "string" || !data.text.trim()) {
+      throw new Error("Empty translation response");
+    }
+    return data.text.trim();
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+async function translateField(
+  text: string,
+  target: CvTranslateLang,
+  context: string,
+): Promise<string> {
+  const trimmed = text.trim();
+  if (!trimmed) return text;
+
+  const targetLabel = target === "ar" ? "Modern Standard Arabic" : "professional English";
+  const prompt = `
+Translate the following resume ${context} into ${targetLabel}.
+Keep formatting (bullets, line breaks). Do not add explanations.
+Return ONLY the translated text.
+
+Text:
+${trimmed}
+`.trim();
+
+  return (await callOpenAI(prompt)).trim();
+}
+
+async function translateCvBySections(
   cv: CVData,
   target: CvTranslateLang,
-): Promise<CVData | null> {
+): Promise<CVData> {
+  const out: CVData = JSON.parse(JSON.stringify(cv)) as CVData;
+
+  if (out.personal?.title) {
+    out.personal.title = await translateField(out.personal.title, target, "job title");
+  }
+  if (out.personal?.city) {
+    out.personal.city = await translateField(out.personal.city, target, "city/location");
+  }
+  if (out.summary) {
+    out.summary = await translateField(out.summary, target, "professional summary");
+  }
+
+  for (const exp of out.experience) {
+    if (exp.role) exp.role = await translateField(exp.role, target, "job title");
+    if (exp.company) exp.company = await translateField(exp.company, target, "company name");
+    if (exp.desc) exp.desc = await translateField(exp.desc, target, "responsibilities and achievements");
+    if (exp.to && /present|current|الآن|حتى/i.test(exp.to)) {
+      exp.to = target === "ar" ? "حتى الآن" : "Present";
+    }
+  }
+
+  for (const edu of out.education) {
+    if (edu.degree) edu.degree = await translateField(edu.degree, target, "degree");
+    if (edu.field) edu.field = await translateField(edu.field, target, "field of study");
+    if (edu.school) edu.school = await translateField(edu.school, target, "school name");
+    if (edu.honors) edu.honors = await translateField(edu.honors, target, "honors");
+  }
+
+  if (out.skills.length) {
+    const joined = out.skills.join(", ");
+    const translated = await translateField(joined, target, "skills list (comma-separated)");
+    out.skills = translated.split(/[,،]/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  for (const cert of out.certifications) {
+    if (cert.title) cert.title = await translateField(cert.title, target, "certification title");
+    if (cert.issuer) cert.issuer = await translateField(cert.issuer, target, "certification issuer");
+  }
+
+  for (const lang of out.languages) {
+    if (lang.lang) lang.lang = await translateField(lang.lang, target, "language name");
+    if (lang.level) lang.level = await translateField(lang.level, target, "proficiency level");
+  }
+
+  return out;
+}
+
+async function translateCvFullJson(
+  cv: CVData,
+  target: CvTranslateLang,
+): Promise<CVData> {
   const targetLabel =
     target === "ar" ? "Modern Standard Arabic (professional)" : "professional English";
 
@@ -69,36 +184,60 @@ Translate the entire resume JSON below into ${targetLabel}.
 Return ONLY valid JSON with the exact same structure and keys.
 
 Rules:
-- Translate all narrative text: summary, job titles, companies (use common local spelling when appropriate), responsibilities, degrees, fields, honors, skills, certification titles, language proficiency labels.
-- Keep personal.name, email, phone, linkedin, and website exactly as in the source (do not translate URLs or emails).
-- Keep date strings (from, to, date) unchanged unless they are words like "Present" → translate to "حتى الآن" for Arabic or "Present" for English.
+- Translate summary, job titles, companies, responsibilities, degrees, fields, honors, skills, certification titles, and language labels.
+- Keep personal.name, email, phone, linkedin, and website unchanged.
 - Preserve bullet formatting in experience descriptions.
-- Do not invent employers, dates, degrees, or achievements.
+- Do not invent information.
 - Do not add markdown or explanations.
 
 Source resume JSON:
 ${JSON.stringify(cv)}
 `.trim();
 
+  const text = await callOpenAI(prompt);
+  return mergeTranslatedCv(cv, extractJsonObject(text));
+}
+
+export async function translateCvDetailed(
+  cv: CVData,
+  target: CvTranslateLang,
+): Promise<TranslateCvResult> {
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const sessionId = getCvSessionId();
-    if (sessionId) headers["x-nashmi-session-id"] = sessionId;
+    let translated: CVData;
+    try {
+      translated = await translateCvFullJson(cv, target);
+    } catch {
+      translated = await translateCvBySections(cv, target);
+    }
 
-    const res = await fetch("/api/openai", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ prompt }),
-    });
+    if (!cvMatchesLanguage(translated, target)) {
+      return {
+        ok: false,
+        error:
+          target === "ar"
+            ? "لم تكتمل الترجمة العربية. حاول مرة أخرى."
+            : "English translation incomplete. Please try again.",
+      };
+    }
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || typeof data?.text !== "string") return null;
-
-    const clean = data.text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean) as Partial<CVData>;
-    const merged = mergeTranslatedCv(cv, parsed);
-    return cvMatchesLanguage(merged, target) ? merged : null;
-  } catch {
-    return null;
+    return { ok: true, cv: translated };
+  } catch (err) {
+    const message =
+      err instanceof Error && err.name === "AbortError"
+        ? target === "ar"
+          ? "انتهت مهلة الترجمة. حاول مرة أخرى."
+          : "Translation timed out. Please try again."
+        : err instanceof Error
+          ? err.message
+          : "Translation failed";
+    return { ok: false, error: message };
   }
+}
+
+export async function translateCv(
+  cv: CVData,
+  target: CvTranslateLang,
+): Promise<CVData | null> {
+  const result = await translateCvDetailed(cv, target);
+  return result.ok ? result.cv : null;
 }

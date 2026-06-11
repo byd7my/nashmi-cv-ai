@@ -1,4 +1,5 @@
 import { useState, useEffect, memo, useCallback, useRef } from "react";
+import { flushSync } from "react-dom";
 import { toast as sonnerToast } from "sonner";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -11,7 +12,7 @@ import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImportFeature";
-import { cvMatchesLanguage, translateCv } from "@/nashmi/lib/cv-translate";
+import { cvMatchesLanguage, translateCvDetailed } from "@/nashmi/lib/cv-translate";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
 
@@ -1119,28 +1120,32 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           showToast(
             isAr ? "جاري ترجمة النسخة الثانية…" : "Translating second version…",
           );
-          altCv = await translateCv(cv, otherLang);
-          if (altCv) {
-            setOtherLangCv(altCv);
+          const result = await translateCvDetailed(cv, otherLang);
+          if (result.ok) {
+            altCv = result.cv;
+            flushSync(() => setOtherLangCv(altCv));
             try {
               window.localStorage.setItem(ELITE_CV_KEYS[otherLang], JSON.stringify(altCv));
             } catch { /* ignore */ }
-            await new Promise((r) => setTimeout(r, 900));
+            await new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            });
+          } else {
+            showToast(result.error, "error");
           }
         }
 
         if (hiddenCvPreviewRef.current && altCv) {
-          await new Promise((r) => setTimeout(r, 400));
           const hiddenBlob = await renderElementToPdfBlob(hiddenCvPreviewRef.current);
           downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
           exportedFiles.push({ filename: `nashmi-${baseName}-${otherLang}.pdf`, blob: hiddenBlob });
           showToast(isAr ? "✓ تم تصدير النسختين — شكراً لاستخدامك نشمي" : "✓ Both versions exported — thank you for using Nashmi");
-        } else {
+        } else if (isElite) {
           showToast(
             isAr
               ? "✓ تم تصدير النسخة الحالية — تعذّرت ترجمة النسخة الثانية"
               : "✓ Current version exported — second version translation failed",
-            altCv ? "success" : "error",
+            "error",
           );
         }
       } else {

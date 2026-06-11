@@ -19,13 +19,17 @@ export function getOpenAIClient(): OpenAI {
   return cachedClient;
 }
 
-export async function createChatCompletion(prompt: string, model: string): Promise<string> {
+export async function createChatCompletion(
+  prompt: string,
+  model: string,
+  options?: { maxTokens?: number; temperature?: number },
+): Promise<string> {
   const openai = getOpenAIClient();
   const completion = await openai.chat.completions.create({
     model,
     messages: [{ role: "user", content: prompt }],
-    temperature: 0.4,
-    max_tokens: 700,
+    temperature: options?.temperature ?? 0.4,
+    max_tokens: options?.maxTokens ?? 700,
   });
 
   return completion.choices[0]?.message?.content?.trim() ?? "";

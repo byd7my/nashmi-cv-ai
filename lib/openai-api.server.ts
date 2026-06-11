@@ -51,12 +51,13 @@ export async function handleOpenAIRequest(request: Request): Promise<Response> {
     );
   }
 
-  let body: { prompt?: unknown; usageType?: unknown; usageFeature?: unknown };
+  let body: { prompt?: unknown; usageType?: unknown; usageFeature?: unknown; maxTokens?: unknown };
   try {
     body = (await request.json()) as {
       prompt?: unknown;
       usageType?: unknown;
       usageFeature?: unknown;
+      maxTokens?: unknown;
     };
   } catch {
     return jsonResponse({ error: "Invalid JSON body", code: "INVALID_JSON" }, 400);
@@ -65,6 +66,12 @@ export async function handleOpenAIRequest(request: Request): Promise<Response> {
   const prompt = body.prompt;
   const usageType = body.usageType;
   const usageFeature = body.usageFeature;
+  const maxTokens =
+    usageType === "translate"
+      ? 4096
+      : typeof body.maxTokens === "number" && body.maxTokens > 0
+        ? Math.min(Math.floor(body.maxTokens), 4096)
+        : 700;
 
   if (!prompt || typeof prompt !== "string") {
     return jsonResponse({ error: "Missing prompt", code: "MISSING_PROMPT" }, 400);
@@ -107,7 +114,7 @@ export async function handleOpenAIRequest(request: Request): Promise<Response> {
   const model = getOpenAIModel();
 
   try {
-    const text = await createChatCompletion(prompt, model);
+    const text = await createChatCompletion(prompt, model, { maxTokens });
 
     if (!text) {
       logApiError("Empty OpenAI response", new Error("OpenAI returned an empty response"), { model });
