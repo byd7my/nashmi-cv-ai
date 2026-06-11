@@ -29,7 +29,7 @@ function rateLimitMessage(type: SessionUsageType, limit: number, feature?: strin
     case "translate":
       return `You have reached the translation limit (${limit} requests) for this resume session. Export your CV or purchase a new session to continue.`;
     case "copilot":
-      return `You have reached the Copilot limit (${limit} messages) for this resume session. Export your CV or purchase a new session to continue.`;
+      return `You have reached the AI assistant limit (${limit} messages) for this resume session. Export your CV or purchase a new session to continue.`;
     case "parse":
       return `You have reached the CV import limit (${limit} imports) for this session.`;
     default:

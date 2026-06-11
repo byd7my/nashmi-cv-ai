@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { CVData } from "@/nashmi/lib/ats";
-import { cvMatchesLanguage, translateCvDetailed } from "@/nashmi/lib/cv-translate";
+import { cvMatchesLanguage, ensureArabicPersonalName, translateCvDetailed } from "@/nashmi/lib/cv-translate";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 
 type EliteLang = Exclude<CvLang, "bi">;
@@ -55,7 +55,20 @@ export function EliteImportFeature({
 
   async function handleSwitch(target: EliteLang) {
     if (busy) return;
-    if (target === activeLang && cvMatchesLanguage(currentResumeData, target)) return;
+
+    if (target === activeLang && cvMatchesLanguage(currentResumeData, target)) {
+      if (target === "ar") {
+        const fixed = await ensureArabicPersonalName(currentResumeData);
+        if (fixed.personal.name !== currentResumeData.personal.name) {
+          try {
+            window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(fixed));
+          } catch { /* ignore */ }
+          updateResumeData(fixed, target);
+          toast.success(isAr ? "تمت كتابة الاسم بالعربية" : "Name transliterated to Arabic");
+        }
+      }
+      return;
+    }
 
     // 1. snapshot current language before leaving
     try {
@@ -80,7 +93,13 @@ export function EliteImportFeature({
     }
 
     if (saved && cvMatchesLanguage(saved, target)) {
-      updateResumeData(saved, target);
+      const ready = target === "ar" ? await ensureArabicPersonalName(saved) : saved;
+      if (ready.personal.name !== saved.personal.name) {
+        try {
+          window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(ready));
+        } catch { /* ignore */ }
+      }
+      updateResumeData(ready, target);
       toast.success(
         isAr
           ? `تم استيراد النسخة ${target === "ar" ? "العربية" : "الإنجليزية"}`

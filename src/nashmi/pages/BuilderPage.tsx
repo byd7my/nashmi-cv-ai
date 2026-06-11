@@ -218,7 +218,7 @@ function rateLimitUserMessage(isAr: boolean, usageType?: string, limit?: number)
     case "copilot":
       return isAr
         ? `تجاوزت حد المساعد الذكي (${limit ?? 35} رسالة) لهذه السيرة. صدّر أو ابدأ سيرة جديدة.`
-        : `Copilot limit reached (${limit ?? 35} messages) for this resume. Export or start a new session.`;
+        : `AI assistant limit reached (${limit ?? 35} messages) for this resume. Export or start a new session.`;
     case "parse":
       return isAr
         ? `تجاوزت حد استيراد السيرة (${limit ?? 3} مرات) لهذه الجلسة.`
@@ -543,7 +543,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [showCopilot, setShowCopilot] = useState(false);
   const [copilotMsg, setCopilotMsg] = useState("");
   const [copilotHistory, setCopilotHistory] = useState([
-    { role: "assistant", content: isAr ? "مرحباً! أنا مساعدك الذكي. كيف يمكنني تحسين سيرتك؟" : "Hi! I'm your AI copilot. How can I improve your resume?" },
+    { role: "assistant", content: isAr ? "مرحباً! أنا مساعدك الذكي. كيف يمكنني تحسين سيرتك؟" : "Hi! I'm your AI assistant. How can I improve your resume?" },
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const [aiLoading, setAiLoading] = useState<string | null>(null);
@@ -840,7 +840,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   function requestCopilotAccess(): boolean {
     if (!isPaid) {
       openUpgradeModal();
-      sonnerToast.info(isAr ? "مساعد AI متاح للباقات المدفوعة فقط" : "AI Copilot is available on paid plans only");
+      sonnerToast.info(isAr ? "المساعد الذكي متاح للباقات المدفوعة فقط" : "AI assistant is available on paid plans only");
       return false;
     }
     return true;
@@ -2202,7 +2202,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
               <h3 style={{ color: P.text, fontSize: 22, fontWeight: 900, fontFamily: ff, marginBottom: 10 }}>{isAr ? "قم بالترقية للمتابعة" : "Upgrade to Continue"}</h3>
               <p style={{ color: P.muted, fontSize: 14, lineHeight: 1.7 }}>
-                {isAr ? "تحسين AI ومساعد AI والتصدير متاحان للباقات المدفوعة فقط. اختر باقتك للمتابعة." : "AI Improve, AI Copilot, and export are available on paid plans only. Choose a plan to continue."}
+                {isAr ? "تحسين AI والمساعد الذكي والتصدير متاحان للباقات المدفوعة فقط. اختر باقتك للمتابعة." : "AI Improve, AI assistant, and export are available on paid plans only. Choose a plan to continue."}
               </p>
             </div>
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>

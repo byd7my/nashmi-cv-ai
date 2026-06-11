@@ -32,12 +32,42 @@ export function cvMatchesLanguage(cv: CVData, lang: CvTranslateLang): boolean {
   return latin >= 20;
 }
 
-function mergeTranslatedCv(source: CVData, parsed: Partial<CVData>): CVData {
+function nameNeedsArabicTransliteration(name: string): boolean {
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  const arabic = scriptCount(trimmed, /[\u0600-\u06FF]/g);
+  const latin = scriptCount(trimmed, /[A-Za-z]/g);
+  return latin > 0 && arabic < Math.max(3, latin * 0.2);
+}
+
+async function transliterateNameToArabic(name: string): Promise<string> {
+  const trimmed = name.trim();
+  if (!trimmed || !nameNeedsArabicTransliteration(trimmed)) return trimmed;
+  return translateField(
+    trimmed,
+    "ar",
+    "person full name — transliterate into Arabic script only (e.g. عبدالرحمن صالح الخلف), no Latin letters",
+  );
+}
+
+function mergeTranslatedCv(
+  source: CVData,
+  parsed: Partial<CVData>,
+  target: CvTranslateLang,
+): CVData {
+  const parsedName = parsed.personal?.name?.trim();
+  const useParsedName =
+    target === "ar"
+      ? parsedName && !nameNeedsArabicTransliteration(parsedName)
+      : Boolean(parsedName);
+
   return {
     personal: {
       ...source.personal,
       ...(parsed.personal || {}),
-      name: source.personal?.name || parsed.personal?.name || "",
+      name: useParsedName
+        ? parsedName!
+        : source.personal?.name || parsedName || "",
       email: source.personal?.email || parsed.personal?.email || "",
       phone: source.personal?.phone || parsed.personal?.phone || "",
       linkedin: source.personal?.linkedin || parsed.personal?.linkedin || "",
@@ -129,6 +159,9 @@ async function translateCvBySections(
 ): Promise<CVData> {
   const out: CVData = JSON.parse(JSON.stringify(cv)) as CVData;
 
+  if (out.personal?.name && target === "ar") {
+    out.personal.name = await transliterateNameToArabic(out.personal.name);
+  }
   if (out.personal?.title) {
     out.personal.title = await translateField(out.personal.title, target, "job title");
   }
@@ -190,7 +223,8 @@ Return ONLY valid JSON with the exact same structure and keys.
 
 Rules:
 - Translate summary, job titles, companies, responsibilities, degrees, fields, honors, skills, certification titles, and language labels.
-- Keep personal.name, email, phone, linkedin, and website unchanged.
+- For Arabic output: transliterate personal.name into Arabic script (e.g. عبدالرحمن صالح الخلف). Do not leave the name in Latin letters.
+- Keep email, phone, linkedin, and website unchanged.
 - Preserve bullet formatting in experience descriptions.
 - Do not invent information.
 - Do not add markdown or explanations.
@@ -200,7 +234,20 @@ ${JSON.stringify(cv)}
 `.trim();
 
   const text = await callOpenAI(prompt);
-  return mergeTranslatedCv(cv, extractJsonObject(text));
+  const merged = mergeTranslatedCv(cv, extractJsonObject(text), target);
+  if (target === "ar" && merged.personal?.name) {
+    merged.personal.name = await transliterateNameToArabic(merged.personal.name);
+  }
+  return merged;
+}
+
+export async function ensureArabicPersonalName(cv: CVData): Promise<CVData> {
+  if (!cv.personal?.name?.trim() || !nameNeedsArabicTransliteration(cv.personal.name)) {
+    return cv;
+  }
+  const out: CVData = JSON.parse(JSON.stringify(cv)) as CVData;
+  out.personal.name = await transliterateNameToArabic(cv.personal.name);
+  return out;
 }
 
 export function translateRateLimitMessage(isAr: boolean, limit = 40): string {
@@ -232,6 +279,10 @@ export async function translateCvDetailed(
             ? "لم تكتمل الترجمة العربية. حاول مرة أخرى."
             : "English translation incomplete. Please try again.",
       };
+    }
+
+    if (target === "ar" && translated.personal?.name) {
+      translated.personal.name = await transliterateNameToArabic(translated.personal.name);
     }
 
     return { ok: true, cv: translated };

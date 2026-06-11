@@ -139,7 +139,7 @@ export function AdminPage({ lang, t, onNav }: Props) {
             {[
               { f: isAr ? "تحليل السير" : "CV Parse",     t: "1.2M", c: "$24", clr: P.violet },
               { f: isAr ? "مساعد الكتابة" : "Write Assist",t: "1.8M", c: "$36", clr: P.gold   },
-              { f: isAr ? "مساعد AI" : "Copilot Chat",    t: "0.9M", c: "$18", clr: "#A78BFA" },
+              { f: isAr ? "المساعد الذكي" : "AI Assistant",    t: "0.9M", c: "$18", clr: "#A78BFA" },
               { f: isAr ? "درجة ATS" : "ATS Score",       t: "0.3M", c: "$6",  clr: P.green   },
             ].map((a, i) => (
               <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 10, padding: 14 }}>
