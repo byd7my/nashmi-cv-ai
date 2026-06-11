@@ -718,7 +718,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   // ── AI improve section ─────────────────────────────────────────────────
   async function aiImprove(section: string, text: string) {
     if (!isPaid) {
-      setShowUpgrade(true);
+      openUpgradeModal();
       sonnerToast.info(isAr ? "تحسين AI متاح للباقات المدفوعة فقط" : "AI Improve is available on paid plans only");
       return;
     }
@@ -802,7 +802,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   // ── AI copilot ─────────────────────────────────────────────────────────
   function requestCopilotAccess(): boolean {
     if (!isPaid) {
-      setShowUpgrade(true);
+      openUpgradeModal();
       sonnerToast.info(isAr ? "مساعد AI متاح للباقات المدفوعة فقط" : "AI Copilot is available on paid plans only");
       return false;
     }
@@ -884,6 +884,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   function showToast(msg: string, type: "success" | "error" = "success") {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
+  }
+
+  function openUpgradeModal() {
+    setActivePanel(null);
+    setBeforeAfter(null);
+    setShowUpgrade(true);
   }
 
   // ── JSON Export ────────────────────────────────────────────────────────
@@ -1056,7 +1062,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         track("cv_emailed");
-        showToast(isAr ? `✓ تم إرسال السيرة إلى ${recipient}` : `✓ Resume sent to ${recipient}`);
+        showToast(isAr ? `✓ تم إرسال السيرة إلى ${recipient} — تحقق من البريد المزعج إن لم يظهر` : `✓ Resume sent to ${recipient} — check spam if you don't see it`);
       } else {
         showToast(isAr ? `✕ تعذر إرسال البريد: ${data?.error || res.status}` : `✕ Email failed: ${data?.error || res.status}`, "error");
       }
@@ -1083,7 +1089,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   function requestExport() {
     track("download_attempted", { tier: userTier });
     if (!canExport) {
-      setShowUpgrade(true);
+      openUpgradeModal();
       return;
     }
     setShowExportConfirm(true);
@@ -1091,7 +1097,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   // ── PDF Export (client-side) ────────────────────────────────────────────
   async function exportPDF() {
-    if (!canExport) { setShowUpgrade(true); return; }
+    if (!canExport) { openUpgradeModal(); return; }
     if (!cvPreviewRef.current) return;
     setExportingPdf(true);
     track("pdf_exported");
@@ -1871,7 +1877,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 <span style={{ color: P.gold, fontWeight: 700, fontSize: 13 }}>🔒 {isAr ? "الباقة المجانية — المعاينة كاملة" : "Free Plan — Full Preview"}</span>
                 <span style={{ color: P.muted, fontSize: 12, marginLeft: isAr ? 0 : 8, marginRight: isAr ? 8 : 0 }}>  {isAr ? "· AI والتصدير للباقات المدفوعة" : "· AI & export on paid plans"}</span>
               </div>
-              <button onClick={() => setShowUpgrade(true)} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff }}>
+              <button onClick={openUpgradeModal} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff }}>
                 {isAr ? "ترقية" : "Upgrade"}
               </button>
             </div>
@@ -1962,7 +1968,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 {exportingPdf ? (isAr ? "جارٍ التصدير…" : "Exporting…") : (canExport ? (isAr ? "تحميل PDF" : "Download PDF") : (isAr ? "ترقية للتصدير" : "Upgrade to Export"))}
               </button>
               {!canExport && (
-                <button onClick={() => setShowUpgrade(true)} style={{ marginTop: 10, background: "none", border: "none", color: P.violetLight, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: ff }}>
+                <button onClick={openUpgradeModal} style={{ marginTop: 10, background: "none", border: "none", color: P.violetLight, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: ff }}>
                   {isAr ? "عرض الباقات" : "View plans"}
                 </button>
               )}
@@ -2104,7 +2110,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
       {/* ── Upgrade modal ───────────────────────────────────── */}
       {showUpgrade && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(10,10,11,0.92)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 12000, background: "rgba(10,10,11,0.92)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: "100%", maxWidth: 520, background: P.card, border: `1px solid ${P.border}`, borderRadius: 20, padding: "32px 28px", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}>
             <button onClick={() => setShowUpgrade(false)} style={{ position: "absolute", top: 20, [isAr ? "left" : "right"]: 20, background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 20 }}>×</button>
             <div style={{ textAlign: "center", marginBottom: 24 }}>

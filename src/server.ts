@@ -1,6 +1,7 @@
 import "./lib/error-capture";
 
 import { handleOpenAIRequest } from "../lib/openai-api.server";
+import { handleSendCvRequest } from "../lib/send-cv-api.server";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
@@ -48,6 +49,18 @@ export default {
         console.error("[api/openai] Unhandled handler error", error);
         return Response.json(
           { error: "Internal server error", code: "OPENAI_HANDLER_CRASH" },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (pathname === "/api/send-cv") {
+      try {
+        return await handleSendCvRequest(request);
+      } catch (error) {
+        console.error("[api/send-cv] Unhandled handler error", error);
+        return Response.json(
+          { error: "Internal server error", code: "SEND_CV_HANDLER_CRASH" },
           { status: 500 },
         );
       }

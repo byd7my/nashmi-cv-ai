@@ -1,6 +1,4 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// Vercel body limit is ~4.5MB; keep a safety margin for the JSON envelope.
 const MAX_TOTAL_ATTACHMENT_CHARS = 4_000_000;
 
 function buildHtml(name: string, isAr: boolean): string {
@@ -36,40 +34,73 @@ function buildHtml(name: string, isAr: boolean): string {
   </div>`;
 }
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+function buildText(name: string, isAr: boolean): string {
+  const greeting = isAr
+    ? `مرحباً${name ? ` ${name}` : ""}`
+    : `Hi${name ? ` ${name}` : ""}`;
+  const body = isAr
+    ? "سيرتك الذاتية الجديدة جاهزة! تجدها مرفقة بهذا البريد بصيغة PDF."
+    : "Your new resume is ready! You'll find it attached as a PDF.";
+  const footer = isAr
+    ? "نشمي — nashmi.club"
+    : "Nashmi — nashmi.club";
+  return `${greeting}\n\n${body}\n\n${footer}`;
+}
+
+function resolveFromAddress(): string {
+  const configured = process.env.EMAIL_FROM?.trim();
+  if (configured) return configured;
+  return "Nashmi <no-reply@nashmi.club>";
+}
+
+export async function handleSendCvRequest(request: Request): Promise<Response> {
+  if (request.method !== "POST") {
+    return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
   const key = process.env.RESEND_API_KEY;
   if (!key) {
-    return res.status(500).json({ error: "RESEND_API_KEY is not set on Vercel" });
+    console.error("[api/send-cv] RESEND_API_KEY is not set");
+    return Response.json({ error: "RESEND_API_KEY is not set on Vercel" }, { status: 500 });
   }
 
-  const { to, name, lang, attachments } = req.body || {};
+  let body: {
+    to?: string;
+    name?: string;
+    lang?: string;
+    attachments?: { filename: string; content: string }[];
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { to, name, lang, attachments } = body;
 
   if (!to || typeof to !== "string" || !EMAIL_RE.test(to.trim())) {
-    return res.status(400).json({ error: "Invalid recipient email" });
+    return Response.json({ error: "Invalid recipient email" }, { status: 400 });
   }
   if (!Array.isArray(attachments) || attachments.length < 1 || attachments.length > 2) {
-    return res.status(400).json({ error: "Expected 1-2 PDF attachments" });
+    return Response.json({ error: "Expected 1-2 PDF attachments" }, { status: 400 });
   }
 
   let totalChars = 0;
   for (const a of attachments) {
     if (!a || typeof a.filename !== "string" || !a.filename.toLowerCase().endsWith(".pdf") || typeof a.content !== "string" || !a.content.length) {
-      return res.status(400).json({ error: "Invalid attachment" });
+      return Response.json({ error: "Invalid attachment" }, { status: 400 });
     }
     totalChars += a.content.length;
   }
   if (totalChars > MAX_TOTAL_ATTACHMENT_CHARS) {
-    return res.status(413).json({ error: "Attachments too large to email" });
+    return Response.json({ error: "Attachments too large to email" }, { status: 413 });
   }
 
   const isAr = lang === "ar";
   const safeName = typeof name === "string" ? name.trim().slice(0, 80) : "";
   const subject = isAr ? "سيرتك الذاتية من نشمي جاهزة ✦" : "Your resume from Nashmi is ready ✦";
-  const from = process.env.EMAIL_FROM || "Nashmi <onboarding@resend.dev>";
+  const from = resolveFromAddress();
+  const replyTo = process.env.EMAIL_REPLY_TO?.trim() || "support@nashmi.club";
 
   try {
     const resendRes = await fetch("https://api.resend.com/emails", {
@@ -81,25 +112,32 @@ export default async function handler(req: any, res: any) {
       body: JSON.stringify({
         from,
         to: [to.trim()],
+        reply_to: replyTo,
         subject,
         html: buildHtml(safeName, isAr),
-        attachments: attachments.map((a: { filename: string; content: string }) => ({
+        text: buildText(safeName, isAr),
+        attachments: attachments.map(a => ({
           filename: a.filename,
           content: a.content,
         })),
+        tags: [{ name: "source", value: "nashmi-export" }],
       }),
     });
 
     const data = await resendRes.json().catch(() => ({}));
 
     if (!resendRes.ok) {
-      return res.status(resendRes.status).json({
-        error: data?.message || data?.error || `Email service error ${resendRes.status}`,
-      });
+      console.error("[api/send-cv] Resend error", { status: resendRes.status, data, from, to: to.trim() });
+      return Response.json(
+        { error: (data as { message?: string; error?: string })?.message || (data as { error?: string })?.error || `Email service error ${resendRes.status}` },
+        { status: resendRes.status },
+      );
     }
 
-    return res.status(200).json({ ok: true, id: data?.id || null });
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || "Failed to send email" });
+    console.info("[api/send-cv] Sent", { id: (data as { id?: string })?.id, to: to.trim(), from });
+    return Response.json({ ok: true, id: (data as { id?: string })?.id || null });
+  } catch (err) {
+    console.error("[api/send-cv] Unhandled error", err);
+    return Response.json({ error: err instanceof Error ? err.message : "Failed to send email" }, { status: 500 });
   }
 }
