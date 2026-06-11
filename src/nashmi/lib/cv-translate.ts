@@ -5,7 +5,7 @@ export type CvTranslateLang = "ar" | "en";
 
 export type TranslateCvResult =
   | { ok: true; cv: CVData }
-  | { ok: false; error: string };
+  | { ok: false; error: string; rateLimited?: boolean };
 
 function scriptCount(text: string, pattern: RegExp): number {
   return (text.match(pattern) || []).join("").length;
@@ -85,6 +85,11 @@ async function callOpenAI(prompt: string): Promise<string> {
     });
 
     const data = await res.json().catch(() => ({}));
+    if (res.status === 429 && data?.code === "AI_RATE_LIMIT") {
+      const err = new Error("AI_RATE_LIMIT");
+      (err as Error & { rateLimited: boolean }).rateLimited = true;
+      throw err;
+    }
     if (!res.ok) {
       throw new Error(typeof data?.error === "string" ? data.error : `OpenAI error ${res.status}`);
     }
@@ -198,6 +203,12 @@ ${JSON.stringify(cv)}
   return mergeTranslatedCv(cv, extractJsonObject(text));
 }
 
+export function translateRateLimitMessage(isAr: boolean, limit = 40): string {
+  return isAr
+    ? `تجاوزت حد الترجمة (${limit} طلب) لهذه السيرة. عدّل يدوياً أو صدّر وابدأ سيرة جديدة.`
+    : `Translation limit reached (${limit} requests) for this resume. Edit manually, export, or start a new session.`;
+}
+
 export async function translateCvDetailed(
   cv: CVData,
   target: CvTranslateLang,
@@ -206,7 +217,10 @@ export async function translateCvDetailed(
     let translated: CVData;
     try {
       translated = await translateCvFullJson(cv, target);
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && (err as Error & { rateLimited?: boolean }).rateLimited) {
+        throw err;
+      }
       translated = await translateCvBySections(cv, target);
     }
 
@@ -222,6 +236,9 @@ export async function translateCvDetailed(
 
     return { ok: true, cv: translated };
   } catch (err) {
+    if (err instanceof Error && (err as Error & { rateLimited?: boolean }).rateLimited) {
+      return { ok: false, error: translateRateLimitMessage(target === "ar"), rateLimited: true };
+    }
     const message =
       err instanceof Error && err.name === "AbortError"
         ? target === "ar"

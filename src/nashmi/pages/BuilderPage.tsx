@@ -198,16 +198,45 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect }: {
 
 class AiRateLimitError extends Error {
   readonly code = "AI_RATE_LIMIT";
+  readonly usageType?: string;
+  readonly limit?: number;
 
-  constructor(message: string) {
+  constructor(message: string, usageType?: string, limit?: number) {
     super(message);
     this.name = "AiRateLimitError";
+    this.usageType = usageType;
+    this.limit = limit;
+  }
+}
+
+function rateLimitUserMessage(isAr: boolean, usageType?: string, limit?: number): string {
+  switch (usageType) {
+    case "translate":
+      return isAr
+        ? `تجاوزت حد الترجمة (${limit ?? 40} طلب) لهذه السيرة. عدّل يدوياً أو صدّر وابدأ سيرة جديدة.`
+        : `Translation limit reached (${limit ?? 40} requests) for this resume. Edit manually, export, or start a new session.`;
+    case "copilot":
+      return isAr
+        ? `تجاوزت حد المساعد الذكي (${limit ?? 35} رسالة) لهذه السيرة. صدّر أو ابدأ سيرة جديدة.`
+        : `Copilot limit reached (${limit ?? 35} messages) for this resume. Export or start a new session.`;
+    case "parse":
+      return isAr
+        ? `تجاوزت حد استيراد السيرة (${limit ?? 3} مرات) لهذه الجلسة.`
+        : `CV import limit reached (${limit ?? 3} imports) for this session.`;
+    case "improve":
+    default:
+      return isAr
+        ? `تجاوزت ${limit ?? 3} محاولات لهذا الزر في هذه السيرة. عدّل يدوياً أو صدّر وابدأ سيرة جديدة.`
+        : `You used all ${limit ?? 3} attempts for this button on this resume. Edit manually, export, or start a new session.`;
   }
 }
 
 async function callOpenAIRaw(
   prompt: string,
-  options?: { usageType?: "improve"; usageFeature?: string },
+  options?: {
+    usageType?: "improve" | "translate" | "copilot" | "parse";
+    usageFeature?: string;
+  },
 ): Promise<string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const sessionId = getCvSessionId();
@@ -230,7 +259,9 @@ async function callOpenAIRaw(
       throw new AiRateLimitError(
         typeof data?.error === "string"
           ? data.error
-          : "You have reached the AI Improve limit.",
+          : "You have reached the AI usage limit.",
+        typeof data?.usageType === "string" ? data.usageType : options?.usageType,
+        typeof data?.limit === "number" ? data.limit : undefined,
       );
     }
     const retryAfter = data?.retryAfter ? ` ${data.retryAfter}` : "";
@@ -409,7 +440,7 @@ ${text}
 
 Return ONLY the JSON, no explanation, no markdown, no code blocks.
     `.trim();
-    const result = await callOpenAIRaw(prompt);
+    const result = await callOpenAIRaw(prompt, { usageType: "parse" });
     const clean = result.replace(/```json|```/g, "").trim();
     try {
       return { json: JSON.parse(clean) };
@@ -443,7 +474,7 @@ User: ${text}
 
 Respond in ${isAr ? "Arabic" : "English"} concisely and helpfully.
     `.trim();
-    const result = await callOpenAIRaw(prompt);
+    const result = await callOpenAIRaw(prompt, { usageType: "copilot" });
     return { text: result.trim() };
   }
 
@@ -739,11 +770,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       }
     } catch (err) {
       if (err instanceof AiRateLimitError) {
-        sonnerToast.error(
-          isAr
-            ? "تجاوزت 3 محاولات لهذا الزر في هذه السيرة. ادفع لسيرة جديدة أو حاول بعد 24 ساعة."
-            : "You used all 3 attempts for this button on this resume. Pay for a new resume or try again in 24 hours.",
-        );
+        sonnerToast.error(rateLimitUserMessage(isAr, err.usageType, err.limit));
         return;
       }
       const msg = err instanceof Error ? err.message : String(err);
@@ -786,7 +813,14 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         } else {
           parsed = normalizeParsedCV(localParseCV(text));
         }
-      } catch {
+      } catch (parseErr) {
+        if (parseErr instanceof AiRateLimitError) {
+          sonnerToast.info(
+            isAr
+              ? "تجاوزت حد استيراد AI — تم استخدام المحلل المحلي بدلاً منه."
+              : "AI import limit reached — using the local parser instead.",
+          );
+        }
         parsed = normalizeParsedCV(localParseCV(text));
       }
 
@@ -825,6 +859,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const reply = (data.text || "").trim() || (isAr ? "عذراً، لم أتمكن من المعالجة." : "Sorry, could not process that.");
       setCopilotHistory(h => [...h, { role: "assistant", content: reply }]);
     } catch (err) {
+      if (err instanceof AiRateLimitError) {
+        const msg = rateLimitUserMessage(isAr, err.usageType, err.limit);
+        sonnerToast.error(msg);
+        setCopilotHistory(h => [...h, { role: "assistant", content: `⚠️ ${msg}` }]);
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       setCopilotHistory(h => [...h, { role: "assistant", content: (isAr ? "⚠️ خطأ في الاتصال: " : "⚠️ Connection error: ") + msg }]);
     } finally {
