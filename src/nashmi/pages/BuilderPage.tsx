@@ -535,36 +535,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [scaledCvHeight, setScaledCvHeight] = useState(1100);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    const updateLayout = () => {
-      const mobile = mq.matches;
-      setIsMobile(mobile);
-      setPreviewScale(mobile ? Math.min(1, Math.max(0.36, (window.innerWidth - 28) / 794)) : 1);
-    };
-    updateLayout();
-    mq.addEventListener("change", updateLayout);
-    window.addEventListener("resize", updateLayout);
-    return () => {
-      mq.removeEventListener("change", updateLayout);
-      window.removeEventListener("resize", updateLayout);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isMobile || !scaledCvRef.current) return;
-    const el = scaledCvRef.current;
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) setScaledCvHeight(entry.contentRect.height);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isMobile, mobileTab, cv, activeCvLang]);
-
-  useEffect(() => {
-    if (isMobile && activePanel) setMobileTab("sections");
-  }, [activePanel, isMobile]);
-
-  useEffect(() => {
     try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }
   }, [editMode]);
 
@@ -595,6 +565,36 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   useEffect(() => {
     if (cvLang === "ar" || cvLang === "en") setActiveCvLang(cvLang);
   }, [cvLang]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const updateLayout = () => {
+      const mobile = mq.matches;
+      setIsMobile(mobile);
+      setPreviewScale(mobile ? Math.min(1, Math.max(0.36, (window.innerWidth - 28) / 794)) : 1);
+    };
+    updateLayout();
+    mq.addEventListener("change", updateLayout);
+    window.addEventListener("resize", updateLayout);
+    return () => {
+      mq.removeEventListener("change", updateLayout);
+      window.removeEventListener("resize", updateLayout);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile || !scaledCvRef.current) return;
+    const el = scaledCvRef.current;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) setScaledCvHeight(entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isMobile, mobileTab, cv, activeCvLang]);
+
+  useEffect(() => {
+    if (isMobile && activePanel) setMobileTab("sections");
+  }, [activePanel, isMobile]);
 
   const isElite = userTier === "elite" || userTier === "enterprise";
   const otherLang: "ar" | "en" = activeCvLang === "ar" ? "en" : "ar";
