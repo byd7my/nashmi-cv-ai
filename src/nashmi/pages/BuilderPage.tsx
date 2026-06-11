@@ -12,9 +12,9 @@ import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImportFeature";
-import { cvMatchesLanguage, translateCvDetailed } from "@/nashmi/lib/cv-translate";
+import { cvMatchesLanguage, ensureArabicPersonalName, translateCvDetailed } from "@/nashmi/lib/cv-translate";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
-import { ExportPreviewModal } from "@/nashmi/components/ExportPreviewModal";
+import { ExportLangWarningModal } from "@/nashmi/components/ExportLangWarningModal";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
 import { getSessionPlanTier, setSessionPlanTier } from "@/nashmi/lib/plan-session";
 
@@ -559,10 +559,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const hasPremiumPackage = userTier === "premium";
   const isPaid = hasElitePackage || hasPremiumPackage;
   const [exportingPdf, setExportingPdf] = useState(false);
-  const [showExportPreview, setShowExportPreview] = useState(false);
-  const [exportPreviewLoading, setExportPreviewLoading] = useState(false);
-  const [exportPreviewError, setExportPreviewError] = useState<string | null>(null);
+  const [showExportLangWarning, setShowExportLangWarning] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
+  const [eliteSwitchBusy, setEliteSwitchBusy] = useState<"ar" | "en" | null>(null);
 
   // ── Click-to-edit canvas mode ──────────────────────────────────────────
   const EDITMODE_STORAGE_KEY = "nashmi-edit-mode";
@@ -614,9 +613,17 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const initialActiveCvLang: "ar" | "en" =
     cvLang === "ar" || cvLang === "en" ? cvLang : (lang === "ar" ? "ar" : "en");
   const [activeCvLang, setActiveCvLang] = useState<"ar" | "en">(initialActiveCvLang);
+  const [viewedCvLangs, setViewedCvLangs] = useState<{ ar: boolean; en: boolean }>(() => ({
+    ar: initialActiveCvLang === "ar",
+    en: initialActiveCvLang === "en",
+  }));
   useEffect(() => {
     if (cvLang === "ar" || cvLang === "en") setActiveCvLang(cvLang);
   }, [cvLang]);
+
+  useEffect(() => {
+    setViewedCvLangs((prev) => ({ ...prev, [activeCvLang]: true }));
+  }, [activeCvLang]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
@@ -689,6 +696,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   const isElite = userTier === "elite" || userTier === "enterprise";
   const otherLang: "ar" | "en" = activeCvLang === "ar" ? "en" : "ar";
+  const hasViewedBothEliteLangs = viewedCvLangs.ar && viewedCvLangs.en;
+  const missingExportLang: "ar" | "en" = !viewedCvLangs.ar ? "ar" : "en";
   const [otherLangCv, setOtherLangCv] = useState<CVData | null>(null);
   // Refresh "other language" snapshot whenever current CV / lang changes
   useEffect(() => {
@@ -1138,6 +1147,81 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     } catch { /* ignore */ }
   }
 
+  async function switchEliteCvLang(target: "ar" | "en") {
+    if (eliteSwitchBusy) return;
+
+    if (target === activeCvLang && cvMatchesLanguage(cv, target)) {
+      if (target === "ar") {
+        const fixed = await ensureArabicPersonalName(cv);
+        if (fixed.personal.name !== cv.personal.name) {
+          try {
+            window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(fixed));
+          } catch { /* ignore */ }
+          setCv(fixed);
+          showToast(isAr ? "تمت كتابة الاسم بالعربية" : "Name transliterated to Arabic");
+        }
+      }
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(ELITE_CV_KEYS[activeCvLang], JSON.stringify(cv));
+    } catch { /* ignore */ }
+
+    let saved: CVData | null = null;
+    try {
+      const raw = window.localStorage.getItem(ELITE_CV_KEYS[target]);
+      if (raw) saved = JSON.parse(raw) as CVData;
+    } catch { /* ignore */ }
+
+    if (saved && !cvMatchesLanguage(saved, target)) {
+      try {
+        window.localStorage.removeItem(ELITE_CV_KEYS[target]);
+      } catch { /* ignore */ }
+      saved = null;
+    }
+
+    if (saved && cvMatchesLanguage(saved, target)) {
+      const ready = target === "ar" ? await ensureArabicPersonalName(saved) : saved;
+      if (ready.personal.name !== saved.personal.name) {
+        try {
+          window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(ready));
+        } catch { /* ignore */ }
+      }
+      setCv({ ...INIT_CV, ...ready });
+      setActiveCvLang(target);
+      showToast(
+        isAr
+          ? `تم استيراد النسخة ${target === "ar" ? "العربية" : "الإنجليزية"}`
+          : `Imported ${target === "ar" ? "Arabic" : "English"} version`,
+      );
+      return;
+    }
+
+    setEliteSwitchBusy(target);
+    const tid = sonnerToast.loading(
+      isAr
+        ? `جاري ترجمة السيرة إلى ${target === "ar" ? "العربية" : "الإنجليزية"}...`
+        : `Translating resume to ${target === "ar" ? "Arabic" : "English"}...`,
+    );
+    try {
+      const result = await translateCvDetailed(cv, target);
+      if (result.ok) {
+        try {
+          window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(result.cv));
+        } catch { /* ignore */ }
+        setCv({ ...INIT_CV, ...result.cv });
+        setActiveCvLang(target);
+        showToast(isAr ? "تمت الترجمة بنجاح" : "Translated successfully");
+      } else {
+        showToast(result.error, "error");
+      }
+    } finally {
+      sonnerToast.dismiss(tid);
+      setEliteSwitchBusy(null);
+    }
+  }
+
   async function ensureOtherLangCv(): Promise<{ ok: true; cv: CVData } | { ok: false; error: string }> {
     let altCv = otherLangCv;
     if (altCv && cvMatchesLanguage(altCv, otherLang)) {
@@ -1160,29 +1244,29 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return { ok: true, cv: altCv };
   }
 
-  // Step 1: preview CV(s). Step 2: rating modal. Step 3: PDF export.
-  async function requestExport() {
+  function requestExport() {
     track("download_attempted", { tier: userTier });
     if (!canExport) {
       openUpgradeModal();
       return;
     }
 
-    setExportPreviewError(null);
-    setShowExportPreview(true);
-
-    if (isElite) {
-      setExportPreviewLoading(true);
-      const result = await ensureOtherLangCv();
-      setExportPreviewLoading(false);
-      if (!result.ok) {
-        setExportPreviewError(result.error);
-      }
+    if (isElite && !hasViewedBothEliteLangs) {
+      setShowExportLangWarning(true);
+      return;
     }
+
+    setShowExportConfirm(true);
   }
 
-  function proceedToExportConfirm() {
-    setShowExportPreview(false);
+  async function viewOtherLangBeforeExport() {
+    setShowExportLangWarning(false);
+    if (isMobile) setMobileTab("preview");
+    await switchEliteCvLang(missingExportLang);
+  }
+
+  function proceedExportAfterWarning() {
+    setShowExportLangWarning(false);
     setShowExportConfirm(true);
   }
 
@@ -1971,10 +2055,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               uiLang={isAr ? "ar" : "en"}
               currentResumeData={cv}
               activeLang={activeCvLang}
-              updateResumeData={(imported, newLang) => {
-                setCv({ ...INIT_CV, ...imported });
-                if (newLang === "ar" || newLang === "en") setActiveCvLang(newLang);
-              }}
+              onSwitchLang={switchEliteCvLang}
+              busy={eliteSwitchBusy}
             />
           )}
           {!isPaid && !isMobile && (
@@ -1995,10 +2077,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 uiLang={isAr ? "ar" : "en"}
                 currentResumeData={cv}
                 activeLang={activeCvLang}
-                updateResumeData={(imported, newLang) => {
-                  setCv({ ...INIT_CV, ...imported });
-                  if (newLang === "ar" || newLang === "en") setActiveCvLang(newLang);
-                }}
+                onSwitchLang={switchEliteCvLang}
+                busy={eliteSwitchBusy}
               />
             </div>
           )}
@@ -2367,27 +2447,18 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </>
       )}
 
-      {/* ── Step 1: review CV preview(s) before export ── */}
-      <ExportPreviewModal
+      <ExportLangWarningModal
         lang={lang}
-        open={showExportPreview}
-        isElite={isElite}
-        userTier={userTier}
-        primaryCv={cv}
-        primaryLang={activeCvLang}
-        secondaryCv={otherLangCv}
-        secondaryLang={otherLang}
-        loading={exportPreviewLoading}
-        loadError={exportPreviewError}
-        onClose={() => {
-          if (exportPreviewLoading) return;
-          setShowExportPreview(false);
-          setExportPreviewError(null);
+        open={showExportLangWarning}
+        missingLang={missingExportLang}
+        onClose={() => setShowExportLangWarning(false)}
+        onViewOther={() => {
+          void viewOtherLangBeforeExport();
         }}
-        onContinue={proceedToExportConfirm}
+        onContinue={proceedExportAfterWarning}
       />
 
-      {/* ── Step 2: mandatory export confirmation + Nashmi rating ── */}
+      {/* ── Export confirmation + Nashmi rating ── */}
       <ExportConfirmModal
         lang={lang}
         open={showExportConfirm}

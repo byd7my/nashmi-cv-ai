@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { CVData } from "@/nashmi/lib/ats";
-import { cvMatchesLanguage, ensureArabicPersonalName, translateCvDetailed } from "@/nashmi/lib/cv-translate";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 
 type EliteLang = Exclude<CvLang, "bi">;
@@ -17,11 +16,12 @@ interface Props {
   currentResumeData: CVData;
   updateResumeData: (cv: CVData, lang: EliteLang) => void;
   activeLang: EliteLang;
+  onSwitchLang: (target: EliteLang) => Promise<void>;
+  busy: EliteLang | null;
 }
 
 const P = {
   card: "#1a1625",
-  cardHover: "#211c2e",
   border: "rgba(124,92,255,0.30)",
   active: "#5b5fc7",
   activeRing: "rgba(167,139,250,0.55)",
@@ -35,12 +35,12 @@ export function EliteImportFeature({
   userSubscriptionTier,
   uiLang,
   currentResumeData,
-  updateResumeData,
   activeLang,
+  onSwitchLang,
+  busy,
 }: Props) {
   const isAr = uiLang === "ar";
   const isElite = userSubscriptionTier === "elite" || userSubscriptionTier === "enterprise";
-  const [busy, setBusy] = useState<EliteLang | null>(null);
 
   // Auto-save current draft under its language key on every change
   useEffect(() => {
@@ -53,85 +53,6 @@ export function EliteImportFeature({
     } catch { /* ignore */ }
   }, [currentResumeData, activeLang, isElite]);
 
-  async function handleSwitch(target: EliteLang) {
-    if (busy) return;
-
-    if (target === activeLang && cvMatchesLanguage(currentResumeData, target)) {
-      if (target === "ar") {
-        const fixed = await ensureArabicPersonalName(currentResumeData);
-        if (fixed.personal.name !== currentResumeData.personal.name) {
-          try {
-            window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(fixed));
-          } catch { /* ignore */ }
-          updateResumeData(fixed, target);
-          toast.success(isAr ? "تمت كتابة الاسم بالعربية" : "Name transliterated to Arabic");
-        }
-      }
-      return;
-    }
-
-    // 1. snapshot current language before leaving
-    try {
-      window.localStorage.setItem(
-        ELITE_CV_KEYS[activeLang],
-        JSON.stringify(currentResumeData),
-      );
-    } catch { /* ignore */ }
-
-    // 2. look up saved target version
-    let saved: CVData | null = null;
-    try {
-      const raw = window.localStorage.getItem(ELITE_CV_KEYS[target]);
-      if (raw) saved = JSON.parse(raw) as CVData;
-    } catch { /* ignore */ }
-
-    if (saved && !cvMatchesLanguage(saved, target)) {
-      try {
-        window.localStorage.removeItem(ELITE_CV_KEYS[target]);
-      } catch { /* ignore */ }
-      saved = null;
-    }
-
-    if (saved && cvMatchesLanguage(saved, target)) {
-      const ready = target === "ar" ? await ensureArabicPersonalName(saved) : saved;
-      if (ready.personal.name !== saved.personal.name) {
-        try {
-          window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(ready));
-        } catch { /* ignore */ }
-      }
-      updateResumeData(ready, target);
-      toast.success(
-        isAr
-          ? `تم استيراد النسخة ${target === "ar" ? "العربية" : "الإنجليزية"}`
-          : `Imported ${target === "ar" ? "Arabic" : "English"} version`,
-      );
-      return;
-    }
-
-    // 3. translate from current draft (or re-translate stale/wrong-language cache)
-    setBusy(target);
-    const tid = toast.loading(
-      isAr
-        ? `جاري ترجمة السيرة إلى ${target === "ar" ? "العربية" : "الإنجليزية"}...`
-        : `Translating resume to ${target === "ar" ? "Arabic" : "English"}...`,
-    );
-    try {
-      const result = await translateCvDetailed(currentResumeData, target);
-      if (result.ok) {
-        try {
-          window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(result.cv));
-        } catch { /* ignore */ }
-        updateResumeData(result.cv, target);
-        toast.success(isAr ? "تمت الترجمة بنجاح" : "Translated successfully");
-      } else {
-        toast.error(result.error);
-      }
-    } finally {
-      toast.dismiss(tid);
-      setBusy(null);
-    }
-  }
-
   if (!isElite) return null;
 
   const btn = (lang: EliteLang, labelAr: string, labelEn: string, flag: string) => {
@@ -140,7 +61,9 @@ export function EliteImportFeature({
     return (
       <button
         type="button"
-        onClick={() => handleSwitch(lang)}
+        onClick={() => {
+          void onSwitchLang(lang);
+        }}
         disabled={!!busy}
         style={{
           flex: "1 1 180px",
