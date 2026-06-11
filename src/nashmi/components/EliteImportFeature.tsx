@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { CVData } from "@/nashmi/lib/ats";
+import { cvMatchesLanguage, translateCv } from "@/nashmi/lib/cv-translate";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 
 type EliteLang = Exclude<CvLang, "bi">;
@@ -29,11 +30,6 @@ const P = {
   text: "#F4F2FF",
   muted: "#cfc9e6",
 };
-
-async function callTranslate(_cv: CVData, _target: EliteLang): Promise<CVData | null> {
-  // AI translation removed from this project.
-  return null;
-}
 
 export function EliteImportFeature({
   userSubscriptionTier,
@@ -75,7 +71,7 @@ export function EliteImportFeature({
       if (raw) saved = JSON.parse(raw) as CVData;
     } catch { /* ignore */ }
 
-    if (saved) {
+    if (saved && cvMatchesLanguage(saved, target)) {
       updateResumeData(saved, target);
       toast.success(
         isAr
@@ -85,29 +81,30 @@ export function EliteImportFeature({
       return;
     }
 
-    // 3. translate from current draft
+    // 3. translate from current draft (or re-translate stale/wrong-language cache)
     setBusy(target);
     const tid = toast.loading(
       isAr
         ? `جاري ترجمة السيرة إلى ${target === "ar" ? "العربية" : "الإنجليزية"}...`
         : `Translating resume to ${target === "ar" ? "Arabic" : "English"}...`,
     );
-    const translated = await callTranslate(currentResumeData, target);
+    const translated = await translateCv(currentResumeData, target);
     toast.dismiss(tid);
     setBusy(null);
 
     if (translated) {
+      try {
+        window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(translated));
+      } catch { /* ignore */ }
       updateResumeData(translated, target);
       toast.success(
-        isAr ? "تمت الترجمة وتطبيق القالب بنجاح" : "Translated and applied successfully",
+        isAr ? "تمت الترجمة بنجاح" : "Translated successfully",
       );
     } else {
-      // fallback: start from current data tagged in the new language
-      updateResumeData(currentResumeData, target);
-      toast.message(
+      toast.error(
         isAr
-          ? "تعذّرت الترجمة التلقائية — تم فتح القالب الفارغ."
-          : "Auto-translate unavailable — opened blank template.",
+          ? "تعذّرت الترجمة التلقائية. تحقق من اتصال OpenAI وحاول مرة أخرى."
+          : "Auto-translate failed. Check your OpenAI connection and try again.",
       );
     }
   }

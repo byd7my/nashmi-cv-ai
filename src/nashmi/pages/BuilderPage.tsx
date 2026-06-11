@@ -11,6 +11,7 @@ import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImportFeature";
+import { cvMatchesLanguage, translateCv } from "@/nashmi/lib/cv-translate";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
 
@@ -652,9 +653,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     if (!isElite) { setOtherLangCv(null); return; }
     try {
       const raw = window.localStorage.getItem(ELITE_CV_KEYS[otherLang]);
-      setOtherLangCv(raw ? (JSON.parse(raw) as CVData) : null);
+      const parsed = raw ? (JSON.parse(raw) as CVData) : null;
+      setOtherLangCv(parsed && cvMatchesLanguage(parsed, otherLang) ? parsed : null);
     } catch { setOtherLangCv(null); }
-  }, [isElite, otherLang, cv, activeCvLang]);
+  }, [isElite, otherLang, activeCvLang]);
 
   const [showATSMatch, setShowATSMatch] = useState(false);
   const [jobDesc, setJobDesc] = useState("");
@@ -1110,13 +1112,37 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       downloadBlob(visibleBlob, `nashmi-${baseName}-${activeCvLang}.pdf`);
       exportedFiles.push({ filename: `nashmi-${baseName}-${activeCvLang}.pdf`, blob: visibleBlob });
 
-      // 2. Elite: also export the hidden other-language preview
-      if (isElite && hiddenCvPreviewRef.current && otherLangCv) {
-        await new Promise(r => setTimeout(r, 800));
-        const hiddenBlob = await renderElementToPdfBlob(hiddenCvPreviewRef.current);
-        downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
-        exportedFiles.push({ filename: `nashmi-${baseName}-${otherLang}.pdf`, blob: hiddenBlob });
-        showToast(isAr ? "✓ تم تصدير النسختين — شكراً لاستخدامك نشمي" : "✓ Both versions exported — thank you for using Nashmi");
+      // 2. Elite: translate + export the other-language version
+      if (isElite) {
+        let altCv = otherLangCv;
+        if (!altCv || !cvMatchesLanguage(altCv, otherLang)) {
+          showToast(
+            isAr ? "جاري ترجمة النسخة الثانية…" : "Translating second version…",
+          );
+          altCv = await translateCv(cv, otherLang);
+          if (altCv) {
+            setOtherLangCv(altCv);
+            try {
+              window.localStorage.setItem(ELITE_CV_KEYS[otherLang], JSON.stringify(altCv));
+            } catch { /* ignore */ }
+            await new Promise((r) => setTimeout(r, 900));
+          }
+        }
+
+        if (hiddenCvPreviewRef.current && altCv) {
+          await new Promise((r) => setTimeout(r, 400));
+          const hiddenBlob = await renderElementToPdfBlob(hiddenCvPreviewRef.current);
+          downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
+          exportedFiles.push({ filename: `nashmi-${baseName}-${otherLang}.pdf`, blob: hiddenBlob });
+          showToast(isAr ? "✓ تم تصدير النسختين — شكراً لاستخدامك نشمي" : "✓ Both versions exported — thank you for using Nashmi");
+        } else {
+          showToast(
+            isAr
+              ? "✓ تم تصدير النسخة الحالية — تعذّرت ترجمة النسخة الثانية"
+              : "✓ Current version exported — second version translation failed",
+            altCv ? "success" : "error",
+          );
+        }
       } else {
         showToast(isAr ? "✓ تم تصدير PDF بنجاح — شكراً لاستخدامك نشمي" : "✓ PDF exported — thank you for using Nashmi");
       }
@@ -1882,6 +1908,20 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               </button>
             </div>
           )}
+          {isMobile && isElite && (
+            <div style={{ width: "100%", maxWidth: 794, marginBottom: 12 }}>
+              <EliteImportFeature
+                userSubscriptionTier={currentPlan}
+                uiLang={isAr ? "ar" : "en"}
+                currentResumeData={cv}
+                activeLang={activeCvLang}
+                updateResumeData={(imported, newLang) => {
+                  setCv({ ...INIT_CV, ...imported });
+                  if (newLang === "ar" || newLang === "en") setActiveCvLang(newLang);
+                }}
+              />
+            </div>
+          )}
           {isMobile ? (
             renderMobileScaledCv(true)
           ) : editMode === "sidebar" ? (
@@ -1906,10 +1946,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </div>
         )}
 
-        {isElite && otherLangCv && (
+        {isElite && (
           <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
             <div ref={hiddenCvPreviewRef} style={{ width: 794 }}>
-              <CVPreview cv={otherLangCv} lang={lang} cvLanguage={otherLang} userTier={userTier}/>
+              <CVPreview cv={otherLangCv || cv} lang={lang} cvLanguage={otherLang} userTier={userTier}/>
             </div>
           </div>
         )}
