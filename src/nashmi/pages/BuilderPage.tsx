@@ -14,6 +14,7 @@ import type { CvLang } from "@/nashmi/hooks/useLang";
 import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImportFeature";
 import { cvMatchesLanguage, translateCvDetailed } from "@/nashmi/lib/cv-translate";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
+import { ExportPreviewModal } from "@/nashmi/components/ExportPreviewModal";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
 import { getSessionPlanTier, setSessionPlanTier } from "@/nashmi/lib/plan-session";
 
@@ -558,6 +559,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const hasPremiumPackage = userTier === "premium";
   const isPaid = hasElitePackage || hasPremiumPackage;
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [showExportPreview, setShowExportPreview] = useState(false);
+  const [exportPreviewLoading, setExportPreviewLoading] = useState(false);
+  const [exportPreviewError, setExportPreviewError] = useState<string | null>(null);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
 
   // ── Click-to-edit canvas mode ──────────────────────────────────────────
@@ -1134,13 +1138,51 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     } catch { /* ignore */ }
   }
 
-  // Opens the mandatory confirmation/review modal before running the actual PDF export.
-  function requestExport() {
+  async function ensureOtherLangCv(): Promise<{ ok: true; cv: CVData } | { ok: false; error: string }> {
+    let altCv = otherLangCv;
+    if (altCv && cvMatchesLanguage(altCv, otherLang)) {
+      return { ok: true, cv: altCv };
+    }
+
+    const result = await translateCvDetailed(cv, otherLang);
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    altCv = result.cv;
+    flushSync(() => setOtherLangCv(altCv));
+    try {
+      window.localStorage.setItem(ELITE_CV_KEYS[otherLang], JSON.stringify(altCv));
+    } catch { /* ignore */ }
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    return { ok: true, cv: altCv };
+  }
+
+  // Step 1: preview CV(s). Step 2: rating modal. Step 3: PDF export.
+  async function requestExport() {
     track("download_attempted", { tier: userTier });
     if (!canExport) {
       openUpgradeModal();
       return;
     }
+
+    setExportPreviewError(null);
+    setShowExportPreview(true);
+
+    if (isElite) {
+      setExportPreviewLoading(true);
+      const result = await ensureOtherLangCv();
+      setExportPreviewLoading(false);
+      if (!result.ok) {
+        setExportPreviewError(result.error);
+      }
+    }
+  }
+
+  function proceedToExportConfirm() {
+    setShowExportPreview(false);
     setShowExportConfirm(true);
   }
 
@@ -1159,26 +1201,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       downloadBlob(visibleBlob, `nashmi-${baseName}-${activeCvLang}.pdf`);
       exportedFiles.push({ filename: `nashmi-${baseName}-${activeCvLang}.pdf`, blob: visibleBlob });
 
-      // 2. Elite: translate + export the other-language version
+      // 2. Elite: export the other-language version (prepared in preview step)
       if (isElite) {
-        let altCv = otherLangCv;
-        if (!altCv || !cvMatchesLanguage(altCv, otherLang)) {
-          showToast(
-            isAr ? "جاري ترجمة النسخة الثانية…" : "Translating second version…",
-          );
-          const result = await translateCvDetailed(cv, otherLang);
-          if (result.ok) {
-            altCv = result.cv;
-            flushSync(() => setOtherLangCv(altCv));
-            try {
-              window.localStorage.setItem(ELITE_CV_KEYS[otherLang], JSON.stringify(altCv));
-            } catch { /* ignore */ }
-            await new Promise<void>((resolve) => {
-              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-            });
-          } else {
-            showToast(result.error, "error");
-          }
+        let altCv = otherLangCv && cvMatchesLanguage(otherLangCv, otherLang) ? otherLangCv : null;
+        if (!altCv) {
+          const prepared = await ensureOtherLangCv();
+          if (prepared.ok) altCv = prepared.cv;
+          else showToast(prepared.error, "error");
         }
 
         if (hiddenCvPreviewRef.current && altCv) {
@@ -2338,7 +2367,27 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </>
       )}
 
-      {/* ── Mandatory export confirmation + Nashmi rating modal ── */}
+      {/* ── Step 1: review CV preview(s) before export ── */}
+      <ExportPreviewModal
+        lang={lang}
+        open={showExportPreview}
+        isElite={isElite}
+        userTier={userTier}
+        primaryCv={cv}
+        primaryLang={activeCvLang}
+        secondaryCv={otherLangCv}
+        secondaryLang={otherLang}
+        loading={exportPreviewLoading}
+        loadError={exportPreviewError}
+        onClose={() => {
+          if (exportPreviewLoading) return;
+          setShowExportPreview(false);
+          setExportPreviewError(null);
+        }}
+        onContinue={proceedToExportConfirm}
+      />
+
+      {/* ── Step 2: mandatory export confirmation + Nashmi rating ── */}
       <ExportConfirmModal
         lang={lang}
         open={showExportConfirm}

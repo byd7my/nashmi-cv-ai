@@ -28,6 +28,15 @@ export function ExportConfirmModal({
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (open) {
       setAgreed(false);
       setRating(0);
@@ -89,12 +98,24 @@ export function ExportConfirmModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 16,
+        padding: "max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom))",
         direction: isAr ? "rtl" : "ltr",
         animation: "fadeUp 0.25s ease both",
         overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
       }}
     >
+      <style>{`
+        @media (max-width: 640px) {
+          .export-confirm-actions {
+            flex-direction: column-reverse !important;
+          }
+          .export-confirm-actions button {
+            width: 100%;
+            min-height: 44px;
+          }
+        }
+      `}</style>
       <div
         ref={dialogRef}
         style={{
@@ -107,7 +128,7 @@ export function ExportConfirmModal({
           boxShadow: `0 32px 80px rgba(0,0,0,0.65)`,
           fontFamily: ff,
           position: "relative",
-          maxHeight: "calc(100vh - 32px)",
+          maxHeight: "calc(100dvh - 24px)",
           overflowY: "auto",
         }}
       >
@@ -329,7 +350,7 @@ export function ExportConfirmModal({
         </div>
 
         {/* Actions */}
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div className="export-confirm-actions" style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button
             type="button"
             onClick={onClose}
