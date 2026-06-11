@@ -461,8 +461,8 @@ export function describeImportError(err: unknown, isAr: boolean): string {
   switch (code) {
     case "PDF_IMAGE_ONLY":
       return isAr
-        ? "ملف PDF من نشمي (صورة) لا يمكن استيراده. استخدم ملف JSON الذي يُحمّل مع التصدير، أو Word/TXT."
-        : "Nashmi PDF exports are image-only and cannot be re-imported. Use the JSON backup downloaded with export, or Word/TXT.";
+        ? "هذا PDF صورة فقط (قديم أو ممسوح ضوئياً) ولا يمكن استيراده. استخدم Word/TXT أو JSON، أو صدّر من نشمي بالنسخة الجديدة (PDF نصي متوافق ATS)."
+        : "This PDF is image-only (old or scanned) and cannot be imported. Use Word/TXT or JSON, or export again from Nashmi (new ATS text PDF).";
     case "EMPTY_FILE":
     case "Could not extract text from file":
       return isAr ? "تعذر قراءة محتوى الملف" : "Could not extract text from file";

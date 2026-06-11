@@ -1,8 +1,6 @@
 import { useState, useEffect, memo, useCallback, useRef } from "react";
 import { flushSync } from "react-dom";
 import { toast as sonnerToast } from "sonner";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { P, FF } from "@/nashmi/lib/tokens";
 import { CVPreview } from "@/nashmi/components/CVPreview";
 import { ATSRing } from "@/nashmi/components/ATSRing";
@@ -17,6 +15,7 @@ import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 import { ExportLangWarningModal } from "@/nashmi/components/ExportLangWarningModal";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
 import { getSessionPlanTier, setSessionPlanTier } from "@/nashmi/lib/plan-session";
+import { renderCvToAtsPdfBlob } from "@/nashmi/lib/cv-pdf-export";
 
 const FF2 = FF;
 
@@ -992,90 +991,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     })();
   }
 
-  async function renderElementToPdfBlob(el: HTMLElement): Promise<Blob> {
-    // force A4 width so mobile exports match desktop
-    const A4_PX = 794;
-    const origWidth = el.style.width;
-    const origMinWidth = el.style.minWidth;
-    el.style.width = `${A4_PX}px`;
-    el.style.minWidth = `${A4_PX}px`;
-
-    const canvas = await html2canvas(el, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#ffffff",
-      logging: false,
-      width: A4_PX,
-      windowWidth: A4_PX,
-      onclone: (doc) => {
-        const style = doc.createElement("style");
-        style.textContent = `
-          :root, html, body {
-            --background:#ffffff; --foreground:#0a0a0b;
-            --card:#ffffff; --card-foreground:#0a0a0b;
-            --popover:#ffffff; --popover-foreground:#0a0a0b;
-            --primary:#5b5fc7; --primary-foreground:#ffffff;
-            --secondary:#f4f4f5; --secondary-foreground:#0a0a0b;
-            --muted:#f4f4f5; --muted-foreground:#71717a;
-            --accent:#f4f4f5; --accent-foreground:#0a0a0b;
-            --destructive:#ef4444; --destructive-foreground:#ffffff;
-            --border:#e4e4e7; --input:#e4e4e7; --ring:#5b5fc7;
-            --sidebar:#ffffff; --sidebar-foreground:#0a0a0b;
-            --sidebar-primary:#5b5fc7; --sidebar-primary-foreground:#ffffff;
-            --sidebar-accent:#f4f4f5; --sidebar-accent-foreground:#0a0a0b;
-            --sidebar-border:#e4e4e7; --sidebar-ring:#5b5fc7;
-            color:#0a0a0b !important; background:#ffffff !important;
-          }
-          /* إصلاح تفكك الحروف العربية في html2canvas */
-          * {
-            letter-spacing: 0 !important;
-            word-spacing: normal !important;
-            font-feature-settings: "liga", "calt", "rlig" !important;
-            text-rendering: optimizeLegibility !important;
-          }
-        `;
-        doc.head.appendChild(style);
-
-        // استهداف الحاوية المستنسخة وفرض RTL + خط عربي مدعوم
-        const targetId = el.id;
-        const clonedPreview = targetId
-          ? doc.getElementById(targetId)
-          : (doc.body.querySelector('[data-pdf-root]') as HTMLElement | null);
-        if (clonedPreview) {
-          clonedPreview.setAttribute("dir", "rtl");
-          clonedPreview.style.direction = "rtl";
-          clonedPreview.style.fontFamily =
-            "'Cairo', 'Tajawal', 'Noto Naskh Arabic', 'Amiri', sans-serif";
-          clonedPreview.querySelectorAll<HTMLElement>("*").forEach((node) => {
-            node.style.letterSpacing = "0px";
-            node.style.wordSpacing = "normal";
-            if (node.style.direction === "ltr") {
-              node.style.direction = "rtl";
-            }
-          });
-        }
-      },
-    });
-    const imgData = canvas.toDataURL("image/jpeg", 0.97);
-
-    // restore original width
-    el.style.width = origWidth;
-    el.style.minWidth = origMinWidth;
-
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = (canvas.height * pdfW) / canvas.width;
-    const pageH = pdf.internal.pageSize.getHeight();
-    let y = 0;
-    while (y < pdfH) {
-      if (y > 0) pdf.addPage();
-      pdf.addImage(imgData, "JPEG", 0, -y, pdfW, pdfH);
-      y += pageH;
-    }
-    return pdf.output("blob");
-  }
-
   function blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1286,22 +1201,19 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setShowExportConfirm(true);
   }
 
-  // ── PDF Export (client-side) ────────────────────────────────────────────
+  // ── PDF Export (ATS text layer — real selectable text, not images) ───────
   async function exportPDF() {
     if (!canExport) { openUpgradeModal(); return; }
-    if (!cvPreviewRef.current) return;
     setExportingPdf(true);
     track("pdf_exported");
     try {
       const baseName = cv.personal.name ? cv.personal.name.replace(/\s+/g, "-").toLowerCase() : "resume";
       const exportedFiles: { filename: string; blob: Blob }[] = [];
 
-      // 1. visible preview (current language)
-      const visibleBlob = await renderElementToPdfBlob(cvPreviewRef.current);
+      const visibleBlob = await renderCvToAtsPdfBlob(cv, activeCvLang);
       downloadBlob(visibleBlob, `nashmi-${baseName}-${activeCvLang}.pdf`);
       exportedFiles.push({ filename: `nashmi-${baseName}-${activeCvLang}.pdf`, blob: visibleBlob });
 
-      // 2. Elite: export the other-language version (prepared in preview step)
       if (isElite) {
         let altCv = otherLangCv && cvMatchesLanguage(otherLangCv, otherLang) ? otherLangCv : null;
         if (!altCv) {
@@ -1310,12 +1222,16 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           else showToast(prepared.error, "error");
         }
 
-        if (hiddenCvPreviewRef.current && altCv) {
-          const hiddenBlob = await renderElementToPdfBlob(hiddenCvPreviewRef.current);
+        if (altCv) {
+          const hiddenBlob = await renderCvToAtsPdfBlob(altCv, otherLang);
           downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
           exportedFiles.push({ filename: `nashmi-${baseName}-${otherLang}.pdf`, blob: hiddenBlob });
-          showToast(isAr ? "✓ تم تصدير النسختين — شكراً لاستخدامك نشمي" : "✓ Both versions exported — thank you for using Nashmi");
-        } else if (isElite) {
+          showToast(
+            isAr
+              ? "✓ تم تصدير النسختين PDF (متوافق ATS) — شكراً لاستخدامك نشمي"
+              : "✓ Both ATS-friendly PDFs exported — thank you for using Nashmi",
+          );
+        } else {
           showToast(
             isAr
               ? "✓ تم تصدير النسخة الحالية — تعذّرت ترجمة النسخة الثانية"
@@ -1324,13 +1240,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           );
         }
       } else {
-        showToast(isAr ? "✓ تم تصدير PDF بنجاح — شكراً لاستخدامك نشمي" : "✓ PDF exported — thank you for using Nashmi");
+        showToast(
+          isAr
+            ? "✓ PDF متوافق مع ATS — تم التصدير بنجاح"
+            : "✓ ATS-friendly PDF exported successfully",
+        );
       }
 
-      downloadJsonBackup();
-
-      // 3. Email a copy to the address the client put in the CV (best-effort:
-      // a failure here must never block the download or the session reset).
       await emailCvCopy(exportedFiles);
 
       // ── Security: one purchase = one export session ──────────────────
@@ -1747,7 +1663,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               {importing ? (isAr ? "جارٍ التحليل…" : "Analysing…") : (isAr ? "استيراد PDF / JSON" : "Import PDF / JSON")}
             </div>
             <div style={{ color: P.muted, fontSize: 13, lineHeight: 1.5 }}>
-              {isAr ? "PDF من نشمي يحتاج ملف JSON — يُحمّل تلقائياً مع التصدير" : "Nashmi PDFs need the JSON backup — downloaded automatically on export"}
+              {isAr ? "PDF من نشمي قابل للاستيراد (نص ATS). Word/TXT/JSON مدعوم أيضاً" : "Nashmi PDFs are ATS text (re-importable). Word/TXT/JSON also supported"}
             </div>
           </button>
 
