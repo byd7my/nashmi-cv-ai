@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLang, type CvLang } from "@/nashmi/hooks/useLang";
 import { TR } from "@/nashmi/lib/translations";
 import type { CVData } from "@/nashmi/lib/ats";
+import { getSessionPlanTier } from "@/nashmi/lib/plan-session";
 
 import { LandingPage } from "@/nashmi/pages/LandingPage";
 import { BuilderPage } from "@/nashmi/pages/BuilderPage";
@@ -36,13 +37,29 @@ const GLOBAL_CSS = `
 
 type Page = "landing" | "builder" | "auth" | "templates" | "blog" | "checkout" | "admin";
 
+const VALID_PAGES = new Set<string>(["landing", "builder", "auth", "templates", "blog", "checkout", "admin"]);
+
+function hashToPage(): Page {
+  if (typeof window === "undefined") return "landing";
+  const slug = window.location.hash.replace(/^#\/?/, "").split("?")[0].trim().toLowerCase();
+  if (!slug || slug === "landing") return "landing";
+  return VALID_PAGES.has(slug) ? (slug as Page) : "landing";
+}
+
+function pageToHash(page: Page): string {
+  return page === "landing" ? "" : `#/${page}`;
+}
+
 export default function App() {
   const { lang, toggle, choose, chosen } = useLang();
   const t = TR[lang];
 
-  const [page, setPage] = useState<Page>("landing");
+  const [page, setPage] = useState<Page>(() => hashToPage());
   const [selectedPlan, setSelectedPlan] = useState("premium");
-  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<string | null>(() => {
+    const stored = getSessionPlanTier();
+    return stored !== "starter" ? stored : null;
+  });
   const [initialCV, setInitialCV] = useState<CVData | null>(null);
   const [selectedCvLang, setSelectedCvLang] = useState<CvLang | null>(null);
   const [cvLangResolver, setCvLangResolver] = useState<((l: CvLang | null) => void) | null>(null);
@@ -58,8 +75,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const onHash = () => setPage(hashToPage());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [page]);
+
+  const syncHash = useCallback((dest: Page) => {
+    const next = pageToHash(dest);
+    const current = window.location.hash;
+    if (next !== current) {
+      if (next) window.location.hash = next;
+      else window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
 
   function ensureCvLang(): Promise<CvLang | null> {
     if (selectedCvLang) return Promise.resolve(selectedCvLang);
@@ -76,21 +108,22 @@ export default function App() {
   }
 
   async function navTo(dest: string, cv?: CVData) {
-    if (dest === "builder") {
+    const next = VALID_PAGES.has(dest) ? (dest as Page) : "landing";
+    if (next === "builder") {
       if (!selectedCvLang) {
         const picked = await ensureCvLang();
         if (!picked) return;
       }
-      // Without an explicit CV, clear any stale imported one so a fresh
-      // session after export truly starts from scratch.
       setInitialCV(cv ?? null);
     }
-    setPage(dest as Page);
+    setPage(next);
+    syncHash(next);
   }
 
   function selectPlan(plan: string) {
     setSelectedPlan(plan);
     setPage("checkout");
+    syncHash("checkout");
   }
 
   const shared = {

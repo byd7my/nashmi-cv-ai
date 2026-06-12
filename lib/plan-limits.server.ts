@@ -52,10 +52,34 @@ export function getPlanUsageLimits(tierRaw: string | null | undefined): PlanUsag
   return base;
 }
 
-export function resolvePlanTierFromRequest(req: {
+function readHeader(
+  req: { headers?: Record<string, string | string[] | undefined> },
+  name: string,
+): string {
+  const raw = req.headers?.[name];
+  return typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] ?? "" : "";
+}
+
+export function resolvePlanTierFromClientHeader(req: {
   headers?: Record<string, string | string[] | undefined>;
 }): PlanTier {
-  const header = req.headers?.["x-nashmi-plan-tier"];
-  const value = typeof header === "string" ? header : Array.isArray(header) ? header[0] : "";
-  return normalizePlanTier(value);
+  return normalizePlanTier(readHeader(req, "x-nashmi-plan-tier"));
+}
+
+export async function resolvePlanTierFromRequest(req: {
+  headers?: Record<string, string | string[] | undefined>;
+}): Promise<PlanTier> {
+  const purchaseToken = readHeader(req, "x-nashmi-purchase-token").trim();
+  const sessionId = readHeader(req, "x-nashmi-session-id").trim();
+
+  if (purchaseToken.length >= 16 && sessionId.length >= 8) {
+    const { lookupActivePurchaseTier } = await import("./purchases-api.server");
+    const verified = await lookupActivePurchaseTier(
+      purchaseToken.slice(0, 128),
+      sessionId.slice(0, 128),
+    );
+    if (verified) return verified;
+  }
+
+  return resolvePlanTierFromClientHeader(req);
 }

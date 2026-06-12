@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CV_TEMPLATES, setStoredCvTemplate, type CvTemplateId } from "@/nashmi/lib/cv-templates";
 import { P, FF } from "@/nashmi/lib/tokens";
 import { PageShell } from "@/nashmi/components/PageShell";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
@@ -11,22 +12,47 @@ interface Props {
   page: string;
 }
 
-const TEMPLATES = [
-  {
-    id: "modern",   name: { ar: "عصري",     en: "Modern"    }, desc: { ar: "تصميم نظيف وعصري مناسب لوظائف التقنية والإبداع", en: "Clean, contemporary design for tech and creative roles" },     accent: "#7C5CFF", badge: { ar: "الأكثر استخداماً", en: "Most Used" },
+const TEMPLATES = CV_TEMPLATES.map((tpl) => ({
+  ...tpl,
+  desc: {
+    ar:
+      tpl.id === "modern"
+        ? "تصميم نظيف وعصري مناسب لوظائف التقنية والإبداع"
+        : tpl.id === "executive"
+          ? "تصميم احترافي وأنيق لكبار المسؤولين والمديرين"
+          : tpl.id === "minimal"
+            ? "تصميم مبسّط يركّز على المحتوى والمهارات"
+            : "تصميم تقليدي موثوق يمر عبر كل أنظمة ATS",
+    en:
+      tpl.id === "modern"
+        ? "Clean, contemporary design for tech and creative roles"
+        : tpl.id === "executive"
+          ? "Sophisticated, polished layout for executives and directors"
+          : tpl.id === "minimal"
+            ? "Clean minimal layout focused on content and skills"
+            : "Traditional trusted format that passes every ATS system",
   },
-  {
-    id: "executive",name: { ar: "تنفيذي",   en: "Executive" }, desc: { ar: "تصميم احترافي وأنيق لكبار المسؤولين والمديرين", en: "Sophisticated, polished layout for executives and directors" }, accent: "#E8B84B", badge: { ar: "للإدارة",             en: "For Executives" },
+  badge: {
+    ar:
+      tpl.id === "modern"
+        ? "الأكثر استخداماً"
+        : tpl.id === "executive"
+          ? "للإدارة"
+          : tpl.id === "minimal"
+            ? "الأقل إلهاءً"
+            : "متوافق ATS 100%",
+    en:
+      tpl.id === "modern"
+        ? "Most Used"
+        : tpl.id === "executive"
+          ? "For Executives"
+          : tpl.id === "minimal"
+            ? "Most Clean"
+            : "100% ATS Safe",
   },
-  {
-    id: "minimal",  name: { ar: "بسيط",     en: "Minimal"   }, desc: { ar: "تصميم مبسّط ونظيف يركّز على المحتوى والمهارات", en: "Clean minimal layout focused on content and skills" },            accent: "#22C55E", badge: { ar: "الأقل إلهاءً",      en: "Most Clean" },
-  },
-  {
-    id: "classic",  name: { ar: "كلاسيك",   en: "Classic"   }, desc: { ar: "تصميم تقليدي موثوق يمر عبر كل أنظمة ATS", en: "Traditional trusted format that passes every ATS system" },         accent: "#60A5FA", badge: { ar: "متوافق ATS 100%",   en: "100% ATS Safe" },
-  },
-];
+}));
 
-function TemplateCard({ t: tpl, isAr, onNav, ff }: { t: typeof TEMPLATES[0]; isAr: boolean; onNav: (p: string) => void; ff: string }) {
+function TemplateCard({ t: tpl, isAr, onNav, ff }: { t: typeof CV_TEMPLATES[0]; isAr: boolean; onNav: (p: string, tplId?: CvTemplateId) => void; ff: string }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div style={{ background: P.card, border: `1px solid ${hovered ? tpl.accent : P.border}`, borderRadius: 18, overflow: "hidden", cursor: "pointer", transition: "border-color 0.25s, transform 0.25s, box-shadow 0.25s", transform: hovered ? "translateY(-5px)" : "none", boxShadow: hovered ? `0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px ${tpl.accent}33` : "0 4px 12px rgba(0,0,0,0.2)" }}
@@ -55,7 +81,7 @@ function TemplateCard({ t: tpl, isAr, onNav, ff }: { t: typeof TEMPLATES[0]; isA
           <div style={{ width: 10, height: 10, borderRadius: "50%", background: tpl.accent, flexShrink: 0, marginTop: 5 }}/>
         </div>
         <p style={{ color: P.muted, fontSize: 13, lineHeight: 1.65, marginBottom: 16 }}>{isAr ? tpl.desc.ar : tpl.desc.en}</p>
-        <button onClick={() => onNav("builder")} style={{ width: "100%", background: hovered ? `linear-gradient(135deg, ${tpl.accent}, ${tpl.accent}cc)` : "transparent", border: `1px solid ${hovered ? "transparent" : P.borderLight}`, color: hovered ? "#fff" : P.text, borderRadius: 10, padding: "10px 16px", cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: ff, transition: "all 0.2s" }}>
+        <button onClick={() => { setStoredCvTemplate(tpl.id); onNav("builder", tpl.id); }} style={{ width: "100%", background: hovered ? `linear-gradient(135deg, ${tpl.accent}, ${tpl.accent}cc)` : "transparent", border: `1px solid ${hovered ? "transparent" : P.borderLight}`, color: hovered ? "#fff" : P.text, borderRadius: 10, padding: "10px 16px", cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: ff, transition: "all 0.2s" }}>
           {isAr ? "استخدم هذا القالب →" : "Use this template →"}
         </button>
       </div>
@@ -86,8 +112,8 @@ export function TemplatesPage({ lang, t, onNav, onLangToggle, page }: Props) {
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
               {(isAr
-                ? ["✓ 100% متوافق مع ATS", "✓ دعم عربي وإنجليزي", "✓ بدون علامة مائية", "✓ PDF + DOCX"]
-                : ["✓ 100% ATS Compatible", "✓ Arabic & English RTL", "✓ No Watermark", "✓ PDF + DOCX"]
+                ? ["✓ 100% متوافق مع ATS", "✓ دعم عربي وإنجليزي", "✓ بدون علامة مائية", "✓ PDF ATS"]
+                : ["✓ 100% ATS Compatible", "✓ Arabic & English RTL", "✓ No Watermark", "✓ ATS PDF"]
               ).map(x => (
                 <span key={x} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "5px 12px", fontSize: 12, color: P.muted }}>{x}</span>
               ))}

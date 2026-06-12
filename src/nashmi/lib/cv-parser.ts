@@ -1,4 +1,6 @@
 import type { CVData } from "./ats";
+import { getCvSessionId } from "@/nashmi/lib/session";
+import { getPurchaseToken, getSessionPlanTier } from "@/nashmi/lib/plan-session";
 
 export const INIT_CV: CVData = {
   personal: { name:"", email:"", phone:"", city:"", title:"", linkedin:"", website:"" },
@@ -391,9 +393,54 @@ async function extractTextFromDOCX(file: File): Promise<string> {
   return (result?.value || "").trim();
 }
 
+export function isImageFile(file: File): boolean {
+  const type = (file.type || "").toLowerCase();
+  if (type.startsWith("image/")) return true;
+  const name = (file.name || "").toLowerCase();
+  return /\.(jpe?g|png|webp|gif)$/i.test(name);
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunk = 8192;
+  for (let i = 0; i < buf.length; i += chunk) {
+    binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function extractTextFromImage(file: File): Promise<string> {
+  const sessionId = getCvSessionId();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (sessionId) headers["x-nashmi-session-id"] = sessionId;
+  headers["x-nashmi-plan-tier"] = getSessionPlanTier();
+  const token = getPurchaseToken();
+  if (token) headers["x-nashmi-purchase-token"] = token;
+
+  const mimeType = file.type || "image/jpeg";
+  const res = await fetch("/api/ocr-resume", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      imageBase64: await fileToBase64(file),
+      mimeType,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 429 && data?.code === "AI_RATE_LIMIT") {
+      throw new Error("OCR_LIMIT");
+    }
+    throw new Error(typeof data?.error === "string" ? data.error : "OCR_FAILED");
+  }
+  return (typeof data?.text === "string" ? data.text : "").trim();
+}
+
 export async function extractTextFromFile(file: File): Promise<string> {
   const name = (file.name || "").toLowerCase();
   const type = file.type || "";
+  if (isImageFile(file)) return extractTextFromImage(file);
   if (name.endsWith(".pdf")  || type === "application/pdf")  return extractTextFromPDF(file);
   if (name.endsWith(".docx") || type.includes("officedocument.wordprocessingml")) return extractTextFromDOCX(file);
   if (name.endsWith(".txt")  || type.startsWith("text/"))    return (await file.text()).trim();
@@ -461,8 +508,15 @@ export function describeImportError(err: unknown, isAr: boolean): string {
   switch (code) {
     case "PDF_IMAGE_ONLY":
       return isAr
-        ? "هذا PDF صورة فقط (قديم أو ممسوح ضوئياً) ولا يمكن استيراده. استخدم Word/TXT أو JSON، أو صدّر من نشمي بالنسخة الجديدة (PDF نصي متوافق ATS)."
-        : "This PDF is image-only (old or scanned) and cannot be imported. Use Word/TXT or JSON, or export again from Nashmi (new ATS text PDF).";
+        ? "هذا PDF صورة فقط (قديم أو ممسوح ضوئياً). ارفع صورة مباشرة، أو TXT/JSON، أو صدّر من نشمي (PDF نصي ATS)."
+        : "This PDF is image-only (old or scanned). Upload the photo directly, or use TXT/JSON, or export from Nashmi (ATS text PDF).";
+    case "OCR_LIMIT":
+      return isAr
+        ? "تجاوزت حد استيراد السيرة لهذه الجلسة — يتطلب باقة مدفوعة."
+        : "CV import limit reached for this session — a paid plan is required.";
+    case "OCR_FAILED":
+    case "Could not read text from image":
+      return isAr ? "تعذر قراءة النص من الصورة" : "Could not read text from the image";
     case "EMPTY_FILE":
     case "Could not extract text from file":
       return isAr ? "تعذر قراءة محتوى الملف" : "Could not extract text from file";

@@ -8,6 +8,10 @@
     { "src": "/api/send-cv", "dest": "/__server" },
     { "src": "/api/send-cv/", "dest": "/__server" },
     { "src": "/api/reviews", "dest": "/__server" },
-    { "src": "/api/reviews/", "dest": "/__server" }
+    { "src": "/api/reviews/", "dest": "/__server" },
+    { "src": "/api/purchase", "dest": "/__server" },
+    { "src": "/api/purchase/", "dest": "/__server" },
+    { "src": "/api/ocr-resume", "dest": "/__server" },
+    { "src": "/api/ocr-resume/", "dest": "/__server" }
   ]
 }

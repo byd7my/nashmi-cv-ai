@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { WHATSAPP_SALES_URL } from "@/nashmi/lib/constants";
 import { P, FF } from "@/nashmi/lib/tokens";
 import { VioletBadge } from "@/nashmi/components/VioletBadge";
 import { ATSRing } from "@/nashmi/components/ATSRing";
@@ -138,7 +139,7 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
             <input
               ref={importFileRef}
               type="file"
-              accept=".pdf,.docx,.doc,.txt,.json,application/json"
+              accept=".pdf,.docx,.doc,.txt,.json,application/json,image/*"
               style={{ display: "none" }}
               onChange={e => { const f = e.target.files?.[0]; if (f) handleHeroImport(f); e.target.value = ""; }}
             />
@@ -344,6 +345,10 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
 
                 <button onClick={() => {
                   track("payment_page_reached", { plan: plan.tier });
+                  if (plan.tier === "enterprise" || plan.ctaNav === "whatsapp") {
+                    window.open(WHATSAPP_SALES_URL, "_blank", "noopener,noreferrer");
+                    return;
+                  }
                   if (plan.ctaNav === "builder") onNav("builder");
                   else { onSelectPlan(plan.tier); onNav("checkout"); }
                 }} style={{
@@ -363,7 +368,7 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
           </div>
 
           <div style={{ textAlign: "center", marginTop: 22, color: P.muted, fontSize: 12 }}>
-            {isAr ? "دفعة واحدة · بدون اشتراك متكرر · ضمان استرداد لمدة 7 أيام" : "One-time payment · No recurring billing · 7-day money-back guarantee"}
+            {isAr ? "دفعة واحدة · بدون اشتراك · جلسة سيرة واحدة لكل شراء" : "One-time payment · No subscription · One resume session per purchase"}
           </div>
         </div>
       </Section>

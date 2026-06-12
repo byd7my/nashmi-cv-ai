@@ -14,7 +14,14 @@ import { cvMatchesLanguage, ensureArabicPersonalName, translateCvDetailed } from
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 import { ExportLangWarningModal } from "@/nashmi/components/ExportLangWarningModal";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
-import { getSessionPlanTier, setSessionPlanTier } from "@/nashmi/lib/plan-session";
+import { getSessionPlanTier, setSessionPlanTier, getPurchaseToken, clearPaidSession } from "@/nashmi/lib/plan-session";
+import {
+  CV_TEMPLATES,
+  getStoredCvTemplate,
+  setStoredCvTemplate,
+  getCvTemplateStyles,
+  type CvTemplateId,
+} from "@/nashmi/lib/cv-templates";
 import { renderCvToAtsPdfBlob } from "@/nashmi/lib/cv-pdf-export";
 
 const FF2 = FF;
@@ -54,18 +61,20 @@ const Txta = memo(function Txta({ label, value, onChange, placeholder, rows = 4,
 // Mirrors CVPreview's visual layout but wraps every section in a clickable
 // region that opens the matching editor panel. The PDF export still renders
 // the untouched CVPreview component off-screen, so this never affects output.
-function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect }: {
+function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
   cv: CVData;
   cvIsAr: boolean;
   activePanel: string | null;
   onSelect: (id: string) => void;
+  templateId?: CvTemplateId;
 }) {
   const H = cvIsAr ? AR_HEADERS : EN_HEADERS;
+  const tpl = getCvTemplateStyles(templateId ?? getStoredCvTemplate());
   const ffCv = cvIsAr
     ? "'Cairo', 'Tajawal', 'Noto Naskh Arabic', Tahoma, Arial, sans-serif"
     : "'Inter', 'Helvetica Neue', Arial, sans-serif";
 
-  const headStyle: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", borderBottom: "1px solid #333", paddingBottom: 3, marginBottom: 8 };
+  const headStyle: React.CSSProperties = tpl.sectionTitle;
 
   const Sec = ({ id, children, mb = 0 }: { id: string; children: React.ReactNode; mb?: number }) => {
     const active = activePanel === id;
@@ -91,13 +100,13 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect }: {
   const hasCerts = certs.some(c => c.title || c.issuer || c.date);
 
   return (
-    <div className="cv-canvas-inner" style={{ background: "#fff", color: "#111", fontFamily: ffCv, fontSize: 10.5, lineHeight: 1.55, padding: 40, width: "100%", minHeight: 600, direction: cvIsAr ? "rtl" : "ltr" }}>
+    <div className="cv-canvas-inner" style={{ background: "#fff", color: "#111", fontFamily: ffCv, fontSize: 10.5, lineHeight: 1.55, padding: tpl.pagePadding, width: "100%", minHeight: 600, direction: cvIsAr ? "rtl" : "ltr" }}>
       {/* Personal header */}
       <Sec id="personal" mb={16}>
-        <div style={{ textAlign: "center", borderBottom: "2px solid #111", paddingBottom: 12 }}>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{cv.personal.name || (cvIsAr ? "الاسم الكامل" : "Full Name")}</div>
+        <div style={{ textAlign: tpl.headerAlign, borderBottom: tpl.headerBorder, padding: tpl.headerPadding, borderLeft: tpl.sidebarAccent ? `4px solid ${tpl.accent}` : undefined }}>
+          <div style={{ fontSize: tpl.nameSize, fontWeight: 700 }}>{cv.personal.name || (cvIsAr ? "الاسم الكامل" : "Full Name")}</div>
           {cv.personal.title && <div style={{ fontSize: 13, color: "#444", marginTop: 4 }}>{cv.personal.title}</div>}
-          <div style={{ fontSize: 10, color: "#555", marginTop: 6, display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <div style={{ fontSize: 10, color: "#555", marginTop: 6, display: "flex", gap: 12, justifyContent: tpl.headerAlign === "center" ? "center" : "flex-start", flexWrap: "wrap" }}>
             {cv.personal.email && <span>{cv.personal.email}</span>}
             {cv.personal.phone && <span>{cv.personal.phone}</span>}
             {cv.personal.city && <span>{cv.personal.city}</span>}
@@ -182,7 +191,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect }: {
       <Sec id="skills" mb={14}>
         <div style={{ ...headStyle, marginTop: 4 }}>{H.skills}</div>
         {cv.skills.length > 0
-          ? <div style={{ color: "#222", fontSize: 10 }}>{cv.skills.join(" · ")}</div>
+          ? <div style={{ color: "#222", fontSize: 10 }}>{cv.skills.join(tpl.skillsSeparator)}</div>
           : <Placeholder label={cvIsAr ? "أضف مهاراتك" : "Add your skills"}/>}
       </Sec>
 
@@ -243,6 +252,8 @@ async function callOpenAIRaw(
   const sessionId = getCvSessionId();
   if (sessionId) headers["x-nashmi-session-id"] = sessionId;
   headers["x-nashmi-plan-tier"] = getSessionPlanTier();
+  const purchaseToken = getPurchaseToken();
+  if (purchaseToken) headers["x-nashmi-purchase-token"] = purchaseToken;
 
   const res = await fetch("/api/openai", {
     method: "POST",
@@ -561,6 +572,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [showExportLangWarning, setShowExportLangWarning] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [eliteSwitchBusy, setEliteSwitchBusy] = useState<"ar" | "en" | null>(null);
+  const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => getStoredCvTemplate());
 
   // ── Click-to-edit canvas mode ──────────────────────────────────────────
   const EDITMODE_STORAGE_KEY = "nashmi-edit-mode";
@@ -583,6 +595,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
   }, [currentPlan]);
+
+  useEffect(() => {
+    setStoredCvTemplate(cvTemplate);
+  }, [cvTemplate]);
 
   useEffect(() => {
     try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }
@@ -1210,7 +1226,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const baseName = cv.personal.name ? cv.personal.name.replace(/\s+/g, "-").toLowerCase() : "resume";
       const exportedFiles: { filename: string; blob: Blob }[] = [];
 
-      const visibleBlob = await renderCvToAtsPdfBlob(cv, activeCvLang);
+      const visibleBlob = await renderCvToAtsPdfBlob(cv, activeCvLang, cvTemplate);
       downloadBlob(visibleBlob, `nashmi-${baseName}-${activeCvLang}.pdf`);
       exportedFiles.push({ filename: `nashmi-${baseName}-${activeCvLang}.pdf`, blob: visibleBlob });
 
@@ -1223,7 +1239,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         }
 
         if (altCv) {
-          const hiddenBlob = await renderCvToAtsPdfBlob(altCv, otherLang);
+          const hiddenBlob = await renderCvToAtsPdfBlob(altCv, otherLang, cvTemplate);
           downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
           exportedFiles.push({ filename: `nashmi-${baseName}-${otherLang}.pdf`, blob: hiddenBlob });
           showToast(
@@ -1249,6 +1265,20 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
       await emailCvCopy(exportedFiles);
 
+      const purchaseToken = getPurchaseToken();
+      const sessionId = getCvSessionId();
+      if (purchaseToken && sessionId) {
+        try {
+          await fetch("/api/purchase?action=consume", {
+            method: "POST",
+            headers: {
+              "x-nashmi-purchase-token": purchaseToken,
+              "x-nashmi-session-id": sessionId,
+            },
+          });
+        } catch { /* ignore */ }
+      }
+
       // ── Security: one purchase = one export session ──────────────────
       // After a successful download, wipe the local session (saved CV draft,
       // Elite snapshots, plan) and return to the landing page. The next visit
@@ -1262,6 +1292,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           window.localStorage.removeItem(ELITE_CV_KEYS.en);
           resetCvSessionId();
         } catch { /* ignore */ }
+        clearPaidSession();
         setCurrentPlan("starter");
         onNav("landing");
       }, 2500);
@@ -1590,9 +1621,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     const scaledW = Math.round(794 * previewScale);
     const scaledH = Math.max(Math.round(scaledCvHeight * previewScale), 420);
     const inner = interactive ? (
-      <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={handleSectionSelect} />
+      <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={handleSectionSelect} templateId={cvTemplate} />
     ) : (
-      <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} />
+      <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate} />
     );
     return (
       <div className="cv-preview-stage">
@@ -1617,7 +1648,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return (
       <div style={{ minHeight: "100vh", background: P.bg, direction: isAr ? "rtl" : "ltr", fontFamily: ff, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
         {/* hidden inputs so refs work */}
-        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt,.json,application/json" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
+        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt,.json,application/json,image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
         <input ref={jsonImportRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) importJSON(f); e.target.value = ""; }}/>
 
         {/* Logo */}
@@ -1660,10 +1691,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           >
             <div style={{ fontSize: 40, marginBottom: 12 }}>{importing ? "⏳" : "📄"}</div>
             <div style={{ color: P.text, fontWeight: 800, fontSize: 17, marginBottom: 6, fontFamily: ff }}>
-              {importing ? (isAr ? "جارٍ التحليل…" : "Analysing…") : (isAr ? "استيراد PDF / JSON" : "Import PDF / JSON")}
+              {importing ? (isAr ? "جارٍ التحليل…" : "Analysing…") : (isAr ? "استيراد PDF / صورة / JSON" : "Import PDF / Photo / JSON")}
             </div>
             <div style={{ color: P.muted, fontSize: 13, lineHeight: 1.5 }}>
-              {isAr ? "PDF من نشمي قابل للاستيراد (نص ATS). Word/TXT/JSON مدعوم أيضاً" : "Nashmi PDFs are ATS text (re-importable). Word/TXT/JSON also supported"}
+              {isAr ? "PDF من نشمي (نص ATS)، صورة، TXT، أو JSON" : "Nashmi ATS PDF, photo, TXT, or JSON"}
             </div>
           </button>
 
@@ -1772,7 +1803,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         <button onClick={() => fileRef.current?.click()} disabled={importing} style={{ background: P.card, border: `1px solid ${P.border}`, color: P.muted, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, fontFamily: ff, whiteSpace: "nowrap" }}>
           {importing ? "⏳" : "⬆"} PDF
         </button>
-        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt,.json,application/json" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
+        <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt,.json,application/json,image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}/>
       </div>
 
 
@@ -1993,6 +2024,43 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               busy={eliteSwitchBusy}
             />
           )}
+          {!isMobile && (
+            <div style={{ width: "100%", maxWidth: 794, marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ color: P.muted, fontSize: 12, fontWeight: 700, marginInlineEnd: 4 }}>
+                {isAr ? "القالب:" : "Template:"}
+              </span>
+              {CV_TEMPLATES.map((tpl) => {
+                const active = cvTemplate === tpl.id;
+                return (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => setCvTemplate(tpl.id)}
+                    style={{
+                      background: active ? `${tpl.accent}22` : P.surface,
+                      border: `1px solid ${active ? tpl.accent : P.border}`,
+                      color: active ? P.text : P.muted,
+                      borderRadius: 999,
+                      padding: "6px 12px",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fontFamily: ff,
+                    }}
+                  >
+                    {isAr ? tpl.name.ar : tpl.name.en}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {isPaid && !isMobile && (
+            <div style={{ width: "100%", maxWidth: 794, background: `${P.green}12`, border: `1px solid ${P.green}33`, borderRadius: 10, padding: "8px 14px", marginBottom: 12, fontSize: 12, color: P.green }}>
+              {isAr
+                ? "✓ جلسة مدفوعة — بناء وتصدير سيرة واحدة. بعد التصدير تنتهي الجلسة."
+                : "✓ Paid session — build and export one resume. Session ends after export."}
+            </div>
+          )}
           {!isPaid && !isMobile && (
             <div style={{ width: "100%", maxWidth: 794, background: P.card, border: `1px solid ${P.border}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
@@ -2020,18 +2088,18 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             renderMobileScaledCv(true)
           ) : editMode === "sidebar" ? (
             <div ref={cvPreviewRef} style={paperStyle}>
-              <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
+              <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate}/>
               {!isPaid && renderWatermarkGrid()}
             </div>
           ) : (
             <>
               <div style={paperStyle}>
-                <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={setActivePanel}/>
+                <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={setActivePanel} templateId={cvTemplate}/>
                 {!isPaid && renderWatermarkGrid()}
               </div>
               <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
                 <div ref={cvPreviewRef} style={{ width: 794 }}>
-                  <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
+                  <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate}/>
                 </div>
               </div>
             </>
@@ -2043,7 +2111,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         {isElite && (
           <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
             <div ref={hiddenCvPreviewRef} style={{ width: 794 }}>
-              <CVPreview cv={otherLangCv || cv} lang={lang} cvLanguage={otherLang} userTier={userTier}/>
+              <CVPreview cv={otherLangCv || cv} lang={lang} cvLanguage={otherLang} userTier={userTier} templateId={cvTemplate}/>
             </div>
           </div>
         )}
@@ -2128,7 +2196,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         {isMobile && (
           <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
             <div ref={cvPreviewRef} style={{ width: 794 }}>
-              <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier}/>
+              <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate}/>
             </div>
           </div>
         )}

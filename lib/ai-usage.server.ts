@@ -77,7 +77,7 @@ export async function checkAndConsumeSessionUsage(
   usageType: SessionUsageType,
   usageFeature?: string,
 ): Promise<AiUsageCheckResult> {
-  const planTier = resolvePlanTierFromRequest(req);
+  const planTier = await resolvePlanTierFromRequest(req);
   const limit = getLimitForType(usageType, planTier);
 
   if (limit <= 0) {

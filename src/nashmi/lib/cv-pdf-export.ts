@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import type { CVData } from "@/nashmi/lib/ats";
 import { AR_HEADERS, EN_HEADERS } from "@/nashmi/lib/cv-parser";
+import { getCvTemplateStyles, type CvTemplateId } from "@/nashmi/lib/cv-templates";
 
 const MARGIN = 14;
 const PAGE_H = 297;
@@ -51,11 +52,14 @@ class AtsPdfWriter {
   private readonly x: number;
   private readonly align: "left" | "right";
   private readonly font: string;
+  private readonly tpl;
 
   constructor(
     private readonly doc: jsPDF,
     private readonly isAr: boolean,
+    templateId: CvTemplateId = "modern",
   ) {
+    this.tpl = getCvTemplateStyles(templateId);
     this.x = isAr ? PAGE_W - MARGIN : MARGIN;
     this.align = isAr ? "right" : "left";
     this.font = isAr ? "Amiri" : "helvetica";
@@ -93,12 +97,18 @@ class AtsPdfWriter {
     this.ensureSpace(10);
     this.setFont(true, 10);
     this.doc.setTextColor(17, 17, 17);
-    const label = this.isAr ? title : title.toUpperCase();
+    const label =
+      this.tpl.sectionTitle.textTransform === "none" ? title : this.isAr ? title : title.toUpperCase();
     this.doc.text(label, this.x, this.y, { align: this.align, maxWidth: CONTENT_W });
     this.y += 4;
     const lineY = this.y;
-    this.doc.setDrawColor(51, 51, 51);
-    this.doc.setLineWidth(0.2);
+    const accent = this.tpl.accent;
+    this.doc.setDrawColor(
+      parseInt(accent.slice(1, 3), 16),
+      parseInt(accent.slice(3, 5), 16),
+      parseInt(accent.slice(5, 7), 16),
+    );
+    this.doc.setLineWidth(this.tpl.sectionTitle.borderBottom ? 0.35 : 0.2);
     this.doc.line(MARGIN, lineY, PAGE_W - MARGIN, lineY);
     this.y += 5;
   }
@@ -116,9 +126,11 @@ class AtsPdfWriter {
 export async function renderCvToAtsPdfBlob(
   cv: CVData,
   cvLanguage: "ar" | "en",
+  templateId: CvTemplateId = "modern",
 ): Promise<Blob> {
   const isAr = cvLanguage === "ar";
   const H = isAr ? AR_HEADERS : EN_HEADERS;
+  const tpl = getCvTemplateStyles(templateId);
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
 
   if (isAr) await ensureArabicFonts(doc);
@@ -130,10 +142,10 @@ export async function renderCvToAtsPdfBlob(
     keywords: cv.skills.join(", "),
   });
 
-  const w = new AtsPdfWriter(doc, isAr);
+  const w = new AtsPdfWriter(doc, isAr, templateId);
 
   const name = cv.personal.name || (isAr ? "الاسم الكامل" : "Full Name");
-  w.write(name, { size: 18, bold: true, gap: 3 });
+  w.write(name, { size: tpl.nameSize * 0.78, bold: true, gap: 3 });
 
   if (cv.personal.title) {
     w.write(cv.personal.title, { size: 11, gap: 3, color: [68, 68, 68] });
@@ -197,7 +209,7 @@ export async function renderCvToAtsPdfBlob(
 
   if (cv.skills.length) {
     w.writeSection(H.skills);
-    w.write(cv.skills.join(", "), { size: 10, gap: 5 });
+    w.write(cv.skills.join(tpl.skillsSeparator), { size: 10, gap: 5 });
   }
 
   const languages = cv.languages.filter((l) => l.lang);

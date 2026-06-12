@@ -1,6 +1,8 @@
 import "./lib/error-capture";
 
+import { handleOcrResumeRequest } from "../lib/ocr-api.server";
 import { handleOpenAIRequest } from "../lib/openai-api.server";
+import { handlePurchaseRequest } from "../lib/purchases-api.server";
 import { handleReviewsRequest } from "../lib/reviews-api.server";
 import { handleSendCvRequest } from "../lib/send-cv-api.server";
 import { consumeLastCapturedError } from "./lib/error-capture";
@@ -74,6 +76,30 @@ export default {
         console.error("[api/reviews] Unhandled handler error", error);
         return Response.json(
           { error: "Internal server error", code: "REVIEWS_HANDLER_CRASH" },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (pathname === "/api/purchase") {
+      try {
+        return await handlePurchaseRequest(request);
+      } catch (error) {
+        console.error("[api/purchase] Unhandled handler error", error);
+        return Response.json(
+          { error: "Internal server error", code: "PURCHASE_HANDLER_CRASH" },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (pathname === "/api/ocr-resume") {
+      try {
+        return await handleOcrResumeRequest(request);
+      } catch (error) {
+        console.error("[api/ocr-resume] Unhandled handler error", error);
+        return Response.json(
+          { error: "Internal server error", code: "OCR_HANDLER_CRASH" },
           { status: 500 },
         );
       }
