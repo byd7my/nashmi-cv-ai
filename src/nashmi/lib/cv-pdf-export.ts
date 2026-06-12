@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import type { CVData } from "@/nashmi/lib/ats";
 import { AR_HEADERS, EN_HEADERS } from "@/nashmi/lib/cv-parser";
-import { getCvTemplateStyles, type CvTemplateId } from "@/nashmi/lib/cv-templates";
+import { ATS_PDF_TEMPLATE_ID, getCvTemplateStyles, type CvTemplateId } from "@/nashmi/lib/cv-templates";
 
 const MARGIN = 14;
 const PAGE_H = 297;
@@ -122,15 +122,17 @@ class AtsPdfWriter {
   }
 }
 
-/** ATS-friendly PDF: real text layer, single column, standard section headings. */
+/**
+ * ATS-friendly PDF: real text layer, single column, standard section headings.
+ * Template choice affects preview styling only — export always uses classic ATS layout.
+ */
 export async function renderCvToAtsPdfBlob(
   cv: CVData,
   cvLanguage: "ar" | "en",
-  templateId: CvTemplateId = "modern",
+  _templateId?: CvTemplateId,
 ): Promise<Blob> {
   const isAr = cvLanguage === "ar";
   const H = isAr ? AR_HEADERS : EN_HEADERS;
-  const tpl = getCvTemplateStyles(templateId);
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
 
   if (isAr) await ensureArabicFonts(doc);
@@ -142,10 +144,10 @@ export async function renderCvToAtsPdfBlob(
     keywords: cv.skills.join(", "),
   });
 
-  const w = new AtsPdfWriter(doc, isAr, templateId);
+  const w = new AtsPdfWriter(doc, isAr, ATS_PDF_TEMPLATE_ID);
 
   const name = cv.personal.name || (isAr ? "الاسم الكامل" : "Full Name");
-  w.write(name, { size: tpl.nameSize * 0.78, bold: true, gap: 3 });
+  w.write(name, { size: 18, bold: true, gap: 3 });
 
   if (cv.personal.title) {
     w.write(cv.personal.title, { size: 11, gap: 3, color: [68, 68, 68] });
@@ -209,7 +211,7 @@ export async function renderCvToAtsPdfBlob(
 
   if (cv.skills.length) {
     w.writeSection(H.skills);
-    w.write(cv.skills.join(tpl.skillsSeparator), { size: 10, gap: 5 });
+    w.write(cv.skills.join(", "), { size: 10, gap: 5 });
   }
 
   const languages = cv.languages.filter((l) => l.lang);

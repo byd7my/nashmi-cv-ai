@@ -107,8 +107,8 @@ export function TemplatesPage({ lang, t, onNav, onLangToggle, page }: Props) {
             </h1>
             <p style={{ color: P.muted, fontSize: 16, maxWidth: 540, margin: "0 auto 28px" }}>
               {isAr
-                ? "4 قوالب مصممة بمعايير ATS وتوافق كامل مع أنظمة التوظيف العالمية والإقليمية."
-                : "4 templates designed to ATS standards and fully compatible with global and regional hiring systems."}
+                ? "4 قوالب للمعاينة — التصدير PDF دائماً بتنسيق ATS كلاسيكي (عمود واحد + نص حقيقي) مهما اخترت."
+                : "4 preview styles — PDF export always uses the same classic ATS layout (single column, real text) no matter which you pick."}
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
               {(isAr

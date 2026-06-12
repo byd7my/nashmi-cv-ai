@@ -2,6 +2,9 @@ import type { CSSProperties } from "react";
 
 export type CvTemplateId = "modern" | "executive" | "minimal" | "classic";
 
+/** PDF export always uses this layout (single column, standard headings, real text). */
+export const ATS_PDF_TEMPLATE_ID: CvTemplateId = "classic";
+
 export const CV_TEMPLATE_IDS: CvTemplateId[] = ["modern", "executive", "minimal", "classic"];
 
 export const CV_TEMPLATES: {
@@ -87,14 +90,14 @@ export function getCvTemplateStyles(templateId: CvTemplateId): CvTemplateStyles 
         nameSize: 20,
         sectionTitle: {
           fontSize: 9.5,
-          fontWeight: 600,
-          letterSpacing: "0.04em",
-          textTransform: "none",
-          borderBottom: "none",
-          paddingBottom: 0,
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          borderBottom: `1px solid ${tpl.accent}66`,
+          paddingBottom: 3,
           marginBottom: 6,
           marginTop: 6,
-          color: tpl.accent,
+          color: "#111",
         },
         skillsSeparator: " · ",
         pagePadding: "32px 36px",

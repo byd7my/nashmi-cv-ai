@@ -2036,6 +2036,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                     key={tpl.id}
                     type="button"
                     onClick={() => setCvTemplate(tpl.id)}
+                    title={isAr ? "كل القوالب تُصدَّر PDF ATS بنفس التنسيق الآمن" : "All templates export the same ATS-safe PDF layout"}
                     style={{
                       background: active ? `${tpl.accent}22` : P.surface,
                       border: `1px solid ${active ? tpl.accent : P.border}`,
@@ -2052,6 +2053,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                   </button>
                 );
               })}
+              <span style={{ color: P.green, fontSize: 11, fontWeight: 700 }}>
+                ✓ {isAr ? "PDF ATS واحد لكل القوالب" : "Same ATS PDF for all"}
+              </span>
             </div>
           )}
           {isPaid && !isMobile && (
