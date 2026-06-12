@@ -31,6 +31,13 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
     }
   };
 
+  const goToPricing = () => {
+    setMenuOpen(false);
+    handleNavClick({ label: "", anchor: "pricing" });
+  };
+
+  const pricingLabel = routes.find(r => r.anchor === "pricing")?.label ?? (isAr ? "الأسعار" : "Pricing");
+
   return (
     <>
       <style>{`
@@ -91,10 +98,10 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.borderLight; (e.currentTarget as HTMLButtonElement).style.color = P.muted; }}
             >{isAr ? "EN" : "ع"}</button>
 
-            <button className="nav-login-btn" onClick={() => onNav("auth")} style={{ background:"none", border:`1px solid ${P.borderLight}`, color:P.text, borderRadius:8, padding:"8px 18px", cursor:"pointer", fontSize:14, fontWeight:500, fontFamily:ff, transition:"border-color 0.2s" }}
+            <button className="nav-login-btn" onClick={goToPricing} style={{ background:"none", border:`1px solid ${P.borderLight}`, color:P.text, borderRadius:8, padding:"8px 18px", cursor:"pointer", fontSize:14, fontWeight:500, fontFamily:ff, transition:"border-color 0.2s" }}
               onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet}
               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = P.borderLight}
-            >{t.login}</button>
+            >{pricingLabel}</button>
 
             <button onClick={() => onNav("builder")} style={{ background:`linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border:"none", color:"#fff", borderRadius:8, padding:"9px 16px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:ff, boxShadow:`0 4px 20px ${P.violet}44`, transition:"transform 0.2s, opacity 0.2s", whiteSpace:"nowrap" }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.opacity = "0.92"; }}
@@ -128,8 +135,8 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
               {route.label}
             </button>
           ))}
-          <button onClick={() => { setMenuOpen(false); onNav("auth"); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:15, color:P.muted, fontFamily:ff, padding:"12px 8px", textAlign: isAr ? "right" : "left" }}>
-            {t.login}
+          <button onClick={goToPricing} style={{ background:"none", border:"none", cursor:"pointer", fontSize:15, color:P.muted, fontFamily:ff, padding:"12px 8px", textAlign: isAr ? "right" : "left" }}>
+            {pricingLabel}
           </button>
         </div>
       )}

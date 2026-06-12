@@ -293,7 +293,7 @@ export function CheckoutPage({ lang, t, onNav, plan, onPaid }: Props) {
               </button>
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14, color: P.muted, fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>
-                🔒 {isAr ? "دفع تجريبي — Tabby / مدى قريباً" : "Demo checkout — Tabby / Mada coming soon"}
+                🔒 {isAr ? "دفع آمن — مدى · Visa · Apple Pay · STC Pay" : "Secure payment — Mada · Visa · Apple Pay · STC Pay"}
               </div>
             </div>
           </div>

@@ -37,13 +37,13 @@ const GLOBAL_CSS = `
 
 type Page = "landing" | "builder" | "auth" | "templates" | "blog" | "checkout" | "admin";
 
-const VALID_PAGES = new Set<string>(["landing", "builder", "auth", "templates", "blog", "checkout", "admin"]);
+const PUBLIC_PAGES = new Set<string>(["landing", "builder", "templates", "blog", "checkout"]);
 
 function hashToPage(): Page {
   if (typeof window === "undefined") return "landing";
   const slug = window.location.hash.replace(/^#\/?/, "").split("?")[0].trim().toLowerCase();
-  if (!slug || slug === "landing") return "landing";
-  return VALID_PAGES.has(slug) ? (slug as Page) : "landing";
+  if (!slug || slug === "landing" || slug === "auth" || slug === "admin") return "landing";
+  return PUBLIC_PAGES.has(slug) ? (slug as Page) : "landing";
 }
 
 function pageToHash(page: Page): string {
@@ -108,7 +108,7 @@ export default function App() {
   }
 
   async function navTo(dest: string, cv?: CVData) {
-    const next = VALID_PAGES.has(dest) ? (dest as Page) : "landing";
+    const next = PUBLIC_PAGES.has(dest) ? (dest as Page) : "landing";
     if (next === "builder") {
       if (!selectedCvLang) {
         const picked = await ensureCvLang();

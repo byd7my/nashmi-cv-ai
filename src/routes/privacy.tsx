@@ -20,7 +20,7 @@ function PrivacyPage() {
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "64px 24px" }}>
         <Link to="/" style={{ color: P.violetLight, fontSize: 13, textDecoration: "none" }}>← العودة للرئيسية</Link>
         <h1 style={{ fontSize: 36, fontWeight: 900, margin: "20px 0 24px" }}>سياسة الخصوصية</h1>
-        <p style={{ color: P.muted, fontSize: 13, marginBottom: 32 }}>آخر تحديث: 9 يونيو 2026</p>
+        <p style={{ color: P.muted, fontSize: 13, marginBottom: 32 }}>آخر تحديث: 13 يونيو 2026</p>
 
         <Section title="مقدمة">
           نلتزم في منصة <strong>نشمي</strong> بحماية خصوصية مستخدمينا. توضح هذه السياسة كيفية جمع واستخدام وحماية المعلومات التي تقدمها لنا عند استخدامك للمنصة.
@@ -37,7 +37,7 @@ function PrivacyPage() {
         <Section title="كيف نستخدم معلوماتك">
           <ul style={ulStyle}>
             <li>تقديم خدمات إنشاء السيرة الذاتية وتصديرها.</li>
-            <li>معالجة المدفوعات وإدارة الاشتراكات.</li>
+            <li>معالجة المدفوعات (دفعة واحدة لكل باقة) عبر مزود دفع مرخّص — لا نخزّن بيانات البطاقة.</li>
             <li>تحسين المنصة وتطوير ميزات جديدة.</li>
             <li>التواصل معك بشأن الدعم الفني والتحديثات.</li>
           </ul>
@@ -52,7 +52,11 @@ function PrivacyPage() {
         </Section>
 
         <Section title="التواصل معنا">
-          لأي استفسار يخص الخصوصية، تواصل معنا عبر واتساب: <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noreferrer" style={{ color: P.violetLight }}>+966 55 296 7837</a>
+          لأي استفسار يخص الخصوصية:
+          <ul style={{ ...ulStyle, marginTop: 12 }}>
+            <li>واتساب: <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noreferrer" style={{ color: P.violetLight }}>+966 55 296 7837</a></li>
+            <li>البريد: <a href="mailto:nashmi4cvs@gmail.com" style={{ color: P.violetLight }}>nashmi4cvs@gmail.com</a></li>
+          </ul>
         </Section>
       </div>
     </div>

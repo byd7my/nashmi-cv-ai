@@ -20,7 +20,7 @@ function TermsPage() {
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "64px 24px" }}>
         <Link to="/" style={{ color: P.violetLight, fontSize: 13, textDecoration: "none" }}>← العودة للرئيسية</Link>
         <h1 style={{ fontSize: 36, fontWeight: 900, margin: "20px 0 24px" }}>الشروط والأحكام</h1>
-        <p style={{ color: P.muted, fontSize: 13, marginBottom: 32 }}>آخر تحديث: 9 يونيو 2026</p>
+        <p style={{ color: P.muted, fontSize: 13, marginBottom: 32 }}>آخر تحديث: 13 يونيو 2026</p>
 
         <Section title="قبول الشروط">
           باستخدامك لمنصة <strong>نشمي</strong>، فإنك توافق على الالتزام بهذه الشروط والأحكام كاملةً. إذا لم توافق على أي بند، يُرجى التوقف عن استخدام المنصة.
@@ -38,7 +38,16 @@ function TermsPage() {
           <ul style={ulStyle}>
             <li>جميع الأسعار بالريال السعودي وتشمل ما يلزم من ضرائب.</li>
             <li>الدفع لمرة واحدة يمنحك صلاحيات الباقة المختارة وفقًا للوصف المعلن — جلسة سيرة واحدة لكل عملية شراء.</li>
-            <li>المبالغ المدفوعة غير قابلة للاسترداد بعد تفعيل التصدير.</li>
+            <li>تتم معالجة المدفوعات عبر مزود دفع مرخّص (مثل Tap Payments) ولا نخزّن بيانات بطاقتك على خوادمنا.</li>
+          </ul>
+        </Section>
+
+        <Section title="سياسة الاسترجاع (منتج رقمي)">
+          <ul style={ulStyle}>
+            <li>نشمي يبيع خدمة رقمية (إنشاء وتصدير سيرة ذاتية بصيغة PDF متوافقة مع ATS).</li>
+            <li>بعد تحميل أو تصدير ملف PDF بنجاح، تُعتبر الخدمة مُقدَّمة بالكامل و<strong>لا يحق الاسترجاع</strong> وفق طبيعة المنتجات الرقمية.</li>
+            <li>استثناءات قد نقبل فيها مراجعة الطلب: خطأ تقني يمنع التصدير رغم الدفع، أو خصم مكرر لنفس العملية — تواصل معنا خلال 7 أيام مع رقم العملية.</li>
+            <li>المعاينة المجانية متاحة قبل الدفع؛ يرجى التأكد من مناسبة الباقة قبل إتمام الشراء.</li>
           </ul>
         </Section>
 
@@ -55,7 +64,11 @@ function TermsPage() {
         </Section>
 
         <Section title="التواصل والدعم">
-          لأي استفسار، تواصل معنا عبر واتساب: <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noreferrer" style={{ color: P.violetLight }}>+966 55 296 7837</a>
+          لأي استفسار أو طلب متعلق بالدفع أو الاسترجاع، تواصل معنا عبر:
+          <ul style={{ ...ulStyle, marginTop: 12 }}>
+            <li>واتساب: <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noreferrer" style={{ color: P.violetLight }}>+966 55 296 7837</a></li>
+            <li>البريد: <a href="mailto:nashmi4cvs@gmail.com" style={{ color: P.violetLight }}>nashmi4cvs@gmail.com</a></li>
+          </ul>
         </Section>
       </div>
     </div>
