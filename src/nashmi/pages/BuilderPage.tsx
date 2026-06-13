@@ -49,25 +49,10 @@ import { NASHMI_BUILD_ID } from "@/nashmi/lib/build-version";
 
 const FF2 = FF;
 
-/** True when CV has imported or user-filled content (not a blank new resume). */
-function cvHasPreviewContent(cv: CVData): boolean {
-  const has = (s?: string) => Boolean(s?.trim());
-  const p = cv.personal;
-  if (has(p?.name) || has(p?.title) || has(cv.summary)) return true;
-  if (cv.experience?.some((e) => has(e.company) || has(e.role) || has(e.description))) return true;
-  if (cv.education?.some((e) => has(e.school) || has(e.degree))) return true;
-  if (cv.projects?.some((pr) => has(pr.name) || has(pr.description))) return true;
-  if ((cv.skills?.length ?? 0) > 0) return true;
-  if ((cv.certifications?.length ?? 0) > 0) return true;
-  if ((cv.languages?.some((l) => has(l.lang)) ?? false)) return true;
-  return false;
-}
-
-/** One mobile paper scale — ~86% of screen width with Apple-style side margins. */
-function computeMobilePreviewScale(windowWidth: number, paperWidth: number): number {
-  const sideInset = 48;
-  const byWidth = (windowWidth - sideInset) / paperWidth;
-  return Math.min(0.43, Math.max(0.36, byWidth));
+/** Fit fixed A4 paper to mobile viewport width (PDF-viewer style, minimal side padding). */
+function computeMobilePreviewScale(viewportWidth: number, paperWidth: number, horizontalPad = 16): number {
+  const usable = Math.max(280, viewportWidth - horizontalPad);
+  return Math.min(1, usable / paperWidth);
 }
 
 // ── Hoisted atoms (module scope — prevents remount on keystroke) ───────────
@@ -828,7 +813,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const mobile = isMobileLayout();
       setIsMobile(mobile);
       if (mobile) {
-        setPreviewScale(computeMobilePreviewScale(window.innerWidth, CV_PAPER_WIDTH));
+        const area = previewAreaRef.current;
+        const vw = area?.clientWidth ?? window.innerWidth;
+        setPreviewScale(computeMobilePreviewScale(vw, CV_PAPER_WIDTH));
         return;
       }
       const area = previewAreaRef.current;
@@ -1931,19 +1918,14 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setActivePanel(id);
   }, [isMobile, editMode, mobileTourStep]);
 
-  const mobileCvHasContent = isMobile && cvHasPreviewContent(cv);
-
   const renderScaledCvPreview = (interactive: boolean) => {
     const scaledW = Math.round(CV_PAPER_WIDTH * previewScale);
-    const rawH = Math.round(scaledCvHeight * previewScale);
-    const scaledH = mobileCvHasContent ? rawH : Math.max(rawH, 420);
-    const paperStyle: React.CSSProperties = isMobile
-      ? { width: CV_PAPER_WIDTH, zoom: previewScale }
-      : {
-          width: CV_PAPER_WIDTH,
-          transform: `scale(${previewScale})`,
-          transformOrigin: "top left",
-        };
+    const scaledH = Math.round(scaledCvHeight * previewScale);
+    const paperStyle: React.CSSProperties = {
+      width: CV_PAPER_WIDTH,
+      transform: `scale(${previewScale})`,
+      transformOrigin: isMobile ? "top center" : "top left",
+    };
     const inner = interactive ? (
       <EditableCVPreview
         cv={cv}
@@ -1951,7 +1933,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         activePanel={activePanel}
         onSelect={handleSectionSelect}
         templateId={cvTemplate}
-        compactSections={mobileCvHasContent}
       />
     ) : (
       <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate} />
@@ -1959,12 +1940,25 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return (
       <div className="cv-preview-stage" data-tour="cv-preview">
         <div
-          className={`cv-preview-scaler-wrap${mobileCvHasContent ? " is-mobile-filled" : ""}`}
-          style={{ width: scaledW, height: scaledH }}
+          className={`cv-preview-scaler-wrap${isMobile ? " is-mobile-a4-scale" : ""}`}
+          style={isMobile ? { width: "100%", height: scaledH } : { width: scaledW, height: scaledH }}
         >
-          <div ref={scaledCvRef} className={`cv-preview-paper-inner${isMobile ? " is-mobile-zoom" : ""}`} style={paperStyle}>
-            {inner}
-            {!isPaid && renderWatermarkGrid()}
+          <div
+            className={`cv-preview-scaler-clip${isMobile ? " is-mobile-a4-scale" : ""}`}
+            style={
+              isMobile
+                ? { width: scaledW, height: scaledH }
+                : { width: scaledW, height: scaledH, overflow: "hidden" }
+            }
+          >
+            <div
+              ref={scaledCvRef}
+              className={`cv-preview-paper-inner${isMobile ? " is-mobile-a4-scale" : ""}`}
+              style={paperStyle}
+            >
+              {inner}
+              {!isPaid && renderWatermarkGrid()}
+            </div>
           </div>
         </div>
         {interactive && isMobile && !activePanel && mobileTourStep === null && (
@@ -2184,12 +2178,15 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           box-shadow: ${CANVAS.paperShadow};
           flex-shrink: 0;
         }
-        .cv-preview-scaler-wrap.is-mobile-filled {
-          border-radius: 4px;
+        .cv-preview-scaler-clip {
+          overflow: hidden;
+          position: relative;
         }
-        .cv-preview-paper-inner.is-mobile-zoom {
-          /* iOS Safari: zoom keeps tap targets aligned (transform: scale breaks touches). */
-          transform: none !important;
+        .cv-preview-paper-inner.is-mobile-a4-scale {
+          position: absolute;
+          top: 0;
+          left: 50%;
+          margin-left: -${CV_PAPER_WIDTH / 2}px;
         }
         .cv-preview-paper-inner [data-cv-section] {
           touch-action: manipulation;
@@ -2244,12 +2241,19 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           .builder-preview .cv-preview-stage {
             width: 100%;
             max-width: 100%;
-            padding: 4px 16px 8px;
+            padding: 4px 8px 8px;
             box-sizing: border-box;
           }
-          .builder-preview .cv-preview-scaler-wrap {
-            max-width: calc(100vw - 32px);
+          .builder-preview .cv-preview-scaler-wrap.is-mobile-a4-scale {
+            width: 100% !important;
+            max-width: 100%;
+            box-shadow: none;
+            overflow: visible;
+          }
+          .builder-preview .cv-preview-scaler-clip.is-mobile-a4-scale {
             margin: 0 auto;
+            box-shadow: ${CANVAS.paperShadow};
+            border-radius: 2px;
           }
           .builder-topbar { flex-wrap: wrap; gap: 8px !important; height: auto !important; padding: 10px 12px !important; }
           .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }
