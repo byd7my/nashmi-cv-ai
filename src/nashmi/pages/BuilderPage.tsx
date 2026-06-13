@@ -589,6 +589,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
   const [mobileTourStep, setMobileTourStep] = useState<number | null>(null);
+  const mobileTourTimerRef = useRef<number | null>(null);
   const [previewScale, setPreviewScale] = useState(1);
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const scaledCvRef = useRef<HTMLDivElement>(null);
@@ -711,17 +712,40 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return () => ro.disconnect();
   }, [mobileTab, cv, activeCvLang, editMode, previewScale]);
 
-  useEffect(() => {
-    if (!isMobile || startMode !== "ready") return;
+  const scheduleMobileTour = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 768px)").matches) return;
     try {
-      if (localStorage.getItem(MOBILE_TOUR_STORAGE_KEY)) return;
+      if (sessionStorage.getItem(MOBILE_TOUR_STORAGE_KEY)) return;
     } catch { /* ignore */ }
-    const t = window.setTimeout(() => {
-      setMobileTourStep(0);
+
+    const attempt = (tryCount = 0) => {
+      const preview = document.querySelector('[data-tour="cv-preview"]');
+      const nav = document.querySelector(".mobile-bottomnav");
+      if ((!preview || !nav) && tryCount < 15) {
+        mobileTourTimerRef.current = window.setTimeout(() => attempt(tryCount + 1), 120);
+        return;
+      }
       setMobileTab("preview");
-    }, 450);
-    return () => window.clearTimeout(t);
-  }, [isMobile, startMode]);
+      setMobileTourStep(0);
+    };
+
+    if (mobileTourTimerRef.current !== null) {
+      window.clearTimeout(mobileTourTimerRef.current);
+    }
+    mobileTourTimerRef.current = window.setTimeout(() => attempt(0), 350);
+  }, []);
+
+  useEffect(() => {
+    if (startMode !== "ready") return;
+    scheduleMobileTour();
+    return () => {
+      if (mobileTourTimerRef.current !== null) {
+        window.clearTimeout(mobileTourTimerRef.current);
+        mobileTourTimerRef.current = null;
+      }
+    };
+  }, [startMode, scheduleMobileTour]);
 
   useEffect(() => {
     if (mobileTourStep === null) return;
@@ -730,7 +754,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   }, [mobileTourStep]);
 
   const finishMobileTour = () => {
-    try { localStorage.setItem(MOBILE_TOUR_STORAGE_KEY, "1"); } catch { /* ignore */ }
+    try { sessionStorage.setItem(MOBILE_TOUR_STORAGE_KEY, "1"); } catch { /* ignore */ }
     setMobileTourStep(null);
   };
 
@@ -949,6 +973,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       setActiveSection(0);
       setStartMode("ready");
       resetDesktopEditMode();
+      scheduleMobileTour();
     } catch (e: unknown) {
       setImportError(isAr ? `فشل الاستيراد: ${describeImportError(e, isAr)}` : `Import failed: ${describeImportError(e, false)}`);
     } finally {
@@ -966,6 +991,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setActiveSection(0);
     setStartMode("ready");
     resetDesktopEditMode();
+    scheduleMobileTour();
     showToast(isAr ? "✓ تم تحميل السيرة بنجاح" : "✓ Resume loaded successfully");
   }
 
@@ -1748,7 +1774,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", maxWidth: 560, width: "100%" }}>
           {/* New Resume */}
           <button
-            onClick={() => { setStartMode("ready"); resetDesktopEditMode(); }}
+            onClick={() => { setStartMode("ready"); resetDesktopEditMode(); scheduleMobileTour(); }}
             style={{ flex: 1, minWidth: 200, background: `linear-gradient(135deg, ${P.violet}33, ${P.violetLight}22)`, border: `1.5px solid ${P.violet}55`, borderRadius: 18, padding: "32px 24px", cursor: "pointer", textAlign: "center", transition: "all 0.2s", boxShadow: `0 4px 20px ${P.violet}22` }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 8px 32px ${P.violet}44`; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${P.violet}55`; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 20px ${P.violet}22`; }}
@@ -2453,7 +2479,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         })}
       </div>
 
-      {isMobile && mobileTourStep !== null && (
+      {mobileTourStep !== null && (
         <MobileBuilderTutorial
           step={mobileTourStep}
           isAr={isAr}
