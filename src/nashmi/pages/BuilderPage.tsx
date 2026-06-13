@@ -14,6 +14,11 @@ import { cvMatchesLanguage, ensureArabicPersonalName, translateCvDetailed } from
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 import { ExportLangWarningModal } from "@/nashmi/components/ExportLangWarningModal";
 import { TemplatePicker } from "@/nashmi/components/TemplatePicker";
+import {
+  MobileBuilderTutorial,
+  MOBILE_TOUR_STEPS,
+  MOBILE_TOUR_STORAGE_KEY,
+} from "@/nashmi/components/MobileBuilderTutorial";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
 import { getSessionPlanTier, setSessionPlanTier, getPurchaseToken, clearPaidSession } from "@/nashmi/lib/plan-session";
 import {
@@ -583,6 +588,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   type MobileTab = "preview" | "sections" | "copilot" | "export";
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
+  const [mobileTourStep, setMobileTourStep] = useState<number | null>(null);
   const [previewScale, setPreviewScale] = useState(1);
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const scaledCvRef = useRef<HTMLDivElement>(null);
@@ -700,6 +706,40 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     ro.observe(el);
     return () => ro.disconnect();
   }, [mobileTab, cv, activeCvLang, editMode, previewScale]);
+
+  useEffect(() => {
+    if (!isMobile || startMode !== "ready") return;
+    try {
+      if (localStorage.getItem(MOBILE_TOUR_STORAGE_KEY)) return;
+    } catch { /* ignore */ }
+    const t = window.setTimeout(() => {
+      setMobileTourStep(0);
+      setMobileTab("preview");
+    }, 450);
+    return () => window.clearTimeout(t);
+  }, [isMobile, startMode]);
+
+  useEffect(() => {
+    if (mobileTourStep === null) return;
+    const tab = MOBILE_TOUR_STEPS[mobileTourStep]?.tab;
+    if (tab) setMobileTab(tab);
+  }, [mobileTourStep]);
+
+  const finishMobileTour = () => {
+    try { localStorage.setItem(MOBILE_TOUR_STORAGE_KEY, "1"); } catch { /* ignore */ }
+    setMobileTourStep(null);
+  };
+
+  const handleMobileTourNext = () => {
+    if (mobileTourStep === null) return;
+    if (mobileTourStep >= MOBILE_TOUR_STEPS.length - 1) finishMobileTour();
+    else setMobileTourStep(mobileTourStep + 1);
+  };
+
+  const handleMobileTourPrev = () => {
+    if (mobileTourStep === null || mobileTourStep <= 0) return;
+    setMobileTourStep(mobileTourStep - 1);
+  };
 
   const [sheetDragY, setSheetDragY] = useState(0);
   const [isSheetDragging, setIsSheetDragging] = useState(false);
@@ -1663,14 +1703,14 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate} />
     );
     return (
-      <div className="cv-preview-stage">
+      <div className="cv-preview-stage" data-tour="cv-preview">
         <div className="cv-preview-scaler-wrap" style={{ width: scaledW, height: scaledH }}>
           <div ref={scaledCvRef} className="cv-preview-paper-inner" style={{ width: CV_PAPER_WIDTH, transform: `scale(${previewScale})`, transformOrigin: "top left" }}>
             {inner}
             {!isPaid && renderWatermarkGrid()}
           </div>
         </div>
-        {interactive && isMobile && !activePanel && (
+        {interactive && isMobile && !activePanel && mobileTourStep === null && (
           <div className="cv-tap-hint">
             <span style={{ fontSize: 22 }}>👆</span>
             <span>{isAr ? "انقر على أي قسم للتعديل" : "Tap any section to edit"}</span>
@@ -1957,6 +1997,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           }
           .mobile-tab-btn:active { transform: scale(0.94); }
           .mobile-tab-btn.is-active { background: ${P.violet}28; }
+          .mobile-tab-btn.is-tour-highlight {
+            background: ${P.violet}40 !important;
+            box-shadow: 0 0 0 2px ${P.violet}88;
+          }
           .before-after-overlay {
             align-items: flex-end !important;
             padding: 0 !important;
@@ -2363,17 +2407,21 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       {/* ── Mobile bottom tab bar: Preview | Sections | AI ── */}
       <div className={`mobile-bottomnav${beforeAfter || (isMobile && activePanel) ? " is-hidden" : ""}`} style={{ direction: isAr ? "rtl" : "ltr", fontFamily: ff }}>
         {([
-          { id: "preview" as const, icon: "📄", label: MOBILE_TAB_LABELS.preview },
-          { id: "sections" as const, icon: "✎", label: MOBILE_TAB_LABELS.sections },
-          { id: "copilot" as const, icon: "✧", label: MOBILE_TAB_LABELS.copilot },
-          { id: "export" as const, icon: "⬇", label: MOBILE_TAB_LABELS.export },
+          { id: "preview" as const, icon: "📄", label: MOBILE_TAB_LABELS.preview, tour: null },
+          { id: "sections" as const, icon: "✎", label: MOBILE_TAB_LABELS.sections, tour: "tab-sections" as const },
+          { id: "copilot" as const, icon: "✧", label: MOBILE_TAB_LABELS.copilot, tour: "tab-copilot" as const },
+          { id: "export" as const, icon: "⬇", label: MOBILE_TAB_LABELS.export, tour: "tab-export" as const },
         ]).map(tab => {
           const isActive = mobileTab === tab.id;
+          const tourTarget = mobileTourStep !== null ? MOBILE_TOUR_STEPS[mobileTourStep]?.target : null;
+          const tourHighlight = tab.tour && tourTarget === tab.tour;
           return (
             <button
               key={tab.id}
-              className={`mobile-tab-btn${isActive ? " is-active" : ""}`}
+              data-tour={tab.tour ?? undefined}
+              className={`mobile-tab-btn${isActive ? " is-active" : ""}${tourHighlight ? " is-tour-highlight" : ""}`}
               onClick={() => {
+                if (mobileTourStep !== null) return;
                 if (tab.id === "export") {
                   setMobileTab("export");
                   setActivePanel(null);
@@ -2396,6 +2444,16 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           );
         })}
       </div>
+
+      {isMobile && mobileTourStep !== null && (
+        <MobileBuilderTutorial
+          step={mobileTourStep}
+          isAr={isAr}
+          onNext={handleMobileTourNext}
+          onPrev={handleMobileTourPrev}
+          onClose={finishMobileTour}
+        />
+      )}
 
       {/* ── Click-to-edit editor panel: bottom sheet (mobile) / side panel (desktop) ── */}
       {activePanel && isMobile && (
