@@ -13,10 +13,10 @@ import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImpo
 import { cvMatchesLanguage, ensureArabicPersonalName, translateCvDetailed } from "@/nashmi/lib/cv-translate";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 import { ExportLangWarningModal } from "@/nashmi/components/ExportLangWarningModal";
+import { TemplatePicker } from "@/nashmi/components/TemplatePicker";
 import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
 import { getSessionPlanTier, setSessionPlanTier, getPurchaseToken, clearPaidSession } from "@/nashmi/lib/plan-session";
 import {
-  CV_TEMPLATES,
   getStoredCvTemplate,
   setStoredCvTemplate,
   getCvTemplateStyles,
@@ -2025,38 +2025,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             />
           )}
           {!isMobile && (
-            <div style={{ width: "100%", maxWidth: 794, marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ color: P.muted, fontSize: 12, fontWeight: 700, marginInlineEnd: 4 }}>
-                {isAr ? "القالب:" : "Template:"}
-              </span>
-              {CV_TEMPLATES.map((tpl) => {
-                const active = cvTemplate === tpl.id;
-                return (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    onClick={() => setCvTemplate(tpl.id)}
-                    title={isAr ? "كل القوالب تُصدَّر PDF ATS بنفس التنسيق الآمن" : "All templates export the same ATS-safe PDF layout"}
-                    style={{
-                      background: active ? `${tpl.accent}22` : P.surface,
-                      border: `1px solid ${active ? tpl.accent : P.border}`,
-                      color: active ? P.text : P.muted,
-                      borderRadius: 999,
-                      padding: "6px 12px",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      fontFamily: ff,
-                    }}
-                  >
-                    {isAr ? tpl.name.ar : tpl.name.en}
-                  </button>
-                );
-              })}
-              <span style={{ color: P.green, fontSize: 11, fontWeight: 700 }}>
-                ✓ {isAr ? "PDF ATS واحد لكل القوالب" : "Same ATS PDF for all"}
-              </span>
-            </div>
+            <TemplatePicker isAr={isAr} value={cvTemplate} onChange={setCvTemplate} variant="desktop" />
           )}
           {isPaid && !isMobile && (
             <div style={{ width: "100%", maxWidth: 794, background: `${P.green}12`, border: `1px solid ${P.green}33`, borderRadius: 10, padding: "8px 14px", marginBottom: 12, fontSize: 12, color: P.green }}>
@@ -2076,8 +2045,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               </button>
             </div>
           )}
+          {isMobile && (
+            <TemplatePicker isAr={isAr} value={cvTemplate} onChange={setCvTemplate} variant="mobile" />
+          )}
           {isMobile && isElite && (
-            <div style={{ width: "100%", maxWidth: 794, marginBottom: 12 }}>
+            <div style={{ width: "100%", maxWidth: 794, marginBottom: 12, padding: "0 12px", boxSizing: "border-box" }}>
               <EliteImportFeature
                 userSubscriptionTier={currentPlan}
                 uiLang={isAr ? "ar" : "en"}
