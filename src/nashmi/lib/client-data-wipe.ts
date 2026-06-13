@@ -3,6 +3,7 @@ import { resetCvSessionId } from "@/nashmi/lib/session";
 
 export const CV_STORAGE_KEY = "nashmi-cv-draft";
 export const CV_DRAFT_TS_KEY = "nashmi-cv-draft-ts";
+export const PAID_CV_SESSION_KEY = "nashmi:paid-cv-session";
 export const STARTMODE_STORAGE_KEY = "nashmi-cv-startmode";
 export const EDITMODE_STORAGE_KEY = "nashmi-edit-mode";
 export const ELITE_DRAFT_KEYS = ["nashmi-cv-draft-ar", "nashmi-cv-draft-en"] as const;
@@ -41,14 +42,54 @@ export function isFreeDraftExpired(): boolean {
   }
 }
 
-/** Remove stored CV content for free users (keeps paid session tokens). */
-export function wipeFreeClientCvData(): void {
-  if (typeof window === "undefined") return;
+/** Move paid-session CV out of durable localStorage into tab-scoped sessionStorage. */
+export function loadPaidSessionCvRaw(): string | null {
+  if (typeof window === "undefined" || !hasActivePaidSession()) return null;
 
+  try {
+    let raw = window.sessionStorage.getItem(PAID_CV_SESSION_KEY);
+    if (!raw) {
+      raw = window.localStorage.getItem(CV_STORAGE_KEY);
+      if (raw) {
+        window.sessionStorage.setItem(PAID_CV_SESSION_KEY, raw);
+      }
+    }
+    purgeLocalCvDraft();
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+export function savePaidSessionCv(json: string): void {
+  if (typeof window === "undefined" || !hasActivePaidSession()) return;
+
+  try {
+    window.sessionStorage.setItem(PAID_CV_SESSION_KEY, json);
+    purgeLocalCvDraft();
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Remove durable local CV draft keys (used while paid session lives in sessionStorage). */
+function purgeLocalCvDraft(): void {
   try {
     window.localStorage.removeItem(CV_STORAGE_KEY);
     window.localStorage.removeItem(CV_DRAFT_TS_KEY);
     window.localStorage.removeItem(STARTMODE_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Remove stored CV content for free users (keeps paid session tokens and reviews). */
+export function wipeFreeClientCvData(): void {
+  if (typeof window === "undefined") return;
+
+  purgeLocalCvDraft();
+
+  try {
     window.localStorage.removeItem(EDITMODE_STORAGE_KEY);
     for (const key of ELITE_DRAFT_KEYS) {
       window.localStorage.removeItem(key);
@@ -65,13 +106,17 @@ export function expireFreeDraftIfStale(): boolean {
   return true;
 }
 
-/** Wipe all locally stored CV content and paid-session tokens after export. */
+/**
+ * Wipe CV/contact data and paid-session tokens after export.
+ * User reviews (`REVIEWS_STORAGE_KEY`) are intentionally kept.
+ */
 export function wipeAllClientCvData(): void {
   if (typeof window === "undefined") return;
 
   wipeFreeClientCvData();
 
   try {
+    window.sessionStorage.removeItem(PAID_CV_SESSION_KEY);
     resetCvSessionId();
   } catch {
     /* ignore */

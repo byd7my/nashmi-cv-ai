@@ -26,6 +26,9 @@ import {
   expireFreeDraftIfStale,
   touchFreeDraftTimestamp,
   wipeFreeClientCvData,
+  hasActivePaidSession,
+  loadPaidSessionCvRaw,
+  savePaidSessionCv,
   CV_STORAGE_KEY,
   EDITMODE_STORAGE_KEY,
 } from "@/nashmi/lib/client-data-wipe";
@@ -541,6 +544,14 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   // Persist CV across navigation (checkout round-trip, refresh)
 
   function loadStoredCV(): CVData | null {
+    if (typeof window !== "undefined" && hasActivePaidSession()) {
+      try {
+        const raw = loadPaidSessionCvRaw();
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? (parsed as CVData) : null;
+      } catch { return null; }
+    }
     if (typeof window !== "undefined" && expireFreeDraftIfStale()) return null;
     try {
       const raw = typeof window !== "undefined" ? window.localStorage.getItem(CV_STORAGE_KEY) : null;
@@ -890,11 +901,16 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   // Auto-save CV draft so it survives navigation (e.g. paying then returning)
   useEffect(() => {
-    try { window.localStorage.setItem(CV_STORAGE_KEY, JSON.stringify(cv)); } catch { /* ignore */ }
+    const json = JSON.stringify(cv);
+    if (hasActivePaidSession()) {
+      savePaidSessionCv(json);
+      return;
+    }
+    try { window.localStorage.setItem(CV_STORAGE_KEY, json); } catch { /* ignore */ }
     try {
-      window.localStorage.setItem(ELITE_CV_KEYS[activeCvLang], JSON.stringify(cv));
+      window.localStorage.setItem(ELITE_CV_KEYS[activeCvLang], json);
     } catch { /* ignore */ }
-    if (!isPaid) touchFreeDraftTimestamp();
+    touchFreeDraftTimestamp();
   }, [cv, activeCvLang, isPaid]);
 
   useEffect(() => {
@@ -1434,8 +1450,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         } catch { /* ignore */ }
       }
 
-      // ── Security: one purchase = one export session ──────────────────
-      // Wipe CV draft, contact info, session tokens, and paid plan immediately.
+      // Paid users: CV goes to email only; keep their export review, wipe everything else.
       wipeAllClientCvData();
       setCv({ ...INIT_CV });
       setActiveSection(0);

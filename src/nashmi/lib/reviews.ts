@@ -10,6 +10,7 @@ export interface UserReview {
 }
 
 const STORAGE_KEY = "nashmi-user-reviews";
+export const REVIEWS_STORAGE_KEY = STORAGE_KEY;
 const EVENT_NAME = "nashmi-reviews-updated";
 
 export const MAX_REVIEWS = 6;
