@@ -595,8 +595,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [scaledCvHeight, setScaledCvHeight] = useState(1100);
 
   const CV_PAPER_WIDTH = 794;
-  const DESKTOP_PREVIEW_MAX_SCALE = 1.05;
-  const DESKTOP_CHROME_HEIGHT = 168;
+  const DESKTOP_PREVIEW_MAX_SCALE = 1;
+  const DESKTOP_PREVIEW_MIN_SCALE = 0.32;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -661,14 +661,20 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
-    const computeDesktopScale = (areaWidth: number, areaHeight: number, cvHeight: number) => {
-      const usableW = Math.max(360, areaWidth - 48);
-      const usableH = Math.max(400, areaHeight - DESKTOP_CHROME_HEIGHT);
-      const cvH = Math.max(520, cvHeight);
+    const computeDesktopScale = (area: HTMLElement | null, cvHeight: number) => {
+      const usableW = Math.max(320, (area?.clientWidth ?? CV_PAPER_WIDTH) - 48);
+      let usableH = 400;
+      if (area) {
+        const areaRect = area.getBoundingClientRect();
+        const stage = area.querySelector(".cv-preview-stage");
+        const stageTop = stage?.getBoundingClientRect().top ?? areaRect.top + 240;
+        usableH = Math.max(280, areaRect.bottom - stageTop - 12);
+      }
+      const cvH = Math.max(480, cvHeight);
       const byWidth = usableW / CV_PAPER_WIDTH;
       const byHeight = usableH / cvH;
       const fit = Math.min(byWidth, byHeight);
-      return Math.min(DESKTOP_PREVIEW_MAX_SCALE, Math.max(0.52, fit));
+      return Math.min(DESKTOP_PREVIEW_MAX_SCALE, Math.max(DESKTOP_PREVIEW_MIN_SCALE, fit));
     };
     const updateLayout = () => {
       const mobile = mq.matches;
@@ -678,9 +684,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         return;
       }
       const area = previewAreaRef.current;
-      const areaW = area?.clientWidth ?? Math.max(CV_PAPER_WIDTH, window.innerWidth - 360);
-      const areaH = area?.clientHeight ?? window.innerHeight - 104;
-      setPreviewScale(computeDesktopScale(areaW, areaH, scaledCvHeight));
+      setPreviewScale(computeDesktopScale(area, scaledCvHeight));
     };
     updateLayout();
     mq.addEventListener("change", updateLayout);
@@ -1913,6 +1917,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         }
         .cv-preview-paper-inner { background: #fff; }
         @media (min-width: 769px) {
+          .builder-preview {
+            overflow-y: hidden !important;
+            min-height: 0;
+          }
           .builder-preview .cv-preview-stage {
             width: 100%;
             max-width: 100%;

@@ -12,10 +12,10 @@ export const CV_TEMPLATES: {
   name: { ar: string; en: string };
   accent: string;
 }[] = [
+  { id: "classic", name: { ar: "كلاسيك", en: "Classic" }, accent: "#2563EB" },
   { id: "modern", name: { ar: "عصري", en: "Modern" }, accent: "#7C5CFF" },
   { id: "executive", name: { ar: "تنفيذي", en: "Executive" }, accent: "#B8860B" },
   { id: "minimal", name: { ar: "بسيط", en: "Minimal" }, accent: "#16A34A" },
-  { id: "classic", name: { ar: "كلاسيك", en: "Classic" }, accent: "#2563EB" },
 ];
 
 const TEMPLATE_STORAGE_KEY = "nashmi:cv-template";
@@ -25,12 +25,12 @@ export function isCvTemplateId(value: string | null | undefined): value is CvTem
 }
 
 export function getStoredCvTemplate(): CvTemplateId {
-  if (typeof window === "undefined") return "modern";
+  if (typeof window === "undefined") return "classic";
   try {
     const raw = window.localStorage.getItem(TEMPLATE_STORAGE_KEY);
-    return isCvTemplateId(raw) ? raw : "modern";
+    return isCvTemplateId(raw) ? raw : "classic";
   } catch {
-    return "modern";
+    return "classic";
   }
 }
 
