@@ -594,8 +594,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [scaledCvHeight, setScaledCvHeight] = useState(1100);
 
   const CV_PAPER_WIDTH = 794;
-  const DESKTOP_PREVIEW_MAX_SCALE = 1.4;
-  const DESKTOP_PREVIEW_MIN_SCALE = 1.12;
+  const DESKTOP_PREVIEW_MAX_SCALE = 1.05;
+  const DESKTOP_CHROME_HEIGHT = 168;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -647,11 +647,14 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
-    const computeDesktopScale = (areaWidth: number) => {
-      const usable = areaWidth - 48;
-      if (usable <= CV_PAPER_WIDTH) return 1;
-      const fitScale = usable / CV_PAPER_WIDTH;
-      return Math.min(DESKTOP_PREVIEW_MAX_SCALE, Math.max(DESKTOP_PREVIEW_MIN_SCALE, fitScale));
+    const computeDesktopScale = (areaWidth: number, areaHeight: number, cvHeight: number) => {
+      const usableW = Math.max(360, areaWidth - 48);
+      const usableH = Math.max(400, areaHeight - DESKTOP_CHROME_HEIGHT);
+      const cvH = Math.max(520, cvHeight);
+      const byWidth = usableW / CV_PAPER_WIDTH;
+      const byHeight = usableH / cvH;
+      const fit = Math.min(byWidth, byHeight);
+      return Math.min(DESKTOP_PREVIEW_MAX_SCALE, Math.max(0.52, fit));
     };
     const updateLayout = () => {
       const mobile = mq.matches;
@@ -660,8 +663,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         setPreviewScale(Math.min(1, Math.max(0.38, (window.innerWidth - 32) / CV_PAPER_WIDTH)));
         return;
       }
-      const areaW = previewAreaRef.current?.clientWidth ?? Math.max(CV_PAPER_WIDTH, window.innerWidth - 360);
-      setPreviewScale(computeDesktopScale(areaW));
+      const area = previewAreaRef.current;
+      const areaW = area?.clientWidth ?? Math.max(CV_PAPER_WIDTH, window.innerWidth - 360);
+      const areaH = area?.clientHeight ?? window.innerHeight - 104;
+      setPreviewScale(computeDesktopScale(areaW, areaH, scaledCvHeight));
     };
     updateLayout();
     mq.addEventListener("change", updateLayout);
@@ -676,7 +681,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       window.removeEventListener("resize", updateLayout);
       ro?.disconnect();
     };
-  }, [startMode]);
+  }, [startMode, scaledCvHeight]);
 
   useEffect(() => {
     if (!scaledCvRef.current) return;
@@ -1861,6 +1866,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           .builder-preview .cv-preview-stage {
             width: 100%;
             max-width: 100%;
+            flex: 1;
+            justify-content: center;
+            min-height: 0;
           }
           .builder-preview .cv-preview-scaler-wrap {
             margin: 0 auto;
