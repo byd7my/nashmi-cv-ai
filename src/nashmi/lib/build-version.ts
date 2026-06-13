@@ -1,2 +1,2 @@
 /** Bump when verifying production deploy on mobile (visible in builder). */
-export const NASHMI_BUILD_ID = "20250613-mobile-v7";
+export const NASHMI_BUILD_ID = "20250613-mobile-v8";

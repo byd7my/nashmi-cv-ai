@@ -52,14 +52,22 @@ const FF2 = FF;
 /** True when CV has imported or user-filled content (not a blank new resume). */
 function cvHasPreviewContent(cv: CVData): boolean {
   const has = (s?: string) => Boolean(s?.trim());
-  if (has(cv.name) || has(cv.title) || has(cv.summary)) return true;
+  const p = cv.personal;
+  if (has(p?.name) || has(p?.title) || has(cv.summary)) return true;
   if (cv.experience?.some((e) => has(e.company) || has(e.role) || has(e.description))) return true;
   if (cv.education?.some((e) => has(e.school) || has(e.degree))) return true;
-  if (cv.projects?.some((p) => has(p.name) || has(p.description))) return true;
+  if (cv.projects?.some((pr) => has(pr.name) || has(pr.description))) return true;
   if ((cv.skills?.length ?? 0) > 0) return true;
   if ((cv.certifications?.length ?? 0) > 0) return true;
-  if ((cv.languages?.length ?? 0) > 0) return true;
+  if ((cv.languages?.some((l) => has(l.lang)) ?? false)) return true;
   return false;
+}
+
+/** One mobile paper scale — ~86% of screen width with Apple-style side margins. */
+function computeMobilePreviewScale(windowWidth: number, paperWidth: number): number {
+  const sideInset = 48;
+  const byWidth = (windowWidth - sideInset) / paperWidth;
+  return Math.min(0.43, Math.max(0.36, byWidth));
 }
 
 // ── Hoisted atoms (module scope — prevents remount on keystroke) ───────────
@@ -725,13 +733,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const DESKTOP_PREVIEW_MIN_SCALE = 0.32;
   /** Slightly enlarges the paper preview on desktop (capped at max scale). */
   const PREVIEW_SCALE_BOOST = 1.14;
-  const MOBILE_PREVIEW_MIN_SCALE = 0.32;
-  /** ~82% of iPhone logical width (Apple-style side margins). */
-  const MOBILE_FILLED_WIDTH_RATIO = 0.82;
-  const MOBILE_FILLED_MAX_SCALE = 0.40;
-  const MOBILE_EMPTY_SIDE_PAD = 32;
-  /** Top bar + template strip + bottom nav + safe area. */
-  const MOBILE_CHROME_PX = 210;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -827,18 +828,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const mobile = isMobileLayout();
       setIsMobile(mobile);
       if (mobile) {
-        const w = window.innerWidth;
-        const filled = cvHasPreviewContent(cv);
-        if (filled) {
-          const widthScale = (w * MOBILE_FILLED_WIDTH_RATIO) / CV_PAPER_WIDTH;
-          const availH = Math.max(260, window.innerHeight - MOBILE_CHROME_PX);
-          const heightScale = availH / Math.max(scaledCvHeight, 520);
-          const scale = Math.min(widthScale, heightScale, MOBILE_FILLED_MAX_SCALE);
-          setPreviewScale(Math.max(MOBILE_PREVIEW_MIN_SCALE, scale));
-        } else {
-          const scale = (w - MOBILE_EMPTY_SIDE_PAD) / CV_PAPER_WIDTH;
-          setPreviewScale(Math.min(1, Math.max(0.38, scale)));
-        }
+        setPreviewScale(computeMobilePreviewScale(window.innerWidth, CV_PAPER_WIDTH));
         return;
       }
       const area = previewAreaRef.current;
@@ -2195,8 +2185,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           flex-shrink: 0;
         }
         .cv-preview-scaler-wrap.is-mobile-filled {
-          border-radius: 6px;
-          box-shadow: 0 2px 14px rgba(0,0,0,0.14);
+          border-radius: 4px;
         }
         .cv-preview-paper-inner.is-mobile-zoom {
           /* iOS Safari: zoom keeps tap targets aligned (transform: scale breaks touches). */
@@ -2251,6 +2240,16 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             padding: 0 0 calc(68px + env(safe-area-inset-bottom)) !important;
             align-items: center !important;
             background: ${P.bg} !important;
+          }
+          .builder-preview .cv-preview-stage {
+            width: 100%;
+            max-width: 100%;
+            padding: 4px 16px 8px;
+            box-sizing: border-box;
+          }
+          .builder-preview .cv-preview-scaler-wrap {
+            max-width: calc(100vw - 32px);
+            margin: 0 auto;
           }
           .builder-topbar { flex-wrap: wrap; gap: 8px !important; height: auto !important; padding: 10px 12px !important; }
           .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }
