@@ -710,8 +710,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const DESKTOP_PREVIEW_MIN_SCALE = 0.32;
   /** Slightly enlarges the paper preview on all devices (capped at max scale). */
   const PREVIEW_SCALE_BOOST = 1.14;
-  const MOBILE_PREVIEW_SCALE_BOOST = 1.08;
-  const MOBILE_PREVIEW_MIN_SCALE = 0.42;
+  /** Mobile-only: fit with side margins; capped so preview stays medium, not edge-to-edge. */
+  const MOBILE_PREVIEW_SIDE_PAD = 28;
+  const MOBILE_PREVIEW_MAX_SCALE = 0.48;
+  const MOBILE_PREVIEW_MIN_SCALE = 0.34;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -807,8 +809,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const mobile = isMobileLayout();
       setIsMobile(mobile);
       if (mobile) {
-        const raw = ((window.innerWidth - 4) / CV_PAPER_WIDTH) * MOBILE_PREVIEW_SCALE_BOOST;
-        setPreviewScale(Math.min(1, Math.max(MOBILE_PREVIEW_MIN_SCALE, raw)));
+        const fit = (window.innerWidth - MOBILE_PREVIEW_SIDE_PAD * 2) / CV_PAPER_WIDTH;
+        setPreviewScale(
+          Math.min(MOBILE_PREVIEW_MAX_SCALE, Math.max(MOBILE_PREVIEW_MIN_SCALE, fit * 0.96)),
+        );
         return;
       }
       const area = previewAreaRef.current;
