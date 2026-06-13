@@ -43,6 +43,7 @@ import {
 } from "@/nashmi/lib/cv-templates";
 import { renderCvToAtsPdfBlob } from "@/nashmi/lib/cv-pdf-export";
 import { isMobileLayout } from "@/nashmi/lib/mobile-layout";
+import { NASHMI_BUILD_ID } from "@/nashmi/lib/build-version";
 
 const FF2 = FF;
 
@@ -709,8 +710,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const DESKTOP_PREVIEW_MIN_SCALE = 0.32;
   /** Slightly enlarges the paper preview on all devices (capped at max scale). */
   const PREVIEW_SCALE_BOOST = 1.14;
-  const MOBILE_PREVIEW_SCALE_BOOST = 1.22;
-  const MOBILE_PREVIEW_MIN_SCALE = 0.44;
+  const MOBILE_PREVIEW_SCALE_BOOST = 1.35;
+  const MOBILE_PREVIEW_MIN_SCALE = 0.5;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -723,8 +724,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   }, [isMobile, startMode]);
 
   useEffect(() => {
+    if (isMobile) {
+      if (cvTemplate !== DEFAULT_CV_TEMPLATE) setCvTemplate(DEFAULT_CV_TEMPLATE);
+      setStoredCvTemplate(DEFAULT_CV_TEMPLATE);
+      return;
+    }
     setStoredCvTemplate(cvTemplate);
-  }, [cvTemplate]);
+  }, [cvTemplate, isMobile]);
 
   useEffect(() => {
     try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }
@@ -801,7 +807,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const mobile = isMobileLayout();
       setIsMobile(mobile);
       if (mobile) {
-        const raw = ((window.innerWidth - 8) / CV_PAPER_WIDTH) * MOBILE_PREVIEW_SCALE_BOOST;
+        const raw = ((window.innerWidth - 4) / CV_PAPER_WIDTH) * MOBILE_PREVIEW_SCALE_BOOST;
         setPreviewScale(Math.min(1, Math.max(MOBILE_PREVIEW_MIN_SCALE, raw)));
         return;
       }
@@ -2382,9 +2388,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               </button>
             </div>
           )}
-          {isMobile && (
-            <TemplatePicker isAr={isAr} value={cvTemplate} onChange={setCvTemplate} variant="mobile" />
-          )}
           {isMobile && isElite && (
             <div style={{ width: "100%", maxWidth: 794, marginBottom: 12, padding: "0 12px", boxSizing: "border-box" }}>
               <EliteImportFeature
@@ -2398,6 +2401,24 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             </div>
           )}
           {renderScaledCvPreview(true)}
+          {isMobile && startMode === "ready" && (
+            <div
+              aria-hidden
+              style={{
+                position: "fixed",
+                bottom: "calc(72px + env(safe-area-inset-bottom))",
+                right: 8,
+                zIndex: 2400,
+                fontSize: 9,
+                color: P.muted,
+                opacity: 0.55,
+                fontFamily: FF,
+                pointerEvents: "none",
+              }}
+            >
+              v{NASHMI_BUILD_ID}
+            </div>
+          )}
 
         </div>
         )}

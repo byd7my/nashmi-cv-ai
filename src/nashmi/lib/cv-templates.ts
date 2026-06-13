@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { isMobileLayout } from "@/nashmi/lib/mobile-layout";
 
 export type CvTemplateId = "modern" | "executive" | "minimal" | "classic";
 
@@ -32,6 +33,7 @@ export function getDefaultCvTemplate(): CvTemplateId {
 
 export function getStoredCvTemplate(): CvTemplateId {
   if (typeof window === "undefined") return DEFAULT_CV_TEMPLATE;
+  if (isMobileLayout()) return DEFAULT_CV_TEMPLATE;
   try {
     const raw = window.localStorage.getItem(TEMPLATE_STORAGE_KEY);
     return isCvTemplateId(raw) ? raw : DEFAULT_CV_TEMPLATE;
@@ -46,8 +48,9 @@ export function resetStoredCvTemplate(): void {
 
 export function setStoredCvTemplate(id: CvTemplateId): void {
   if (typeof window === "undefined") return;
+  const stored = isMobileLayout() ? DEFAULT_CV_TEMPLATE : id;
   try {
-    window.localStorage.setItem(TEMPLATE_STORAGE_KEY, id);
+    window.localStorage.setItem(TEMPLATE_STORAGE_KEY, stored);
   } catch {
     /* ignore */
   }
