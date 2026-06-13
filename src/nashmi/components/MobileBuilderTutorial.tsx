@@ -53,15 +53,28 @@ function tourSelector(target: MobileTourTarget): string {
   return `[data-tour="${target}"]`;
 }
 
+/** Step 0 highlights a CV section inside the scaled A4 paper, not the outer stage. */
+function resolveTourTargetElement(target: MobileTourTarget): Element | null {
+  if (target === "cv-preview") {
+    return (
+      document.querySelector('[data-cv-section="summary"]') ??
+      document.querySelector(tourSelector(target))
+    );
+  }
+  return document.querySelector(tourSelector(target));
+}
+
 interface Props {
   step: number;
   isAr: boolean;
   onNext: () => void;
   onPrev: () => void;
   onClose: () => void;
+  /** Re-measure highlights when preview scale/layout changes (e.g. mobile A4 transform). */
+  layoutKey?: number;
 }
 
-export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: Props) {
+export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose, layoutKey }: Props) {
   const current = MOBILE_TOUR_STEPS[step];
   const [rect, setRect] = useState<DOMRect | null>(null);
   const ff = FF;
@@ -72,39 +85,38 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
 
   useEffect(() => {
     const update = () => {
-      const el = document.querySelector(tourSelector(current.target));
+      const el = resolveTourTargetElement(current.target);
       setRect(el?.getBoundingClientRect() ?? null);
     };
     update();
     const t = window.setTimeout(update, 120);
+    const t2 = window.setTimeout(update, 320);
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
-    const el = document.querySelector(tourSelector(current.target));
+    const el = resolveTourTargetElement(current.target);
     const ro = el ? new ResizeObserver(update) : null;
     if (el && ro) ro.observe(el);
+    const paper = document.querySelector(".cv-preview-paper-inner");
+    const paperRo = paper ? new ResizeObserver(update) : null;
+    if (paper && paperRo) paperRo.observe(paper);
     return () => {
       window.clearTimeout(t);
+      window.clearTimeout(t2);
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
       ro?.disconnect();
+      paperRo?.disconnect();
     };
-  }, [current.target, step]);
+  }, [current.target, step, layoutKey]);
 
   const pad = isNavTarget ? 4 : 6;
   const hole = rect
-    ? current.target === "cv-preview"
-      ? {
-          top: rect.top + 6,
-          left: rect.left + rect.width * 0.08,
-          width: rect.width * 0.84,
-          height: Math.min(Math.max(rect.height * 0.22, 72), 120),
-        }
-      : {
-          top: rect.top - pad,
-          left: rect.left - pad,
-          width: rect.width + pad * 2,
-          height: rect.height + pad * 2,
-        }
+    ? {
+        top: rect.top - pad,
+        left: rect.left - pad,
+        width: rect.width + pad * 2,
+        height: rect.height + pad * 2,
+      }
     : null;
 
   const cardStyle: CSSProperties = {

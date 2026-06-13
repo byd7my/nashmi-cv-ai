@@ -35,7 +35,6 @@ import {
   STARTMODE_STORAGE_KEY,
 } from "@/nashmi/lib/client-data-wipe";
 import {
-  getStoredCvTemplate,
   setStoredCvTemplate,
   resetStoredCvTemplate,
   getDefaultCvTemplate,
@@ -696,7 +695,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [showExportLangWarning, setShowExportLangWarning] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [eliteSwitchBusy, setEliteSwitchBusy] = useState<"ar" | "en" | null>(null);
-  const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => getStoredCvTemplate());
+  const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => DEFAULT_CV_TEMPLATE);
 
   // ── Click-to-edit canvas mode ──────────────────────────────────────────
   const [editMode, setEditMode] = useState<"canvas" | "sidebar">("sidebar");
@@ -856,7 +855,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     } catch { /* ignore */ }
 
     const attempt = (tryCount = 0) => {
-      const preview = document.querySelector('[data-tour="cv-preview"]');
+      const preview =
+        document.querySelector('[data-cv-section="summary"]') ??
+        document.querySelector('[data-tour="cv-preview"]');
       if (!preview && tryCount < 40) {
         mobileTourTimerRef.current = window.setTimeout(() => attempt(tryCount + 1), 150);
         return;
@@ -889,6 +890,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const continueDraft = useCallback(() => {
     const stored = loadStoredCV();
     if (stored) setCv({ ...INIT_CV, ...stored });
+    setCvTemplate(DEFAULT_CV_TEMPLATE);
+    resetStoredCvTemplate();
     setStartMode("ready");
     resetDesktopEditMode();
   }, []);
@@ -996,7 +999,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [beforeAfter, setBeforeAfter] = useState<{ section: string; before: string; after: string } | null>(null);
 
   useEffect(() => {
-    if (initialCV) setCv({ ...INIT_CV, ...initialCV });
+    if (!initialCV) return;
+    setCv({ ...INIT_CV, ...initialCV });
+    setCvTemplate(DEFAULT_CV_TEMPLATE);
+    resetStoredCvTemplate();
   }, [initialCV]);
 
   useEffect(() => {
@@ -1424,6 +1430,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         } catch { /* ignore */ }
       }
       setCv({ ...INIT_CV, ...ready });
+      setCvTemplate(DEFAULT_CV_TEMPLATE);
+      resetStoredCvTemplate();
       setActiveCvLang(target);
       showToast(
         isAr
@@ -1446,6 +1454,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           window.localStorage.setItem(ELITE_CV_KEYS[target], JSON.stringify(result.cv));
         } catch { /* ignore */ }
         setCv({ ...INIT_CV, ...result.cv });
+        setCvTemplate(DEFAULT_CV_TEMPLATE);
+        resetStoredCvTemplate();
         setActiveCvLang(target);
         showToast(isAr ? "تمت الترجمة بنجاح" : "Translated successfully");
       } else {
@@ -1570,6 +1580,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       // Paid users: CV goes to email only; keep their export review, wipe everything else.
       wipeAllClientCvData();
       setCv({ ...INIT_CV });
+      setCvTemplate(DEFAULT_CV_TEMPLATE);
+      resetStoredCvTemplate();
       setActiveSection(0);
       setActivePanel(null);
       setStartMode("choose");
@@ -2766,6 +2778,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           onNext={handleMobileTourNext}
           onPrev={handleMobileTourPrev}
           onClose={finishMobileTour}
+          layoutKey={previewScale}
         />
       )}
 
