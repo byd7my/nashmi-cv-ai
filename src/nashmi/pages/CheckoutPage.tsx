@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getCvSessionId } from "@/nashmi/lib/session";
 import { setPurchaseToken, setSessionPlanTier } from "@/nashmi/lib/plan-session";
-import { touchFreeDraftTimestamp } from "@/nashmi/lib/client-data-wipe";
+import { migrateFreeDraftToPaidSession, touchFreeDraftTimestamp } from "@/nashmi/lib/client-data-wipe";
 import { P, FF } from "@/nashmi/lib/tokens";
 import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
@@ -153,6 +153,7 @@ export function CheckoutPage({ lang, t, onNav, plan, onPaid }: Props) {
 
       setPurchaseToken(data.token);
       setSessionPlanTier(plan);
+      migrateFreeDraftToPaidSession();
       onPaid(plan);
       setStep("success");
     } catch (err) {

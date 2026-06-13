@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { NASHMI_BUILD_ID } from "@/nashmi/lib/build-version";
 
 function NotFoundComponent() {
   return (
@@ -77,7 +78,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { name: "nashmi-build", content: "20250613-mobile-v1-scale" },
+      { name: "nashmi-build", content: NASHMI_BUILD_ID },
       { title: "نشمي — منصة بناء السيرة الذاتية بالذكاء الاصطناعي" },
       {
         name: "description",

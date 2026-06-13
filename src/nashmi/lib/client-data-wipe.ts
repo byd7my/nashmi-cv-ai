@@ -106,6 +106,31 @@ export function expireFreeDraftIfStale(): boolean {
   return true;
 }
 
+/** Keep CV + builder state when user leaves for checkout (before payment completes). */
+export function preserveDraftForCheckout(): void {
+  if (typeof window === "undefined") return;
+  touchFreeDraftTimestamp();
+  try {
+    window.localStorage.setItem(STARTMODE_STORAGE_KEY, "ready");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** After payment, copy free draft into paid session storage so builder restores correctly. */
+export function migrateFreeDraftToPaidSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.localStorage.getItem(CV_STORAGE_KEY);
+    if (raw) {
+      window.sessionStorage.setItem(PAID_CV_SESSION_KEY, raw);
+      window.localStorage.setItem(STARTMODE_STORAGE_KEY, "ready");
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Wipe CV/contact data and paid-session tokens after export.
  * User reviews (`REVIEWS_STORAGE_KEY`) are intentionally kept.

@@ -25,12 +25,14 @@ import {
   wipeAllClientCvData,
   expireFreeDraftIfStale,
   touchFreeDraftTimestamp,
+  preserveDraftForCheckout,
   wipeFreeClientCvData,
   hasActivePaidSession,
   loadPaidSessionCvRaw,
   savePaidSessionCv,
   CV_STORAGE_KEY,
   EDITMODE_STORAGE_KEY,
+  STARTMODE_STORAGE_KEY,
 } from "@/nashmi/lib/client-data-wipe";
 import {
   getStoredCvTemplate,
@@ -668,7 +670,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   const [startMode, setStartMode] = useState<"choose" | "ready">(() => {
     if (initialCV) return "ready";
-    return "choose";
+    if (typeof window === "undefined") return "choose";
+    try {
+      if (window.localStorage.getItem(STARTMODE_STORAGE_KEY) === "ready") return "ready";
+    } catch { /* ignore */ }
+    return hasStoredDraft() ? "ready" : "choose";
   });
 
   const [cv, setCv] = useState<CVData>(() => {
@@ -719,10 +725,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const DESKTOP_PREVIEW_MIN_SCALE = 0.32;
   /** Slightly enlarges the paper preview on desktop (capped at max scale). */
   const PREVIEW_SCALE_BOOST = 1.14;
-  const MOBILE_PREVIEW_MIN_SCALE = 0.38;
-  /** Imported/filled CV — narrower sheet (~astrsa proportions). */
-  const MOBILE_FILLED_WIDTH_RATIO = 0.88;
+  const MOBILE_PREVIEW_MIN_SCALE = 0.32;
+  /** ~82% of iPhone logical width (Apple-style side margins). */
+  const MOBILE_FILLED_WIDTH_RATIO = 0.82;
+  const MOBILE_FILLED_MAX_SCALE = 0.40;
   const MOBILE_EMPTY_SIDE_PAD = 32;
+  /** Top bar + template strip + bottom nav + safe area. */
+  const MOBILE_CHROME_PX = 210;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -731,6 +740,17 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   useEffect(() => {
     setStoredCvTemplate(cvTemplate);
   }, [cvTemplate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (startMode === "ready") {
+        window.localStorage.setItem(STARTMODE_STORAGE_KEY, "ready");
+      } else {
+        window.localStorage.removeItem(STARTMODE_STORAGE_KEY);
+      }
+    } catch { /* ignore */ }
+  }, [startMode]);
 
   useEffect(() => {
     try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }
@@ -809,10 +829,16 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       if (mobile) {
         const w = window.innerWidth;
         const filled = cvHasPreviewContent(cv);
-        const scale = filled
-          ? (w * MOBILE_FILLED_WIDTH_RATIO) / CV_PAPER_WIDTH
-          : (w - MOBILE_EMPTY_SIDE_PAD) / CV_PAPER_WIDTH;
-        setPreviewScale(Math.min(1, Math.max(MOBILE_PREVIEW_MIN_SCALE, scale)));
+        if (filled) {
+          const widthScale = (w * MOBILE_FILLED_WIDTH_RATIO) / CV_PAPER_WIDTH;
+          const availH = Math.max(260, window.innerHeight - MOBILE_CHROME_PX);
+          const heightScale = availH / Math.max(scaledCvHeight, 520);
+          const scale = Math.min(widthScale, heightScale, MOBILE_FILLED_MAX_SCALE);
+          setPreviewScale(Math.max(MOBILE_PREVIEW_MIN_SCALE, scale));
+        } else {
+          const scale = (w - MOBILE_EMPTY_SIDE_PAD) / CV_PAPER_WIDTH;
+          setPreviewScale(Math.min(1, Math.max(0.38, scale)));
+        }
         return;
       }
       const area = previewAreaRef.current;
@@ -1000,6 +1026,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     if (initialCV) return;
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
+      if (hasActivePaidSession()) return;
       if (!expireFreeDraftIfStale()) return;
       setCv({ ...INIT_CV });
       setActiveSection(0);
@@ -2669,7 +2696,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             </div>
             <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
               {[{ tier: "premium", name: t.plans[1].name, price: t.plans[1].price, cur: t.plans[1].cur }, { tier: "elite", name: t.plans[2].name, price: t.plans[2].price, cur: t.plans[2].cur }].map(p => (
-                <button key={p.tier} onClick={() => { setShowUpgrade(false); onSelectPlan(p.tier); onNav("checkout"); }} style={{ flex: 1, background: p.tier === "elite" ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : "transparent", border: `1px solid ${p.tier === "elite" ? "transparent" : P.borderLight}`, color: p.tier === "elite" ? "#fff" : P.text, borderRadius: 12, padding: "14px 12px", cursor: "pointer", fontFamily: ff, boxShadow: p.tier === "elite" ? `0 6px 24px ${P.violet}44` : "none" }}>
+                <button key={p.tier} onClick={() => {
+                  try { window.localStorage.setItem(CV_STORAGE_KEY, JSON.stringify(cv)); } catch { /* ignore */ }
+                  preserveDraftForCheckout();
+                  setShowUpgrade(false);
+                  onSelectPlan(p.tier);
+                  onNav("checkout");
+                }} style={{ flex: 1, background: p.tier === "elite" ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : "transparent", border: `1px solid ${p.tier === "elite" ? "transparent" : P.borderLight}`, color: p.tier === "elite" ? "#fff" : P.text, borderRadius: 12, padding: "14px 12px", cursor: "pointer", fontFamily: ff, boxShadow: p.tier === "elite" ? `0 6px 24px ${P.violet}44` : "none" }}>
                   <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{p.name}</div>
                   <div style={{ fontSize: 22, fontWeight: 900 }}>{p.price} <span style={{ fontSize: 13, fontWeight: 600 }}>{p.cur}</span></div>
                 </button>
