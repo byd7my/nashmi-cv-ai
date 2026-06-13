@@ -77,7 +77,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { name: "nashmi-build", content: "20250613-mobile-v2" },
+      { name: "nashmi-build", content: "20250613-mobile-v3" },
       { title: "نشمي — منصة بناء السيرة الذاتية بالذكاء الاصطناعي" },
       {
         name: "description",

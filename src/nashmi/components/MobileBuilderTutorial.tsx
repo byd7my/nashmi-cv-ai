@@ -112,7 +112,7 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
         position: "fixed",
         left: 16,
         right: 16,
-        top: hole ? Math.min(hole.top + hole.height + 14, window.innerHeight * 0.42) : "28%",
+        top: hole ? Math.min(hole.top + hole.height + 10, window.innerHeight * 0.34) : "24%",
         zIndex: 5601,
       };
 
@@ -168,19 +168,19 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
                 pointerEvents: "none",
               }}
             >
-              <span style={{ fontSize: 34, filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.35))" }}>👆</span>
+              <span style={{ fontSize: 22, filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.35))" }}>👆</span>
               <span
                 style={{
                   background: "rgba(255,255,255,0.96)",
                   color: "#111",
-                  fontSize: 12,
+                  fontSize: 10,
                   fontWeight: 700,
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-                  maxWidth: 180,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.22)",
+                  maxWidth: 150,
                   textAlign: "center",
-                  lineHeight: 1.5,
+                  lineHeight: 1.45,
                 }}
               >
                 {isAr ? "انقر على أي قسم للتعديل" : "Tap any section to edit"}
@@ -195,35 +195,37 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
           ...cardStyle,
           background: P.card,
           border: `1px solid ${P.border}`,
-          borderRadius: 18,
-          padding: "18px 16px 14px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
+          borderRadius: 14,
+          padding: "12px 14px 10px",
+          boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
+          maxWidth: 340,
+          margin: "0 auto",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <div
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
+              width: 28,
+              height: 28,
+              borderRadius: 8,
               background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 17,
+              fontSize: 13,
               fontWeight: 900,
               color: "#fff",
               flexShrink: 0,
-              boxShadow: `0 4px 14px ${P.violet}44`,
+              boxShadow: `0 3px 10px ${P.violet}44`,
             }}
           >
             N
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: P.text, fontSize: 13, fontWeight: 800, lineHeight: 1.2 }}>
+            <div style={{ color: P.text, fontSize: 11, fontWeight: 800, lineHeight: 1.2 }}>
               {isAr ? "مرحباً بك في نشمي" : "Welcome to Nashmi"}
             </div>
-            <div style={{ color: P.muted, fontSize: 11, marginTop: 2 }}>
+            <div style={{ color: P.muted, fontSize: 10, marginTop: 1 }}>
               {isAr ? "جولة سريعة — 4 خطوات" : "Quick tour — 4 steps"}
             </div>
           </div>
@@ -249,12 +251,12 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
           aria-label={isAr ? "إغلاق" : "Close"}
           style={{
             position: "absolute",
-            top: 12,
-            [isAr ? "left" : "right"]: 12,
+            top: 8,
+            [isAr ? "left" : "right"]: 8,
             background: "none",
             border: "none",
             color: P.muted,
-            fontSize: 22,
+            fontSize: 18,
             lineHeight: 1,
             cursor: "pointer",
             padding: 4,
@@ -263,15 +265,15 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
           ×
         </button>
 
-        <h3 style={{ color: P.text, fontSize: 17, fontWeight: 800, margin: "0 0 8px", paddingInlineEnd: 28 }}>
+        <h3 style={{ color: P.text, fontSize: 14, fontWeight: 800, margin: "0 0 6px", paddingInlineEnd: 22 }}>
           {isAr ? current.titleAr : current.titleEn}
         </h3>
-        <p style={{ color: P.muted, fontSize: 13, lineHeight: 1.75, margin: "0 0 16px" }}>
+        <p style={{ color: P.muted, fontSize: 11, lineHeight: 1.6, margin: "0 0 12px" }}>
           {isAr ? current.bodyAr : current.bodyEn}
         </p>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <span style={{ color: P.muted, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+          <span style={{ color: P.muted, fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>
             {isAr ? `${step + 1} من ${total}` : `${step + 1} of ${total}`}
           </span>
           <div style={{ display: "flex", gap: 8, flex: 1, justifyContent: isAr ? "flex-start" : "flex-end" }}>
@@ -283,9 +285,9 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
                   background: "transparent",
                   border: `1px solid ${P.borderLight}`,
                   color: P.textSub,
-                  borderRadius: 10,
-                  padding: "9px 14px",
-                  fontSize: 13,
+                  borderRadius: 8,
+                  padding: "7px 12px",
+                  fontSize: 11,
                   fontWeight: 700,
                   cursor: "pointer",
                   fontFamily: ff,
@@ -301,9 +303,9 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
                 background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`,
                 border: "none",
                 color: "#fff",
-                borderRadius: 10,
-                padding: "9px 18px",
-                fontSize: 13,
+                borderRadius: 8,
+                padding: "7px 14px",
+                fontSize: 11,
                 fontWeight: 800,
                 cursor: "pointer",
                 fontFamily: ff,

@@ -710,8 +710,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const DESKTOP_PREVIEW_MIN_SCALE = 0.32;
   /** Slightly enlarges the paper preview on all devices (capped at max scale). */
   const PREVIEW_SCALE_BOOST = 1.14;
-  const MOBILE_PREVIEW_SCALE_BOOST = 1.35;
-  const MOBILE_PREVIEW_MIN_SCALE = 0.5;
+  const MOBILE_PREVIEW_SCALE_BOOST = 1.08;
+  const MOBILE_PREVIEW_MIN_SCALE = 0.42;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -1930,7 +1930,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         </div>
         {interactive && isMobile && !activePanel && mobileTourStep === null && (
           <div className="cv-tap-hint">
-            <span style={{ fontSize: 22 }}>👆</span>
+            <span style={{ fontSize: 16 }}>👆</span>
             <span>{isAr ? "انقر على أي قسم للتعديل" : "Tap any section to edit"}</span>
           </div>
         )}
@@ -2171,19 +2171,20 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           }
         }
         .cv-tap-hint {
-          margin-top: 14px;
+          margin-top: 10px;
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           background: ${P.surface};
           border: 1px solid ${P.border};
           border-radius: 999px;
-          padding: 10px 16px;
+          padding: 7px 12px;
           color: ${P.muted};
-          font-size: 13px;
+          font-size: 11px;
           font-weight: 600;
           box-shadow: 0 4px 16px rgba(0,0,0,0.25);
         }
+        .cv-tap-hint span:first-child { font-size: 16px !important; }
         @keyframes mobileTabIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
