@@ -43,6 +43,13 @@ import {
 } from "@/nashmi/lib/cv-templates";
 import { renderCvToAtsPdfBlob } from "@/nashmi/lib/cv-pdf-export";
 import { isMobileLayout } from "@/nashmi/lib/mobile-layout";
+import { getCvPreviewMetrics, type CvPreviewVariant } from "@/nashmi/lib/cv-preview-metrics";
+import {
+  CvCertRow,
+  CvEntryHeader,
+  CvLanguageTags,
+  CvSkillTags,
+} from "@/nashmi/components/CvContentBlocks";
 import { NASHMI_BUILD_ID } from "@/nashmi/lib/build-version";
 
 const FF2 = FF;
@@ -82,20 +89,27 @@ const Txta = memo(function Txta({ label, value, onChange, placeholder, rows = 4,
 // Mirrors CVPreview's visual layout but wraps every section in a clickable
 // region that opens the matching editor panel. The PDF export still renders
 // the untouched CVPreview component off-screen, so this never affects output.
-function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
+function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId, variant = "paper" }: {
   cv: CVData;
   cvIsAr: boolean;
   activePanel: string | null;
   onSelect: (id: string) => void;
   templateId?: CvTemplateId;
+  variant?: CvPreviewVariant;
 }) {
   const H = cvIsAr ? AR_HEADERS : EN_HEADERS;
   const tpl = getCvTemplateStyles(templateId ?? getDefaultCvTemplate());
+  const m = getCvPreviewMetrics(tpl, variant);
+  const stacked = variant === "mobile";
   const ffCv = cvIsAr
     ? "'Cairo', 'Tajawal', 'Noto Naskh Arabic', Tahoma, Arial, sans-serif"
     : "'Inter', 'Helvetica Neue', Arial, sans-serif";
 
-  const headStyle: React.CSSProperties = tpl.sectionTitle;
+  const headStyle: React.CSSProperties = {
+    ...tpl.sectionTitle,
+    fontSize: stacked ? 11 : tpl.sectionTitle.fontSize,
+    marginBottom: stacked ? 8 : tpl.sectionTitle.marginBottom,
+  };
 
   const Sec = ({ id, children, mb = 0 }: { id: string; children: React.ReactNode; mb?: number }) => {
     const active = activePanel === id;
@@ -123,9 +137,9 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
           outline: active ? `2px solid ${P.violet}88` : "2px solid transparent",
           outlineOffset: 2,
           marginBottom: mb,
-          padding: "12px 10px",
-          marginInline: -6,
-          minHeight: 48,
+          padding: m.secPadding,
+          marginInline: stacked ? -2 : -6,
+          minHeight: m.secMinHeight,
           touchAction: "manipulation",
           WebkitTapHighlightColor: `${P.violet}44`,
           position: "relative",
@@ -170,9 +184,9 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
         marginBottom: mb,
         cursor: "pointer",
         borderRadius: 8,
-        padding: "10px 8px",
-        marginInline: -6,
-        minHeight: 44,
+        padding: m.headPadding,
+        marginInline: stacked ? -2 : -6,
+        minHeight: stacked ? 40 : 44,
         touchAction: "manipulation",
         WebkitTapHighlightColor: `${P.violet}44`,
         position: "relative",
@@ -185,7 +199,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
   };
 
   const Placeholder = ({ label }: { label: string }) => (
-    <div style={{ border: "1.5px dashed #BBB", color: "#999", borderRadius: 6, padding: "8px 10px", fontSize: 9.5, textAlign: "center" }}>
+    <div style={{ border: "1.5px dashed #BBB", color: "#999", borderRadius: 6, padding: stacked ? "10px 12px" : "8px 10px", fontSize: stacked ? 11 : 9.5, textAlign: "center" }}>
       + {label}
     </div>
   );
@@ -194,26 +208,40 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
   const hasCerts = certs.some(c => c.title || c.issuer || c.date);
 
   return (
-    <div className="cv-canvas-inner" style={{ background: "#fff", color: "#111", fontFamily: ffCv, fontSize: 10.5, lineHeight: 1.55, padding: tpl.pagePadding, width: "100%", minHeight: 600, direction: cvIsAr ? "rtl" : "ltr" }}>
+    <div
+      className={variant === "mobile" ? "cv-canvas-inner cv-sheet--mobile" : "cv-canvas-inner"}
+      style={{
+        background: "#fff",
+        color: "#111",
+        fontFamily: ffCv,
+        fontSize: m.bodySize,
+        lineHeight: m.lineHeight,
+        padding: m.pagePadding,
+        width: "100%",
+        minHeight: variant === "mobile" ? 0 : 600,
+        direction: cvIsAr ? "rtl" : "ltr",
+        boxSizing: "border-box",
+      }}
+    >
       {/* Personal header */}
-      <Sec id="personal" mb={16}>
+      <Sec id="personal" mb={m.sectionGap}>
         <div style={{ textAlign: tpl.headerAlign, borderBottom: tpl.headerBorder, padding: tpl.headerPadding, borderLeft: tpl.sidebarAccent ? `4px solid ${tpl.accent}` : undefined }}>
-          <div style={{ fontSize: tpl.nameSize, fontWeight: 700 }}>{cv.personal.name || (cvIsAr ? "الاسم الكامل" : "Full Name")}</div>
-          {cv.personal.title && <div style={{ fontSize: 13, color: "#444", marginTop: 4 }}>{cv.personal.title}</div>}
-          <div style={{ fontSize: 10, color: "#555", marginTop: 6, display: "flex", gap: 12, justifyContent: tpl.headerAlign === "center" ? "center" : "flex-start", flexWrap: "wrap" }}>
+          <div style={{ fontSize: m.nameSize, fontWeight: 700, lineHeight: 1.25 }}>{cv.personal.name || (cvIsAr ? "الاسم الكامل" : "Full Name")}</div>
+          {cv.personal.title && <div style={{ fontSize: m.titleSize, color: "#444", marginTop: 4 }}>{cv.personal.title}</div>}
+          <div style={{ fontSize: m.contactSize, color: "#555", marginTop: 8, display: "flex", gap: 10, justifyContent: tpl.headerAlign === "center" ? "center" : "flex-start", flexWrap: "wrap", lineHeight: 1.5 }}>
             {cv.personal.email && <span>{cv.personal.email}</span>}
             {cv.personal.phone && <span>{cv.personal.phone}</span>}
             {cv.personal.city && <span>{cv.personal.city}</span>}
-            {cv.personal.linkedin && <span>{cv.personal.linkedin}</span>}
+            {cv.personal.linkedin && <span style={{ wordBreak: "break-all" }}>{cv.personal.linkedin}</span>}
           </div>
         </div>
       </Sec>
 
       {/* Summary */}
-      <Sec id="summary" mb={14}>
+      <Sec id="summary" mb={m.sectionGap}>
         <div style={headStyle}>{H.summary}</div>
         {cv.summary
-          ? <p style={{ color: "#222", fontSize: 10 }}>{cv.summary}</p>
+          ? <p style={{ color: "#222", fontSize: m.bodySize, lineHeight: m.lineHeight, margin: 0 }}>{cv.summary}</p>
           : <Placeholder label={cvIsAr ? "أضف ملخصاً مهنياً" : "Add a professional summary"}/>}
       </Sec>
 
@@ -221,14 +249,24 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
       <div style={{ marginBottom: 6 }}>
         <SectionHead id="experience-0" label={H.experience} />
         {cv.experience.map((e, i) => (
-          <Sec key={i} id={`experience-${i}`} mb={12}>
+          <Sec key={i} id={`experience-${i}`} mb={stacked ? 14 : 12}>
             {(e.company || e.role || e.desc) ? (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 10 }}>
-                  <span>{e.role}{e.company && ` — ${e.company}`}</span>
-                  <span style={{ color: "#666", fontSize: 9.5 }}>{e.from}{e.to ? ` – ${e.to}` : ""}</span>
-                </div>
-                {e.desc && <div style={{ marginTop: 4, fontSize: 9.5, color: "#333", whiteSpace: "pre-line" }}>• {e.desc}</div>}
+                <CvEntryHeader
+                  primary={e.role || e.company || ""}
+                  secondary={e.role && e.company ? e.company : undefined}
+                  dateRange={`${e.from || ""}${e.to ? ` – ${e.to}` : ""}`}
+                  fontSize={m.bodySize}
+                  smallSize={m.smallSize}
+                  stacked={stacked}
+                />
+                {e.desc && (
+                  <ul style={{ marginTop: 6, marginBottom: 0, paddingInlineStart: stacked ? 16 : 18, fontSize: m.smallSize, color: "#333", lineHeight: m.lineHeight }}>
+                    {e.desc.split(/\n+/).filter(Boolean).map((line, j) => (
+                      <li key={j} style={{ marginBottom: 4 }}>{line.replace(/^[\s•\-–—]+/, "")}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ) : (
               <Placeholder label={cvIsAr ? "أضف خبرة عملية" : "Add a work experience"}/>
@@ -242,19 +280,20 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
         <SectionHead id="education-0" label={H.education} />
         {cv.education.map((e, i) => {
           const degreeText = [e.degree, e.field].filter(Boolean).join(cvIsAr ? " - " : " in ");
-          const parts = [degreeText, e.school].filter(Boolean);
           return (
-            <Sec key={i} id={`education-${i}`} mb={10}>
+            <Sec key={i} id={`education-${i}`} mb={stacked ? 12 : 10}>
               {(e.school || e.degree) ? (
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, fontSize: 10 }}>
-                    <span style={{ fontWeight: 700 }}>
-                      {parts.map((p, idx) => (<span key={idx}>{idx > 0 && <span style={{ color: "#999", fontWeight: 400, margin: "0 8px" }}>|</span>}{p}</span>))}
-                    </span>
-                    <span style={{ color: "#666", fontSize: 9.5, whiteSpace: "nowrap" }}>{e.from}{e.to ? ` – ${e.to}` : ""}</span>
-                  </div>
+                  <CvEntryHeader
+                    primary={degreeText || e.school || ""}
+                    secondary={degreeText && e.school ? e.school : undefined}
+                    dateRange={`${e.from || ""}${e.to ? ` – ${e.to}` : ""}`}
+                    fontSize={m.bodySize}
+                    smallSize={m.smallSize}
+                    stacked={stacked}
+                  />
                   {((e.showGpa && e.gpa) || e.honors) && (
-                    <div style={{ color: "#555", fontSize: 8.5, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ color: "#555", fontSize: m.smallSize, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap", lineHeight: 1.5 }}>
                       {e.showGpa && e.gpa && <span>{cvIsAr ? "المعدل" : "GPA"}: {e.gpa}{e.gpaScale ? `/${e.gpaScale}` : ""}</span>}
                       {e.honors && <span>{cvIsAr ? "مرتبة الشرف" : "Honors"}: {e.honors}</span>}
                     </div>
@@ -272,20 +311,23 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
       <Sec id="certifications" mb={10}>
         <div style={{ ...headStyle, marginBottom: 10, pointerEvents: "none" }}>{H.certifications}</div>
         {hasCerts ? certs.filter(c => c.title || c.issuer || c.date).map((c, i) => (
-          <div key={i} style={{ marginBottom: 8, fontSize: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-              <span>{c.title}{c.issuer ? ` — ${c.issuer}` : ""}</span>
-              {c.date && <span style={{ color: "#666", fontSize: 9.5 }}>{c.date}</span>}
-            </div>
-          </div>
+          <CvCertRow
+            key={i}
+            title={c.title || c.issuer || ""}
+            issuer={c.title && c.issuer ? c.issuer : undefined}
+            date={c.date}
+            fontSize={m.bodySize}
+            smallSize={m.smallSize}
+            stacked={stacked}
+          />
         )) : <Placeholder label={cvIsAr ? "أضف شهادة أو دورة" : "Add a certification"}/>}
       </Sec>
 
       {/* Skills */}
-      <Sec id="skills" mb={14}>
+      <Sec id="skills" mb={m.sectionGap}>
         <div style={{ ...headStyle, marginTop: 4, pointerEvents: "none" }}>{H.skills}</div>
         {cv.skills.length > 0
-          ? <div style={{ color: "#222", fontSize: 10 }}>{cv.skills.join(tpl.skillsSeparator)}</div>
+          ? <CvSkillTags skills={cv.skills} accent={tpl.accent} fontSize={stacked ? m.smallSize : m.bodySize} />
           : <Placeholder label={cvIsAr ? "أضف مهاراتك" : "Add your skills"}/>}
       </Sec>
 
@@ -293,7 +335,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
       <Sec id="languages">
         <div style={{ ...headStyle, pointerEvents: "none" }}>{H.languages}</div>
         {cv.languages.some(l => l.lang)
-          ? <div style={{ color: "#222", fontSize: 10 }}>{cv.languages.filter(l => l.lang).map(l => `${l.lang}${l.level ? ` (${l.level})` : ""}`).join(" · ")}</div>
+          ? <CvLanguageTags items={cv.languages} accent={tpl.accent} fontSize={stacked ? m.smallSize : m.bodySize} />
           : <Placeholder label={cvIsAr ? "أضف اللغات" : "Add languages"}/>}
       </Sec>
     </div>
@@ -1910,24 +1952,29 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   }, [isMobile, editMode, mobileTourStep]);
 
   const renderScaledCvPreview = (interactive: boolean) => {
-    const scaledW = Math.round(CV_PAPER_WIDTH * previewScale);
-    const scaledH = Math.max(Math.round(scaledCvHeight * previewScale), 420);
-    const paperStyle: React.CSSProperties = isMobile
-      ? { width: CV_PAPER_WIDTH, zoom: previewScale }
+    const mobilePreview = isMobile;
+    const scaledW = mobilePreview ? "100%" : Math.round(CV_PAPER_WIDTH * previewScale);
+    const scaledH = mobilePreview ? "auto" : Math.max(Math.round(scaledCvHeight * previewScale), 420);
+    const paperStyle: React.CSSProperties = mobilePreview
+      ? { width: "100%", maxWidth: "100%" }
       : {
           width: CV_PAPER_WIDTH,
           transform: `scale(${previewScale})`,
           transformOrigin: "top left",
         };
+    const previewVariant: CvPreviewVariant = mobilePreview ? "mobile" : "paper";
     const inner = interactive ? (
-      <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={handleSectionSelect} templateId={cvTemplate} />
+      <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={handleSectionSelect} templateId={cvTemplate} variant={previewVariant} />
     ) : (
-      <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate} />
+      <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate} variant={previewVariant} />
     );
     return (
       <div className="cv-preview-stage" data-tour="cv-preview">
-        <div className="cv-preview-scaler-wrap" style={{ width: scaledW, height: scaledH }}>
-          <div ref={scaledCvRef} className={`cv-preview-paper-inner${isMobile ? " is-mobile-zoom" : ""}`} style={paperStyle}>
+        <div
+          className={`cv-preview-scaler-wrap${mobilePreview ? " is-mobile-sheet-wrap" : ""}`}
+          style={mobilePreview ? { width: scaledW, height: scaledH, maxWidth: "min(100%, 440px)" } : { width: scaledW, height: scaledH }}
+        >
+          <div ref={scaledCvRef} className={`cv-preview-paper-inner${mobilePreview ? " is-mobile-sheet" : ""}`} style={paperStyle}>
             {inner}
             {!isPaid && renderWatermarkGrid()}
           </div>
@@ -2150,13 +2197,25 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           flex-shrink: 0;
         }
         .cv-preview-paper-inner { background: #fff; position: relative; }
-        .cv-preview-paper-inner.is-mobile-zoom {
-          /* iOS Safari: zoom keeps tap targets aligned (transform: scale breaks touches). */
+        .cv-preview-paper-inner.is-mobile-sheet {
+          zoom: 1 !important;
           transform: none !important;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+        }
+        .cv-preview-scaler-wrap.is-mobile-sheet-wrap {
+          overflow: visible;
+          border-radius: 10px;
+          box-shadow: none;
+          margin: 0 auto;
+        }
+        .cv-preview-paper-inner.is-mobile-sheet [data-cv-section] {
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: rgba(124, 92, 255, 0.25);
         }
         .cv-preview-paper-inner [data-cv-section] {
           touch-action: manipulation;
-          -webkit-tap-highlight-color: rgba(124, 92, 255, 0.25);
         }
         @media (min-width: 769px) {
           .builder-preview {
@@ -2201,9 +2260,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           .builder-main { flex-direction: column !important; overflow: hidden !important; }
           .builder-sidebar { display: none !important; }
           .builder-preview {
-            padding: 0 0 calc(68px + env(safe-area-inset-bottom)) !important;
+            padding: 8px 10px calc(68px + env(safe-area-inset-bottom)) !important;
             align-items: center !important;
             background: ${P.bg} !important;
+          }
+          .builder-preview .cv-preview-stage {
+            width: 100%;
+            max-width: 100%;
           }
           .builder-topbar { flex-wrap: wrap; gap: 8px !important; height: auto !important; padding: 10px 12px !important; }
           .builder-topbar-btn { font-size: 11px !important; padding: 6px 8px !important; }

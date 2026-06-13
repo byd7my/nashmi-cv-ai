@@ -119,21 +119,22 @@ export function getCvTemplateStyles(templateId: CvTemplateId): CvTemplateStyles 
       return {
         accent: tpl.accent,
         headerAlign: "center",
-        headerBorder: "2px solid #111",
-        headerPadding: "0 0 12px 0",
+        headerBorder: `2px solid ${tpl.accent}`,
+        headerPadding: "0 0 14px 0",
         nameSize: 22,
         sectionTitle: {
           fontSize: 10,
           fontWeight: 700,
-          letterSpacing: "0.12em",
+          letterSpacing: "0.1em",
           textTransform: "uppercase",
-          borderBottom: "1px solid #333",
-          paddingBottom: 3,
-          marginBottom: 8,
-          marginTop: 4,
+          borderBottom: `1.5px solid ${tpl.accent}`,
+          paddingBottom: 4,
+          marginBottom: 10,
+          marginTop: 2,
+          color: "#111",
         },
         skillsSeparator: ", ",
-        pagePadding: "28px 32px",
+        pagePadding: "26px 30px",
       };
     case "modern":
     default:
