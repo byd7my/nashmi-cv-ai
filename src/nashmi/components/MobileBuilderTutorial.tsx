@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { P, FF } from "@/nashmi/lib/tokens";
 
-export const MOBILE_TOUR_STORAGE_KEY = "nashmi:mobile-builder-tour-v4";
+export const MOBILE_TOUR_STORAGE_KEY = "nashmi:mobile-builder-tour-v5";
 
 export type MobileTourTarget = "cv-preview" | "tab-sections" | "tab-copilot" | "tab-export";
 
@@ -20,32 +20,32 @@ export const MOBILE_TOUR_STEPS: MobileTourStep[] = [
     tab: "preview",
     titleAr: "اضغط للتعديل",
     titleEn: "Tap to edit",
-    bodyAr: "اضغط على أي قسم في سيرتك الذاتية لتعديله مباشرة",
-    bodyEn: "Tap any section on your resume to edit it directly",
+    bodyAr: "اضغط على أي قسم في سيرتك لتعديله",
+    bodyEn: "Tap any section on your resume to edit it",
   },
   {
     target: "tab-sections",
     tab: "sections",
     titleAr: "الأقسام",
     titleEn: "Sections",
-    bodyAr: "تصفّح قائمة الأقسام واختر ما تريد تعديله بسرعة",
-    bodyEn: "Browse the section list and pick what you want to edit",
+    bodyAr: "اختر القسم الذي تريد تعديله",
+    bodyEn: "Pick the section you want to edit",
   },
   {
     target: "tab-copilot",
     tab: "copilot",
     titleAr: "المساعد الذكي",
     titleEn: "AI Assistant",
-    bodyAr: "عدّل وحسّن سيرتك الذاتية بالذكاء الاصطناعي",
-    bodyEn: "Improve and refine your resume with AI",
+    bodyAr: "حسّن سيرتك بالذكاء الاصطناعي",
+    bodyEn: "Improve your resume with AI",
   },
   {
     target: "tab-export",
     tab: "export",
     titleAr: "التصدير",
     titleEn: "Export",
-    bodyAr: "صدّر سيرتك PDF متوافق مع ATS بعد اختيار الباقة المناسبة",
-    bodyEn: "Export an ATS-ready PDF after choosing a paid plan",
+    bodyAr: "صدّر PDF متوافق مع ATS",
+    bodyEn: "Export an ATS-ready PDF",
   },
 ];
 
@@ -90,7 +90,7 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
     };
   }, [current.target, step]);
 
-  const pad = isNavTarget ? 6 : 10;
+  const pad = isNavTarget ? 5 : 8;
   const hole = rect
     ? {
         top: rect.top - pad,
@@ -103,16 +103,16 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
   const cardStyle: CSSProperties = isNavTarget
     ? {
         position: "fixed",
-        left: 16,
-        right: 16,
+        left: 12,
+        right: 12,
         bottom: "calc(76px + env(safe-area-inset-bottom))",
         zIndex: 5601,
       }
     : {
         position: "fixed",
-        left: 16,
-        right: 16,
-        top: hole ? Math.min(hole.top + hole.height + 14, window.innerHeight * 0.42) : "28%",
+        left: 12,
+        right: 12,
+        top: hole ? Math.min(hole.top + hole.height + 10, window.innerHeight * 0.38) : "30%",
         zIndex: 5601,
       };
 
@@ -134,7 +134,7 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
               left: hole.left,
               width: hole.width,
               height: hole.height,
-              borderRadius: isNavTarget ? 14 : 10,
+              borderRadius: isNavTarget ? 12 : 8,
               boxShadow: "0 0 0 9999px rgba(10,10,11,0.88)",
               pointerEvents: "none",
             }}
@@ -147,9 +147,9 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
               left: hole.left,
               width: hole.width,
               height: hole.height,
-              borderRadius: isNavTarget ? 14 : 10,
+              borderRadius: isNavTarget ? 12 : 8,
               border: `2px solid ${P.violet}`,
-              boxShadow: `0 0 0 4px ${P.violet}33, 0 0 24px ${P.violet}44`,
+              boxShadow: `0 0 0 3px ${P.violet}33, 0 0 18px ${P.violet}44`,
               pointerEvents: "none",
             }}
           />
@@ -164,23 +164,23 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 8,
+                gap: 6,
                 pointerEvents: "none",
               }}
             >
-              <span style={{ fontSize: 34, filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.35))" }}>👆</span>
+              <span style={{ fontSize: 26, filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.35))" }}>👆</span>
               <span
                 style={{
                   background: "rgba(255,255,255,0.96)",
                   color: "#111",
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: 700,
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-                  maxWidth: 180,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.22)",
+                  maxWidth: 150,
                   textAlign: "center",
-                  lineHeight: 1.5,
+                  lineHeight: 1.4,
                 }}
               >
                 {isAr ? "انقر على أي قسم للتعديل" : "Tap any section to edit"}
@@ -195,45 +195,44 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
           ...cardStyle,
           background: P.card,
           border: `1px solid ${P.border}`,
-          borderRadius: 18,
-          padding: "18px 16px 14px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
+          borderRadius: 14,
+          padding: "12px 12px 10px",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <div
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
+              width: 28,
+              height: 28,
+              borderRadius: 8,
               background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 17,
+              fontSize: 13,
               fontWeight: 900,
               color: "#fff",
               flexShrink: 0,
-              boxShadow: `0 4px 14px ${P.violet}44`,
             }}
           >
             N
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: P.text, fontSize: 13, fontWeight: 800, lineHeight: 1.2 }}>
+            <div style={{ color: P.text, fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>
               {isAr ? "مرحباً بك في نشمي" : "Welcome to Nashmi"}
             </div>
-            <div style={{ color: P.muted, fontSize: 11, marginTop: 2 }}>
+            <div style={{ color: P.muted, fontSize: 10, marginTop: 1 }}>
               {isAr ? "جولة سريعة — 4 خطوات" : "Quick tour — 4 steps"}
             </div>
           </div>
-          <div style={{ marginInlineStart: "auto", display: "flex", gap: 5, flexShrink: 0 }}>
+          <div style={{ marginInlineStart: "auto", display: "flex", gap: 4, flexShrink: 0 }}>
             {Array.from({ length: total }).map((_, i) => (
               <span
                 key={i}
                 style={{
-                  width: i === step ? 18 : 7,
-                  height: 7,
+                  width: i === step ? 14 : 6,
+                  height: 6,
                   borderRadius: 999,
                   background: i === step ? P.violetLight : `${P.violet}33`,
                   transition: "width 0.2s, background 0.2s",
@@ -249,32 +248,32 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
           aria-label={isAr ? "إغلاق" : "Close"}
           style={{
             position: "absolute",
-            top: 12,
-            [isAr ? "left" : "right"]: 12,
+            top: 8,
+            [isAr ? "left" : "right"]: 8,
             background: "none",
             border: "none",
             color: P.muted,
-            fontSize: 22,
+            fontSize: 20,
             lineHeight: 1,
             cursor: "pointer",
-            padding: 4,
+            padding: 2,
           }}
         >
           ×
         </button>
 
-        <h3 style={{ color: P.text, fontSize: 17, fontWeight: 800, margin: "0 0 8px", paddingInlineEnd: 28 }}>
+        <h3 style={{ color: P.text, fontSize: 14, fontWeight: 800, margin: "0 0 6px", paddingInlineEnd: 22 }}>
           {isAr ? current.titleAr : current.titleEn}
         </h3>
-        <p style={{ color: P.muted, fontSize: 13, lineHeight: 1.75, margin: "0 0 16px" }}>
+        <p style={{ color: P.muted, fontSize: 12, lineHeight: 1.55, margin: "0 0 12px" }}>
           {isAr ? current.bodyAr : current.bodyEn}
         </p>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <span style={{ color: P.muted, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ color: P.muted, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
             {isAr ? `${step + 1} من ${total}` : `${step + 1} of ${total}`}
           </span>
-          <div style={{ display: "flex", gap: 8, flex: 1, justifyContent: isAr ? "flex-start" : "flex-end" }}>
+          <div style={{ display: "flex", gap: 6, flex: 1, justifyContent: isAr ? "flex-start" : "flex-end" }}>
             {!isFirst && (
               <button
                 type="button"
@@ -283,9 +282,9 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
                   background: "transparent",
                   border: `1px solid ${P.borderLight}`,
                   color: P.textSub,
-                  borderRadius: 10,
-                  padding: "9px 14px",
-                  fontSize: 13,
+                  borderRadius: 8,
+                  padding: "7px 12px",
+                  fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
                   fontFamily: ff,
@@ -301,13 +300,13 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
                 background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`,
                 border: "none",
                 color: "#fff",
-                borderRadius: 10,
-                padding: "9px 18px",
-                fontSize: 13,
+                borderRadius: 8,
+                padding: "7px 14px",
+                fontSize: 12,
                 fontWeight: 800,
                 cursor: "pointer",
                 fontFamily: ff,
-                boxShadow: `0 4px 16px ${P.violet}44`,
+                boxShadow: `0 3px 12px ${P.violet}44`,
               }}
             >
               {isLast ? (isAr ? "تم" : "Done") : (isAr ? "التالي" : "Next")}

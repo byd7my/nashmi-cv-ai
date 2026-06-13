@@ -47,6 +47,19 @@ import { NASHMI_BUILD_ID } from "@/nashmi/lib/build-version";
 
 const FF2 = FF;
 
+/** True when CV has imported or user-filled content (not a blank new resume). */
+function cvHasPreviewContent(cv: CVData): boolean {
+  const has = (s?: string) => Boolean(s?.trim());
+  if (has(cv.name) || has(cv.title) || has(cv.summary)) return true;
+  if (cv.experience?.some((e) => has(e.company) || has(e.role) || has(e.description))) return true;
+  if (cv.education?.some((e) => has(e.school) || has(e.degree))) return true;
+  if (cv.projects?.some((p) => has(p.name) || has(p.description))) return true;
+  if ((cv.skills?.length ?? 0) > 0) return true;
+  if ((cv.certifications?.length ?? 0) > 0) return true;
+  if ((cv.languages?.length ?? 0) > 0) return true;
+  return false;
+}
+
 // ── Hoisted atoms (module scope — prevents remount on keystroke) ───────────
 const Inp = memo(function Inp({ label, value, onChange, placeholder, type = "text", isAr = false }: {
   label?: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; isAr?: boolean;
@@ -82,12 +95,13 @@ const Txta = memo(function Txta({ label, value, onChange, placeholder, rows = 4,
 // Mirrors CVPreview's visual layout but wraps every section in a clickable
 // region that opens the matching editor panel. The PDF export still renders
 // the untouched CVPreview component off-screen, so this never affects output.
-function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
+function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId, compactSections = false }: {
   cv: CVData;
   cvIsAr: boolean;
   activePanel: string | null;
   onSelect: (id: string) => void;
   templateId?: CvTemplateId;
+  compactSections?: boolean;
 }) {
   const H = cvIsAr ? AR_HEADERS : EN_HEADERS;
   const tpl = getCvTemplateStyles(templateId ?? getDefaultCvTemplate());
@@ -123,9 +137,9 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
           outline: active ? `2px solid ${P.violet}88` : "2px solid transparent",
           outlineOffset: 2,
           marginBottom: mb,
-          padding: "12px 10px",
-          marginInline: -6,
-          minHeight: 48,
+          padding: compactSections ? "6px 4px" : "12px 10px",
+          marginInline: compactSections ? -2 : -6,
+          minHeight: compactSections ? 36 : 48,
           touchAction: "manipulation",
           WebkitTapHighlightColor: `${P.violet}44`,
           position: "relative",
@@ -683,12 +697,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [showExportLangWarning, setShowExportLangWarning] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [eliteSwitchBusy, setEliteSwitchBusy] = useState<"ar" | "en" | null>(null);
-  const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => {
-    if (typeof window !== "undefined" && isMobileLayout()) {
-      return DEFAULT_CV_TEMPLATE;
-    }
-    return getStoredCvTemplate();
-  });
+  const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => getStoredCvTemplate());
 
   // ── Click-to-edit canvas mode ──────────────────────────────────────────
   const [editMode, setEditMode] = useState<"canvas" | "sidebar">("sidebar");
@@ -711,25 +720,17 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   /** Slightly enlarges the paper preview on desktop (capped at max scale). */
   const PREVIEW_SCALE_BOOST = 1.14;
   const MOBILE_PREVIEW_MIN_SCALE = 0.38;
+  /** Imported/filled CV — narrower sheet (~astrsa proportions). */
+  const MOBILE_FILLED_WIDTH_RATIO = 0.88;
+  const MOBILE_EMPTY_SIDE_PAD = 32;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
   }, [currentPlan]);
 
   useEffect(() => {
-    if (!isMobile || startMode !== "ready") return;
-    setCvTemplate(DEFAULT_CV_TEMPLATE);
-    setStoredCvTemplate(DEFAULT_CV_TEMPLATE);
-  }, [isMobile, startMode]);
-
-  useEffect(() => {
-    if (isMobile) {
-      if (cvTemplate !== DEFAULT_CV_TEMPLATE) setCvTemplate(DEFAULT_CV_TEMPLATE);
-      setStoredCvTemplate(DEFAULT_CV_TEMPLATE);
-      return;
-    }
     setStoredCvTemplate(cvTemplate);
-  }, [cvTemplate, isMobile]);
+  }, [cvTemplate]);
 
   useEffect(() => {
     try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }
@@ -806,7 +807,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const mobile = isMobileLayout();
       setIsMobile(mobile);
       if (mobile) {
-        setPreviewScale(Math.min(1, Math.max(MOBILE_PREVIEW_MIN_SCALE, (window.innerWidth - 32) / CV_PAPER_WIDTH)));
+        const w = window.innerWidth;
+        const filled = cvHasPreviewContent(cv);
+        const scale = filled
+          ? (w * MOBILE_FILLED_WIDTH_RATIO) / CV_PAPER_WIDTH
+          : (w - MOBILE_EMPTY_SIDE_PAD) / CV_PAPER_WIDTH;
+        setPreviewScale(Math.min(1, Math.max(MOBILE_PREVIEW_MIN_SCALE, scale)));
         return;
       }
       const area = previewAreaRef.current;
@@ -827,7 +833,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       window.removeEventListener("resize", updateLayout);
       ro?.disconnect();
     };
-  }, [startMode, scaledCvHeight]);
+  }, [startMode, scaledCvHeight, cv]);
 
   useEffect(() => {
     if (!scaledCvRef.current) return;
@@ -904,6 +910,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const finishMobileTour = () => {
     try { sessionStorage.setItem(MOBILE_TOUR_STORAGE_KEY, "1"); } catch { /* ignore */ }
     setMobileTourStep(null);
+    setActivePanel(null);
+    setMobileTab("preview");
+    requestAnimationFrame(() => {
+      previewAreaRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
   };
 
   const handleMobileTourNext = () => {
@@ -1903,9 +1914,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setActivePanel(id);
   }, [isMobile, editMode, mobileTourStep]);
 
+  const mobileCvHasContent = isMobile && cvHasPreviewContent(cv);
+
   const renderScaledCvPreview = (interactive: boolean) => {
     const scaledW = Math.round(CV_PAPER_WIDTH * previewScale);
-    const scaledH = Math.max(Math.round(scaledCvHeight * previewScale), 420);
+    const rawH = Math.round(scaledCvHeight * previewScale);
+    const scaledH = mobileCvHasContent ? rawH : Math.max(rawH, 420);
     const paperStyle: React.CSSProperties = isMobile
       ? { width: CV_PAPER_WIDTH, zoom: previewScale }
       : {
@@ -1914,13 +1928,23 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           transformOrigin: "top left",
         };
     const inner = interactive ? (
-      <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={handleSectionSelect} templateId={cvTemplate} />
+      <EditableCVPreview
+        cv={cv}
+        cvIsAr={activeCvLang === "ar"}
+        activePanel={activePanel}
+        onSelect={handleSectionSelect}
+        templateId={cvTemplate}
+        compactSections={mobileCvHasContent}
+      />
     ) : (
       <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate} />
     );
     return (
       <div className="cv-preview-stage" data-tour="cv-preview">
-        <div className="cv-preview-scaler-wrap" style={{ width: scaledW, height: scaledH }}>
+        <div
+          className={`cv-preview-scaler-wrap${mobileCvHasContent ? " is-mobile-filled" : ""}`}
+          style={{ width: scaledW, height: scaledH }}
+        >
           <div ref={scaledCvRef} className={`cv-preview-paper-inner${isMobile ? " is-mobile-zoom" : ""}`} style={paperStyle}>
             {inner}
             {!isPaid && renderWatermarkGrid()}
@@ -2143,7 +2167,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           box-shadow: ${CANVAS.paperShadow};
           flex-shrink: 0;
         }
-        .cv-preview-paper-inner { background: #fff; position: relative; }
+        .cv-preview-scaler-wrap.is-mobile-filled {
+          border-radius: 6px;
+          box-shadow: 0 2px 14px rgba(0,0,0,0.14);
+        }
         .cv-preview-paper-inner.is-mobile-zoom {
           /* iOS Safari: zoom keeps tap targets aligned (transform: scale breaks touches). */
           transform: none !important;
@@ -2384,6 +2411,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               <button onClick={openUpgradeModal} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: ff }}>
                 {isAr ? "ترقية" : "Upgrade"}
               </button>
+            </div>
+          )}
+          {isMobile && (
+            <div style={{ width: "100%", maxWidth: Math.round(CV_PAPER_WIDTH * previewScale), marginBottom: 10, padding: "0 4px", boxSizing: "border-box" }}>
+              <TemplatePicker isAr={isAr} value={cvTemplate} onChange={setCvTemplate} variant="mobile" />
             </div>
           )}
           {isMobile && isElite && (
