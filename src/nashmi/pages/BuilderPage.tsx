@@ -1318,7 +1318,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     ? { preview: "معاينة", sections: "الأقسام", copilot: "المساعد الذكي", export: "تصدير" }
     : { preview: "Preview", sections: "Sections", copilot: "AI Assistant", export: "Export" };
 
-  const paperStyle = { maxWidth: 794, margin: "0 auto" as const, boxShadow: CANVAS.paperShadow, borderRadius: 2, overflow: "hidden" as const, position: "relative" as const, background: "#fff" };
+  const paperStyle = { width: "100%", maxWidth: 794, margin: "0 auto" as const, boxShadow: CANVAS.paperShadow, borderRadius: 2, overflow: "hidden" as const, position: "relative" as const, background: "#fff" };
 
   // ── UI helpers ─────────────────────────────────────────────────────────
   const AIBtn = ({ section, text, full = false }: { section: string; text: string; full?: boolean }) => (
@@ -1835,6 +1835,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           flex-shrink: 0;
         }
         .cv-preview-paper-inner { background: #fff; }
+        @media (min-width: 769px) {
+          .builder-preview .cv-paper {
+            width: 100%;
+            max-width: 794px;
+            align-self: stretch;
+          }
+        }
         .cv-tap-hint {
           margin-top: 14px;
           display: flex;
@@ -2063,13 +2070,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           {isMobile ? (
             renderMobileScaledCv(true)
           ) : editMode === "sidebar" ? (
-            <div ref={cvPreviewRef} style={paperStyle}>
+            <div ref={cvPreviewRef} className="cv-paper" style={paperStyle}>
               <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate}/>
               {!isPaid && renderWatermarkGrid()}
             </div>
           ) : (
             <>
-              <div style={paperStyle}>
+              <div className="cv-paper" style={paperStyle}>
                 <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={setActivePanel} templateId={cvTemplate}/>
                 {!isPaid && renderWatermarkGrid()}
               </div>
