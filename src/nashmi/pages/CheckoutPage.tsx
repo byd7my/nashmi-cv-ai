@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getCvSessionId } from "@/nashmi/lib/session";
 import { setPurchaseToken, setSessionPlanTier } from "@/nashmi/lib/plan-session";
+import { touchFreeDraftTimestamp } from "@/nashmi/lib/client-data-wipe";
 import { P, FF } from "@/nashmi/lib/tokens";
 import { track } from "@/nashmi/lib/analytics";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
@@ -166,6 +167,12 @@ export function CheckoutPage({ lang, t, onNav, plan, onPaid }: Props) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    touchFreeDraftTimestamp();
+    const id = window.setInterval(() => touchFreeDraftTimestamp(), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (step !== "success") return;

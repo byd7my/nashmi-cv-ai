@@ -19,8 +19,16 @@ import {
   MOBILE_TOUR_STEPS,
   MOBILE_TOUR_STORAGE_KEY,
 } from "@/nashmi/components/MobileBuilderTutorial";
-import { getCvSessionId, resetCvSessionId } from "@/nashmi/lib/session";
-import { getSessionPlanTier, setSessionPlanTier, getPurchaseToken, clearPaidSession } from "@/nashmi/lib/plan-session";
+import { getCvSessionId } from "@/nashmi/lib/session";
+import { getSessionPlanTier, setSessionPlanTier, getPurchaseToken } from "@/nashmi/lib/plan-session";
+import {
+  wipeAllClientCvData,
+  expireFreeDraftIfStale,
+  touchFreeDraftTimestamp,
+  wipeFreeClientCvData,
+  CV_STORAGE_KEY,
+  EDITMODE_STORAGE_KEY,
+} from "@/nashmi/lib/client-data-wipe";
 import {
   getStoredCvTemplate,
   setStoredCvTemplate,
@@ -531,10 +539,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const canExport = userTier === "premium" || userTier === "elite" || userTier === "enterprise";
 
   // Persist CV across navigation (checkout round-trip, refresh)
-  const CV_STORAGE_KEY = "nashmi-cv-draft";
-  const STARTMODE_STORAGE_KEY = "nashmi-cv-startmode";
 
   function loadStoredCV(): CVData | null {
+    if (typeof window !== "undefined" && expireFreeDraftIfStale()) return null;
     try {
       const raw = typeof window !== "undefined" ? window.localStorage.getItem(CV_STORAGE_KEY) : null;
       if (!raw) return null;
@@ -543,11 +550,21 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     } catch { return null; }
   }
 
+  function hasStoredDraft(): boolean {
+    const stored = loadStoredCV();
+    if (!stored) return false;
+    const p = stored.personal;
+    return !!(
+      p?.name?.trim() ||
+      p?.email?.trim() ||
+      stored.summary?.trim() ||
+      stored.experience?.some(e => e.role?.trim() || e.company?.trim()) ||
+      stored.education?.some(e => e.school?.trim() || e.degree?.trim())
+    );
+  }
+
   const [startMode, setStartMode] = useState<"choose" | "ready">(() => {
     if (initialCV) return "ready";
-    try {
-      if (typeof window !== "undefined" && window.localStorage.getItem(STARTMODE_STORAGE_KEY) === "ready") return "ready";
-    } catch { /* ignore */ }
     return "choose";
   });
 
@@ -580,7 +597,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => getStoredCvTemplate());
 
   // ── Click-to-edit canvas mode ──────────────────────────────────────────
-  const EDITMODE_STORAGE_KEY = "nashmi-edit-mode";
   const [editMode, setEditMode] = useState<"canvas" | "sidebar">("sidebar");
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const editorPanelRef = useRef<HTMLDivElement>(null);
@@ -736,6 +752,27 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     mobileTourTimerRef.current = window.setTimeout(() => attempt(0), 350);
   }, []);
 
+  const startFreshResume = useCallback(() => {
+    setCv({ ...INIT_CV });
+    setActiveSection(0);
+    setActivePanel(null);
+    setCopilotHistory([
+      { role: "assistant", content: isAr ? "مرحباً! أنا مساعدك الذكي. كيف يمكنني تحسين سيرتك؟" : "Hi! I'm your AI assistant. How can I improve your resume?" },
+    ]);
+    wipeFreeClientCvData();
+    setStartMode("ready");
+    resetDesktopEditMode();
+    scheduleMobileTour();
+  }, [isAr, scheduleMobileTour]);
+
+  const continueDraft = useCallback(() => {
+    const stored = loadStoredCV();
+    if (stored) setCv({ ...INIT_CV, ...stored });
+    setStartMode("ready");
+    resetDesktopEditMode();
+    scheduleMobileTour();
+  }, [scheduleMobileTour]);
+
   useEffect(() => {
     if (startMode !== "ready") return;
     scheduleMobileTour();
@@ -837,17 +874,28 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     if (initialCV) setCv({ ...INIT_CV, ...initialCV });
   }, [initialCV]);
 
+  useEffect(() => {
+    if (initialCV) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!expireFreeDraftIfStale()) return;
+      setCv({ ...INIT_CV });
+      setActiveSection(0);
+      setActivePanel(null);
+      setStartMode("choose");
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [initialCV]);
+
   // Auto-save CV draft so it survives navigation (e.g. paying then returning)
   useEffect(() => {
     try { window.localStorage.setItem(CV_STORAGE_KEY, JSON.stringify(cv)); } catch { /* ignore */ }
-    // Elite: also persist a per-language snapshot so users can swap between AR/EN
     try {
       window.localStorage.setItem(ELITE_CV_KEYS[activeCvLang], JSON.stringify(cv));
     } catch { /* ignore */ }
-  }, [cv, activeCvLang]);
-  useEffect(() => {
-    try { window.localStorage.setItem(STARTMODE_STORAGE_KEY, startMode); } catch { /* ignore */ }
-  }, [startMode]);
+    if (!isPaid) touchFreeDraftTimestamp();
+  }, [cv, activeCvLang, isPaid]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1387,22 +1435,18 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       }
 
       // ── Security: one purchase = one export session ──────────────────
-      // After a successful download, wipe the local session (saved CV draft,
-      // Elite snapshots, plan) and return to the landing page. The next visit
-      // starts as a brand-new free user, so a single payment cannot be reused
-      // to export unlimited resumes.
-      setTimeout(() => {
-        try {
-          window.localStorage.removeItem(CV_STORAGE_KEY);
-          window.localStorage.removeItem(STARTMODE_STORAGE_KEY);
-          window.localStorage.removeItem(ELITE_CV_KEYS.ar);
-          window.localStorage.removeItem(ELITE_CV_KEYS.en);
-          resetCvSessionId();
-        } catch { /* ignore */ }
-        clearPaidSession();
-        setCurrentPlan("starter");
-        onNav("landing");
-      }, 2500);
+      // Wipe CV draft, contact info, session tokens, and paid plan immediately.
+      wipeAllClientCvData();
+      setCv({ ...INIT_CV });
+      setActiveSection(0);
+      setActivePanel(null);
+      setStartMode("choose");
+      setCopilotHistory([
+        { role: "assistant", content: isAr ? "مرحباً! أنا مساعدك الذكي. كيف يمكنني تحسين سيرتك؟" : "Hi! I'm your AI assistant. How can I improve your resume?" },
+      ]);
+      setCurrentPlan("starter");
+
+      setTimeout(() => onNav("landing"), 1200);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       showToast(isAr ? `✕ فشل تصدير PDF: ${msg}` : `✕ PDF export failed: ${msg}`, "error");
@@ -1721,8 +1765,21 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   );
 
   const handleSectionSelect = useCallback((id: string) => {
+    if (!isMobile && editMode === "sidebar") {
+      let sectionIdx: Section = 0;
+      if (id === "personal") sectionIdx = 0;
+      else if (id === "summary") sectionIdx = 1;
+      else if (id.startsWith("experience")) sectionIdx = 2;
+      else if (id.startsWith("education")) sectionIdx = 3;
+      else if (id === "certifications") sectionIdx = 4;
+      else if (id === "skills") sectionIdx = 5;
+      else if (id === "languages") sectionIdx = 6;
+      else return;
+      setActiveSection(sectionIdx);
+      return;
+    }
     setActivePanel(id);
-  }, []);
+  }, [isMobile, editMode]);
 
   const renderScaledCvPreview = (interactive: boolean) => {
     const scaledW = Math.round(CV_PAPER_WIDTH * previewScale);
@@ -1767,14 +1824,30 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         <h1 style={{ color: P.text, fontSize: 28, fontWeight: 900, marginBottom: 10, textAlign: "center", letterSpacing: "-0.02em" }}>
           {isAr ? "كيف تريد البدء؟" : "How would you like to start?"}
         </h1>
-        <p style={{ color: P.muted, fontSize: 14, marginBottom: 40, textAlign: "center" }}>
+        <p style={{ color: P.muted, fontSize: 14, marginBottom: hasStoredDraft() ? 16 : 40, textAlign: "center" }}>
           {isAr ? "ابدأ سيرة جديدة من الصفر، أو استورد سيرتك الحالية" : "Start fresh or import your existing resume"}
         </p>
+
+        {hasStoredDraft() && (
+          <button
+            onClick={continueDraft}
+            style={{ width: "100%", maxWidth: 560, marginBottom: 24, background: P.card, border: `1.5px solid ${P.violet}44`, borderRadius: 14, padding: "16px 20px", cursor: "pointer", textAlign: "center", transition: "all 0.2s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${P.violet}44`; }}
+          >
+            <div style={{ color: P.text, fontWeight: 800, fontSize: 15, marginBottom: 4, fontFamily: ff }}>
+              {isAr ? "↩ متابعة المسودة المحفوظة" : "↩ Continue saved draft"}
+            </div>
+            <div style={{ color: P.muted, fontSize: 12 }}>
+              {isAr ? "استئناف آخر سيرة كنت تعمل عليها" : "Pick up where you left off"}
+            </div>
+          </button>
+        )}
 
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", maxWidth: 560, width: "100%" }}>
           {/* New Resume */}
           <button
-            onClick={() => { setStartMode("ready"); resetDesktopEditMode(); scheduleMobileTour(); }}
+            onClick={startFreshResume}
             style={{ flex: 1, minWidth: 200, background: `linear-gradient(135deg, ${P.violet}33, ${P.violetLight}22)`, border: `1.5px solid ${P.violet}55`, borderRadius: 18, padding: "32px 24px", cursor: "pointer", textAlign: "center", transition: "all 0.2s", boxShadow: `0 4px 20px ${P.violet}22` }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 8px 32px ${P.violet}44`; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${P.violet}55`; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 20px ${P.violet}22`; }}
@@ -2191,20 +2264,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               />
             </div>
           )}
-          {isMobile ? (
-            renderScaledCvPreview(true)
-          ) : editMode === "sidebar" ? (
-            renderScaledCvPreview(false)
-          ) : (
-            <>
-              {renderScaledCvPreview(true)}
-              <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: CV_PAPER_WIDTH, pointerEvents: "none", opacity: 0 }}>
-                <div ref={cvPreviewRef} style={{ width: CV_PAPER_WIDTH }}>
-                  <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate}/>
-                </div>
-              </div>
-            </>
-          )}
+          {renderScaledCvPreview(true)}
 
         </div>
         )}
