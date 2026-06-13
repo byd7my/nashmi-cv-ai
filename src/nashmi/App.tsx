@@ -78,6 +78,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const raw = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
+    if (raw === "blog" || raw.startsWith("blog/")) {
+      const slug = raw.split("/")[1];
+      window.location.replace(slug ? `/blog/${slug}` : "/blog");
+    }
+  }, []);
+
+  useEffect(() => {
     const syncFromHash = () => {
       setPage(hashToPage());
       setBlogSlug(parseBlogSlugFromHash());
@@ -128,7 +136,8 @@ export default function App() {
       setInitialCV(cv ?? null);
     }
     if (next === "blog") {
-      setBlogSlug(null);
+      window.location.href = "/blog";
+      return;
     }
     setPage(next);
     syncHash(next);
@@ -137,21 +146,11 @@ export default function App() {
   function openBlogPost(slug: string) {
     const normalized = slug.trim().toLowerCase();
     if (!normalized) return;
-    setPage("blog");
-    setBlogSlug(normalized);
-    const target = `#/blog/${normalized}`;
-    if (window.location.hash !== target) {
-      window.location.hash = target;
-    }
+    window.location.href = `/blog/${normalized}`;
   }
 
   function openBlogList() {
-    setPage("blog");
-    setBlogSlug(null);
-    const target = "#/blog";
-    if (window.location.hash !== target) {
-      window.location.hash = target;
-    }
+    window.location.href = "/blog";
   }
 
   function selectPlan(plan: string) {

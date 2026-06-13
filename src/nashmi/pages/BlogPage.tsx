@@ -1,7 +1,7 @@
 import { P, FF } from "@/nashmi/lib/tokens";
 import { PageShell } from "@/nashmi/components/PageShell";
 import { BlogArticleView } from "@/nashmi/components/BlogArticleView";
-import { BLOG_POSTS, formatReadTime, getBlogPost, blogPostHash } from "@/nashmi/lib/blog";
+import { BLOG_POSTS, formatReadTime, getBlogPost } from "@/nashmi/lib/blog";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 
 interface Props {
@@ -13,6 +13,10 @@ interface Props {
   blogSlug: string | null;
   onOpenBlogPost: (slug: string) => void;
   onOpenBlogList: () => void;
+}
+
+function blogPostUrl(slug: string) {
+  return `/blog/${slug}`;
 }
 
 const PAGE_CSS = `
@@ -103,8 +107,7 @@ export function BlogPage({ lang, t, onNav, onLangToggle, page, blogSlug, onOpenB
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                 <a
-                  href={blogPostHash(featured.slug)}
-                  onClick={(e) => { e.preventDefault(); onOpenBlogPost(featured.slug); }}
+                  href={blogPostUrl(featured.slug)}
                   style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: ff, textDecoration: "none", display: "inline-block" }}
                 >
                   {isAr ? "اقرأ المقال" : "Read Article"}
@@ -113,8 +116,7 @@ export function BlogPage({ lang, t, onNav, onLangToggle, page, blogSlug, onOpenB
               </div>
             </div>
             <a
-              href={blogPostHash(featured.slug)}
-              onClick={(e) => { e.preventDefault(); onOpenBlogPost(featured.slug); }}
+              href={blogPostUrl(featured.slug)}
               className="blog-featured-visual"
               style={{ background: `linear-gradient(135deg, ${featured.color}18, ${P.surface})`, cursor: "pointer" }}
             >
@@ -126,8 +128,7 @@ export function BlogPage({ lang, t, onNav, onLangToggle, page, blogSlug, onOpenB
             {rest.map((post) => (
               <a
                 key={post.slug}
-                href={blogPostHash(post.slug)}
-                onClick={(e) => { e.preventDefault(); onOpenBlogPost(post.slug); }}
+                href={blogPostUrl(post.slug)}
                 className="blog-card-link"
               >
                 <article

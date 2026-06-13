@@ -24,6 +24,10 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
 
   const handleNavClick = (route: { label: string; anchor?: string; page?: string }) => {
     setMenuOpen(false);
+    if (route.page === "blog") {
+      window.location.href = "/blog";
+      return;
+    }
     if (route.page) { onNav(route.page); return; }
     if (route.anchor) {
       if (page !== "landing") { onNav("landing"); setTimeout(() => document.getElementById(route.anchor!)?.scrollIntoView({ behavior:"smooth", block:"start" }), 120); }

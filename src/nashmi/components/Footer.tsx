@@ -24,6 +24,7 @@ export function Footer({ lang, t, onNav }: FooterProps) {
         <div style={{ display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
           {routes.map(r => (
             <button key={r.label} onClick={() => {
+              if (r.page === "blog") { window.location.href = "/blog"; return; }
               if (r.page) onNav(r.page);
               else { onNav("landing"); setTimeout(() => document.getElementById(r.anchor!)?.scrollIntoView({ behavior:"smooth" }), 120); }
             }} style={{ background:"none", border:"none", color:P.muted, cursor:"pointer", fontSize:13, fontFamily:ff, transition:"color 0.2s" }}
