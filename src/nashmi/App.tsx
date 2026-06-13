@@ -13,6 +13,7 @@ import { CheckoutPage } from "@/nashmi/pages/CheckoutPage";
 import { AdminPage } from "@/nashmi/pages/AdminPage";
 import { LanguageModal } from "@/nashmi/components/LanguageModal";
 import { CvLangModal } from "@/nashmi/components/CvLangModal";
+import { parseBlogSlugFromHash } from "@/nashmi/lib/blog";
 
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,9 +42,10 @@ const PUBLIC_PAGES = new Set<string>(["landing", "builder", "templates", "blog",
 
 function hashToPage(): Page {
   if (typeof window === "undefined") return "landing";
-  const slug = window.location.hash.replace(/^#\/?/, "").split("?")[0].trim().toLowerCase();
-  if (!slug || slug === "landing" || slug === "auth" || slug === "admin") return "landing";
-  return PUBLIC_PAGES.has(slug) ? (slug as Page) : "landing";
+  const first = window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+  if (!first || first === "landing" || first === "auth" || first === "admin") return "landing";
+  if (first === "blog") return "blog";
+  return PUBLIC_PAGES.has(first) ? (first as Page) : "landing";
 }
 
 function pageToHash(page: Page): string {
@@ -55,6 +57,7 @@ export default function App() {
   const t = TR[lang];
 
   const [page, setPage] = useState<Page>(() => hashToPage());
+  const [blogSlug, setBlogSlug] = useState<string | null>(() => parseBlogSlugFromHash());
   const [selectedPlan, setSelectedPlan] = useState("premium");
   const [currentPlan, setCurrentPlan] = useState<string | null>(() => {
     const stored = getSessionPlanTier();
@@ -75,14 +78,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onHash = () => setPage(hashToPage());
+    const onHash = () => {
+      setPage(hashToPage());
+      setBlogSlug(parseBlogSlugFromHash());
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [page]);
+  }, [page, blogSlug]);
 
   const syncHash = useCallback((dest: Page) => {
     const next = pageToHash(dest);
@@ -156,7 +162,7 @@ export default function App() {
       pageNode = <TemplatesPage {...shared}/>;
       break;
     case "blog":
-      pageNode = <BlogPage {...shared}/>;
+      pageNode = <BlogPage {...shared} blogSlug={blogSlug} />;
       break;
     case "checkout":
       pageNode = (
