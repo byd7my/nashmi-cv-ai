@@ -1,7 +1,7 @@
 import { P, FF } from "@/nashmi/lib/tokens";
 import { PageShell } from "@/nashmi/components/PageShell";
 import { BlogArticleView } from "@/nashmi/components/BlogArticleView";
-import { BLOG_POSTS, formatReadTime, getBlogPost, blogListHash, blogPostHash } from "@/nashmi/lib/blog";
+import { BLOG_POSTS, formatReadTime, getBlogPost, blogPostHash } from "@/nashmi/lib/blog";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 
 interface Props {
@@ -11,12 +11,20 @@ interface Props {
   onLangToggle: () => void;
   page: string;
   blogSlug: string | null;
+  onOpenBlogPost: (slug: string) => void;
+  onOpenBlogList: () => void;
 }
 
 const PAGE_CSS = `
   .blog-page-inner { max-width: 1200px; margin: 0 auto; padding: 60px 24px; }
   .blog-featured { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-  .blog-featured-visual { min-height: 200px; }
+  .blog-featured-visual { min-height: 200px; display: block; text-decoration: none; color: inherit; }
+  .blog-card-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
   .blog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
   @media (max-width: 768px) {
     .blog-page-inner { padding: 28px 16px 40px; }
@@ -30,22 +38,14 @@ const PAGE_CSS = `
   }
 `;
 
-function openPost(slug: string) {
-  window.location.hash = blogPostHash(slug);
-}
-
-function openBlogList() {
-  window.location.hash = blogListHash();
-}
-
-export function BlogPage({ lang, t, onNav, onLangToggle, page, blogSlug }: Props) {
+export function BlogPage({ lang, t, onNav, onLangToggle, page, blogSlug, onOpenBlogPost, onOpenBlogList }: Props) {
   const isAr = lang === "ar";
   const ff = FF;
 
   if (blogSlug) {
     const post = getBlogPost(blogSlug);
     if (!post) {
-      openBlogList();
+      onOpenBlogList();
       return null;
     }
     return (
@@ -56,7 +56,7 @@ export function BlogPage({ lang, t, onNav, onLangToggle, page, blogSlug }: Props
             lang={lang}
             isAr={isAr}
             readTimeLabel={formatReadTime(post, isAr)}
-            onBack={openBlogList}
+            onBack={onOpenBlogList}
             onBuild={() => onNav("builder")}
           />
         </div>
@@ -102,59 +102,61 @@ export function BlogPage({ lang, t, onNav, onLangToggle, page, blogSlug }: Props
                 </p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => openPost(featured.slug)}
-                  style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: ff }}
+                <a
+                  href={blogPostHash(featured.slug)}
+                  onClick={(e) => { e.preventDefault(); onOpenBlogPost(featured.slug); }}
+                  style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: ff, textDecoration: "none", display: "inline-block" }}
                 >
                   {isAr ? "اقرأ المقال" : "Read Article"}
-                </button>
+                </a>
                 <span style={{ color: P.muted, fontSize: 12 }}>{formatReadTime(featured, isAr)}</span>
               </div>
             </div>
-            <button
-              type="button"
+            <a
+              href={blogPostHash(featured.slug)}
+              onClick={(e) => { e.preventDefault(); onOpenBlogPost(featured.slug); }}
               className="blog-featured-visual"
-              onClick={() => openPost(featured.slug)}
-              style={{ background: `linear-gradient(135deg, ${featured.color}18, ${P.surface})`, border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+              style={{ background: `linear-gradient(135deg, ${featured.color}18, ${P.surface})`, cursor: "pointer" }}
             >
-              <img src={featured.cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", maxHeight: 280 }} />
-            </button>
+              <img src={featured.cover} alt={isAr ? featured.title.ar : featured.title.en} style={{ width: "100%", height: "100%", objectFit: "cover", maxHeight: 280, display: "block" }} />
+            </a>
           </div>
 
           <div className="blog-grid">
             {rest.map((post) => (
-              <article
+              <a
                 key={post.slug}
-                role="button"
-                tabIndex={0}
-                onClick={() => openPost(post.slug)}
-                onKeyDown={(e) => { if (e.key === "Enter") openPost(post.slug); }}
-                style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 18, overflow: "hidden", cursor: "pointer", transition: "border-color 0.25s, transform 0.25s" }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = post.color; e.currentTarget.style.transform = "translateY(-3px)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = P.border; e.currentTarget.style.transform = ""; }}
+                href={blogPostHash(post.slug)}
+                onClick={(e) => { e.preventDefault(); onOpenBlogPost(post.slug); }}
+                className="blog-card-link"
               >
-                <div style={{ height: 140, overflow: "hidden", background: `linear-gradient(135deg, ${post.color}15, ${P.surface})` }}>
-                  <img src={post.cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
-                <div style={{ padding: "16px 16px 18px" }}>
-                  <div style={{ marginBottom: 10 }}>
-                    <span style={{ background: `${post.color}1A`, color: post.color, fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 5, border: `1px solid ${post.color}33` }}>
-                      {isAr ? post.tag.ar : post.tag.en}
-                    </span>
+                <article
+                  style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 18, overflow: "hidden", cursor: "pointer", transition: "border-color 0.25s, transform 0.25s", height: "100%" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = post.color; e.currentTarget.style.transform = "translateY(-3px)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = P.border; e.currentTarget.style.transform = ""; }}
+                >
+                  <div style={{ height: 140, overflow: "hidden", background: `linear-gradient(135deg, ${post.color}15, ${P.surface})` }}>
+                    <img src={post.cover} alt={isAr ? post.title.ar : post.title.en} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                   </div>
-                  <h3 style={{ color: P.text, fontSize: 15, fontWeight: 700, fontFamily: ff, lineHeight: 1.45, marginBottom: 8 }}>
-                    {isAr ? post.title.ar : post.title.en}
-                  </h3>
-                  <p style={{ color: P.muted, fontSize: 13, lineHeight: 1.65, marginBottom: 14 }}>
-                    {isAr ? post.excerpt.ar : post.excerpt.en}
-                  </p>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ color: P.muted, fontSize: 11 }}>{isAr ? post.date.ar : post.date.en}</span>
-                    <span style={{ color: P.muted, fontSize: 11 }}>{formatReadTime(post, isAr)}</span>
+                  <div style={{ padding: "16px 16px 18px" }}>
+                    <div style={{ marginBottom: 10 }}>
+                      <span style={{ background: `${post.color}1A`, color: post.color, fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 5, border: `1px solid ${post.color}33` }}>
+                        {isAr ? post.tag.ar : post.tag.en}
+                      </span>
+                    </div>
+                    <h3 style={{ color: P.text, fontSize: 15, fontWeight: 700, fontFamily: ff, lineHeight: 1.45, marginBottom: 8 }}>
+                      {isAr ? post.title.ar : post.title.en}
+                    </h3>
+                    <p style={{ color: P.muted, fontSize: 13, lineHeight: 1.65, marginBottom: 14 }}>
+                      {isAr ? post.excerpt.ar : post.excerpt.en}
+                    </p>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ color: P.muted, fontSize: 11 }}>{isAr ? post.date.ar : post.date.en}</span>
+                      <span style={{ color: P.muted, fontSize: 11 }}>{formatReadTime(post, isAr)}</span>
+                    </div>
                   </div>
-                </div>
-              </article>
+                </article>
+              </a>
             ))}
           </div>
 

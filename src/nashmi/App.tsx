@@ -78,12 +78,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onHash = () => {
+    const syncFromHash = () => {
       setPage(hashToPage());
       setBlogSlug(parseBlogSlugFromHash());
     };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    window.addEventListener("popstate", syncFromHash);
+    return () => {
+      window.removeEventListener("hashchange", syncFromHash);
+      window.removeEventListener("popstate", syncFromHash);
+    };
   }, []);
 
   useEffect(() => {
@@ -122,8 +127,31 @@ export default function App() {
       }
       setInitialCV(cv ?? null);
     }
+    if (next === "blog") {
+      setBlogSlug(null);
+    }
     setPage(next);
     syncHash(next);
+  }
+
+  function openBlogPost(slug: string) {
+    const normalized = slug.trim().toLowerCase();
+    if (!normalized) return;
+    setPage("blog");
+    setBlogSlug(normalized);
+    const target = `#/blog/${normalized}`;
+    if (window.location.hash !== target) {
+      window.location.hash = target;
+    }
+  }
+
+  function openBlogList() {
+    setPage("blog");
+    setBlogSlug(null);
+    const target = "#/blog";
+    if (window.location.hash !== target) {
+      window.location.hash = target;
+    }
   }
 
   function selectPlan(plan: string) {
@@ -135,6 +163,8 @@ export default function App() {
   const shared = {
     lang, t, onNav: navTo, onLangToggle: toggle, page,
     onSelectPlan: selectPlan,
+    onOpenBlogPost: openBlogPost,
+    onOpenBlogList: openBlogList,
   };
 
   if (!chosen) {
