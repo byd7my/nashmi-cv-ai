@@ -7,7 +7,7 @@ export const PAID_CV_SESSION_KEY = "nashmi:paid-cv-session";
 export const STARTMODE_STORAGE_KEY = "nashmi-cv-startmode";
 export const EDITMODE_STORAGE_KEY = "nashmi-edit-mode";
 export const ELITE_DRAFT_KEYS = ["nashmi-cv-draft-ar", "nashmi-cv-draft-en"] as const;
-export const MOBILE_TOUR_STORAGE_KEY = "nashmi:mobile-builder-tour-v2";
+export const MOBILE_TOUR_STORAGE_KEY = "nashmi:mobile-builder-tour-v4";
 
 /** Free users: draft expires after 3 minutes without returning. */
 export const FREE_DRAFT_TTL_MS = 3 * 60 * 1000;

@@ -42,6 +42,7 @@ import {
   type CvTemplateId,
 } from "@/nashmi/lib/cv-templates";
 import { renderCvToAtsPdfBlob } from "@/nashmi/lib/cv-pdf-export";
+import { isMobileLayout } from "@/nashmi/lib/mobile-layout";
 
 const FF2 = FF;
 
@@ -97,13 +98,17 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
 
   const Sec = ({ id, children, mb = 0 }: { id: string; children: React.ReactNode; mb?: number }) => {
     const active = activePanel === id;
+    const activate = (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      onSelect(id);
+    };
     return (
       <div
         role="button"
         tabIndex={0}
         data-cv-section={id}
         aria-label={id}
-        onClick={e => { e.stopPropagation(); onSelect(id); }}
+        onClick={activate}
         onKeyDown={e => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -142,12 +147,17 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
     );
   };
 
-  const SectionHead = ({ id, label, mb = 10 }: { id: string; label: string; mb?: number }) => (
+  const SectionHead = ({ id, label, mb = 10 }: { id: string; label: string; mb?: number }) => {
+    const activate = (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      onSelect(id);
+    };
+    return (
     <div
       role="button"
       tabIndex={0}
       data-cv-section={id}
-      onClick={e => { e.stopPropagation(); onSelect(id); }}
+      onClick={activate}
       onKeyDown={e => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -170,7 +180,8 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
     >
       {label}
     </div>
-  );
+    );
+  };
 
   const Placeholder = ({ label }: { label: string }) => (
     <div style={{ border: "1.5px dashed #BBB", color: "#999", borderRadius: 6, padding: "8px 10px", fontSize: 9.5, textAlign: "center" }}>
@@ -672,7 +683,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [eliteSwitchBusy, setEliteSwitchBusy] = useState<"ar" | "en" | null>(null);
   const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) {
+    if (typeof window !== "undefined" && isMobileLayout()) {
       return DEFAULT_CV_TEMPLATE;
     }
     return getStoredCvTemplate();
@@ -698,7 +709,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const DESKTOP_PREVIEW_MIN_SCALE = 0.32;
   /** Slightly enlarges the paper preview on all devices (capped at max scale). */
   const PREVIEW_SCALE_BOOST = 1.14;
-  const MOBILE_PREVIEW_MIN_SCALE = 0.42;
+  const MOBILE_PREVIEW_SCALE_BOOST = 1.22;
+  const MOBILE_PREVIEW_MIN_SCALE = 0.44;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -769,6 +781,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
+    const coarse = window.matchMedia("(hover: none) and (pointer: coarse)");
     const computeDesktopScale = (area: HTMLElement | null, cvHeight: number) => {
       const usableW = Math.max(320, (area?.clientWidth ?? CV_PAPER_WIDTH) - 20);
       let usableH = 400;
@@ -785,10 +798,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       return Math.min(DESKTOP_PREVIEW_MAX_SCALE, Math.max(DESKTOP_PREVIEW_MIN_SCALE, fit));
     };
     const updateLayout = () => {
-      const mobile = mq.matches;
+      const mobile = isMobileLayout();
       setIsMobile(mobile);
       if (mobile) {
-        const raw = ((window.innerWidth - 12) / CV_PAPER_WIDTH) * PREVIEW_SCALE_BOOST;
+        const raw = ((window.innerWidth - 8) / CV_PAPER_WIDTH) * MOBILE_PREVIEW_SCALE_BOOST;
         setPreviewScale(Math.min(1, Math.max(MOBILE_PREVIEW_MIN_SCALE, raw)));
         return;
       }
@@ -797,6 +810,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     };
     updateLayout();
     mq.addEventListener("change", updateLayout);
+    coarse.addEventListener("change", updateLayout);
     window.addEventListener("resize", updateLayout);
     const areaEl = previewAreaRef.current;
     const ro = areaEl
@@ -805,6 +819,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     if (areaEl && ro) ro.observe(areaEl);
     return () => {
       mq.removeEventListener("change", updateLayout);
+      coarse.removeEventListener("change", updateLayout);
       window.removeEventListener("resize", updateLayout);
       ro?.disconnect();
     };
@@ -822,7 +837,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   const scheduleMobileTour = useCallback(() => {
     if (typeof window === "undefined") return;
-    if (!window.matchMedia("(max-width: 768px)").matches) return;
+    if (!isMobileLayout()) return;
     try {
       if (sessionStorage.getItem(MOBILE_TOUR_STORAGE_KEY)) return;
     } catch { /* ignore */ }
@@ -1887,6 +1902,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const renderScaledCvPreview = (interactive: boolean) => {
     const scaledW = Math.round(CV_PAPER_WIDTH * previewScale);
     const scaledH = Math.max(Math.round(scaledCvHeight * previewScale), 420);
+    const paperStyle: React.CSSProperties = isMobile
+      ? { width: CV_PAPER_WIDTH, zoom: previewScale }
+      : {
+          width: CV_PAPER_WIDTH,
+          transform: `scale(${previewScale})`,
+          transformOrigin: "top left",
+        };
     const inner = interactive ? (
       <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={handleSectionSelect} templateId={cvTemplate} />
     ) : (
@@ -1895,7 +1917,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return (
       <div className="cv-preview-stage" data-tour="cv-preview">
         <div className="cv-preview-scaler-wrap" style={{ width: scaledW, height: scaledH }}>
-          <div ref={scaledCvRef} className="cv-preview-paper-inner" style={{ width: CV_PAPER_WIDTH, transform: `scale(${previewScale})`, transformOrigin: "top left" }}>
+          <div ref={scaledCvRef} className={`cv-preview-paper-inner${isMobile ? " is-mobile-zoom" : ""}`} style={paperStyle}>
             {inner}
             {!isPaid && renderWatermarkGrid()}
           </div>
@@ -2118,6 +2140,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           flex-shrink: 0;
         }
         .cv-preview-paper-inner { background: #fff; position: relative; }
+        .cv-preview-paper-inner.is-mobile-zoom {
+          /* iOS Safari: zoom keeps tap targets aligned (transform: scale breaks touches). */
+          transform: none !important;
+        }
         .cv-preview-paper-inner [data-cv-section] {
           touch-action: manipulation;
           -webkit-tap-highlight-color: rgba(124, 92, 255, 0.25);

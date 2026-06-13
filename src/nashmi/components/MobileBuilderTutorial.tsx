@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { P, FF } from "@/nashmi/lib/tokens";
 
-export const MOBILE_TOUR_STORAGE_KEY = "nashmi:mobile-builder-tour-v3";
+export const MOBILE_TOUR_STORAGE_KEY = "nashmi:mobile-builder-tour-v4";
 
 export type MobileTourTarget = "cv-preview" | "tab-sections" | "tab-copilot" | "tab-export";
 
