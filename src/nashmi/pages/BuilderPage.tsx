@@ -99,15 +99,78 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
     const active = activePanel === id;
     return (
       <div
+        role="button"
+        tabIndex={0}
+        data-cv-section={id}
+        aria-label={id}
         onClick={e => { e.stopPropagation(); onSelect(id); }}
-        style={{ cursor: "pointer", borderRadius: 6, transition: "outline 0.15s", outline: active ? `2px solid ${P.violet}88` : "2px solid transparent", outlineOffset: 3, marginBottom: mb }}
-        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLDivElement).style.outline = `2px solid ${P.violet}33`; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.outline = active ? `2px solid ${P.violet}88` : "2px solid transparent"; }}
+        onKeyDown={e => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelect(id);
+          }
+        }}
+        style={{
+          cursor: "pointer",
+          borderRadius: 8,
+          transition: "outline 0.15s, background 0.15s",
+          outline: active ? `2px solid ${P.violet}88` : "2px solid transparent",
+          outlineOffset: 2,
+          marginBottom: mb,
+          padding: "12px 10px",
+          marginInline: -6,
+          minHeight: 48,
+          touchAction: "manipulation",
+          WebkitTapHighlightColor: `${P.violet}44`,
+          position: "relative",
+          zIndex: 2,
+        }}
+        onMouseEnter={e => {
+          if (!active) {
+            (e.currentTarget as HTMLDivElement).style.outline = `2px solid ${P.violet}33`;
+            (e.currentTarget as HTMLDivElement).style.background = `${P.violet}08`;
+          }
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLDivElement;
+          el.style.outline = active ? `2px solid ${P.violet}88` : "2px solid transparent";
+          el.style.background = "transparent";
+        }}
       >
         {children}
       </div>
     );
   };
+
+  const SectionHead = ({ id, label, mb = 10 }: { id: string; label: string; mb?: number }) => (
+    <div
+      role="button"
+      tabIndex={0}
+      data-cv-section={id}
+      onClick={e => { e.stopPropagation(); onSelect(id); }}
+      onKeyDown={e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(id);
+        }
+      }}
+      style={{
+        ...headStyle,
+        marginBottom: mb,
+        cursor: "pointer",
+        borderRadius: 8,
+        padding: "10px 8px",
+        marginInline: -6,
+        minHeight: 44,
+        touchAction: "manipulation",
+        WebkitTapHighlightColor: `${P.violet}44`,
+        position: "relative",
+        zIndex: 2,
+      }}
+    >
+      {label}
+    </div>
+  );
 
   const Placeholder = ({ label }: { label: string }) => (
     <div style={{ border: "1.5px dashed #BBB", color: "#999", borderRadius: 6, padding: "8px 10px", fontSize: 9.5, textAlign: "center" }}>
@@ -144,7 +207,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
 
       {/* Experience */}
       <div style={{ marginBottom: 6 }}>
-        <div style={{ ...headStyle, marginBottom: 10 }}>{H.experience}</div>
+        <SectionHead id="experience-0" label={H.experience} />
         {cv.experience.map((e, i) => (
           <Sec key={i} id={`experience-${i}`} mb={12}>
             {(e.company || e.role || e.desc) ? (
@@ -164,7 +227,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
 
       {/* Education */}
       <div style={{ marginBottom: 6 }}>
-        <div style={{ ...headStyle, marginBottom: 10 }}>{H.education}</div>
+        <SectionHead id="education-0" label={H.education} />
         {cv.education.map((e, i) => {
           const degreeText = [e.degree, e.field].filter(Boolean).join(cvIsAr ? " - " : " in ");
           const parts = [degreeText, e.school].filter(Boolean);
@@ -195,7 +258,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
 
       {/* Certifications */}
       <Sec id="certifications" mb={10}>
-        <div style={{ ...headStyle, marginBottom: 10 }}>{H.certifications}</div>
+        <div style={{ ...headStyle, marginBottom: 10, pointerEvents: "none" }}>{H.certifications}</div>
         {hasCerts ? certs.filter(c => c.title || c.issuer || c.date).map((c, i) => (
           <div key={i} style={{ marginBottom: 8, fontSize: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
@@ -208,7 +271,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
 
       {/* Skills */}
       <Sec id="skills" mb={14}>
-        <div style={{ ...headStyle, marginTop: 4 }}>{H.skills}</div>
+        <div style={{ ...headStyle, marginTop: 4, pointerEvents: "none" }}>{H.skills}</div>
         {cv.skills.length > 0
           ? <div style={{ color: "#222", fontSize: 10 }}>{cv.skills.join(tpl.skillsSeparator)}</div>
           : <Placeholder label={cvIsAr ? "أضف مهاراتك" : "Add your skills"}/>}
@@ -216,7 +279,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
 
       {/* Languages */}
       <Sec id="languages">
-        <div style={headStyle}>{H.languages}</div>
+        <div style={{ ...headStyle, pointerEvents: "none" }}>{H.languages}</div>
         {cv.languages.some(l => l.lang)
           ? <div style={{ color: "#222", fontSize: 10 }}>{cv.languages.filter(l => l.lang).map(l => `${l.lang}${l.level ? ` (${l.level})` : ""}`).join(" · ")}</div>
           : <Placeholder label={cvIsAr ? "أضف اللغات" : "Add languages"}/>}
@@ -633,6 +696,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const CV_PAPER_WIDTH = 794;
   const DESKTOP_PREVIEW_MAX_SCALE = 1;
   const DESKTOP_PREVIEW_MIN_SCALE = 0.32;
+  /** Slightly enlarges the paper preview on all devices (capped at max scale). */
+  const PREVIEW_SCALE_BOOST = 1.14;
+  const MOBILE_PREVIEW_MIN_SCALE = 0.42;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -704,25 +770,26 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
     const computeDesktopScale = (area: HTMLElement | null, cvHeight: number) => {
-      const usableW = Math.max(320, (area?.clientWidth ?? CV_PAPER_WIDTH) - 48);
+      const usableW = Math.max(320, (area?.clientWidth ?? CV_PAPER_WIDTH) - 20);
       let usableH = 400;
       if (area) {
         const areaRect = area.getBoundingClientRect();
         const stage = area.querySelector(".cv-preview-stage");
-        const stageTop = stage?.getBoundingClientRect().top ?? areaRect.top + 240;
-        usableH = Math.max(280, areaRect.bottom - stageTop - 12);
+        const stageTop = stage?.getBoundingClientRect().top ?? areaRect.top + 200;
+        usableH = Math.max(300, areaRect.bottom - stageTop - 4);
       }
       const cvH = Math.max(480, cvHeight);
       const byWidth = usableW / CV_PAPER_WIDTH;
       const byHeight = usableH / cvH;
-      const fit = Math.min(byWidth, byHeight);
+      const fit = Math.min(byWidth, byHeight) * PREVIEW_SCALE_BOOST;
       return Math.min(DESKTOP_PREVIEW_MAX_SCALE, Math.max(DESKTOP_PREVIEW_MIN_SCALE, fit));
     };
     const updateLayout = () => {
       const mobile = mq.matches;
       setIsMobile(mobile);
       if (mobile) {
-        setPreviewScale(Math.min(1, Math.max(0.38, (window.innerWidth - 32) / CV_PAPER_WIDTH)));
+        const raw = ((window.innerWidth - 12) / CV_PAPER_WIDTH) * PREVIEW_SCALE_BOOST;
+        setPreviewScale(Math.min(1, Math.max(MOBILE_PREVIEW_MIN_SCALE, raw)));
         return;
       }
       const area = previewAreaRef.current;
@@ -1796,6 +1863,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   );
 
   const handleSectionSelect = useCallback((id: string) => {
+    if (isMobile && mobileTourStep !== null) {
+      try { sessionStorage.setItem(MOBILE_TOUR_STORAGE_KEY, "1"); } catch { /* ignore */ }
+      setMobileTourStep(null);
+    }
     if (!isMobile && editMode === "sidebar") {
       let sectionIdx: Section = 0;
       if (id === "personal") sectionIdx = 0;
@@ -1809,8 +1880,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       setActiveSection(sectionIdx);
       return;
     }
+    if (isMobile) setMobileTab("preview");
     setActivePanel(id);
-  }, [isMobile, editMode]);
+  }, [isMobile, editMode, mobileTourStep]);
 
   const renderScaledCvPreview = (interactive: boolean) => {
     const scaledW = Math.round(CV_PAPER_WIDTH * previewScale);
@@ -2045,7 +2117,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           box-shadow: ${CANVAS.paperShadow};
           flex-shrink: 0;
         }
-        .cv-preview-paper-inner { background: #fff; }
+        .cv-preview-paper-inner { background: #fff; position: relative; }
+        .cv-preview-paper-inner [data-cv-section] {
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: rgba(124, 92, 255, 0.25);
+        }
         @media (min-width: 769px) {
           .builder-preview {
             overflow-y: hidden !important;
