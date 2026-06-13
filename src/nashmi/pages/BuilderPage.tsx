@@ -576,12 +576,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   // ── Click-to-edit canvas mode ──────────────────────────────────────────
   const EDITMODE_STORAGE_KEY = "nashmi-edit-mode";
-  const [editMode, setEditMode] = useState<"canvas" | "sidebar">(() => {
-    try {
-      if (typeof window !== "undefined" && window.localStorage.getItem(EDITMODE_STORAGE_KEY) === "sidebar") return "sidebar";
-    } catch { /* ignore */ }
-    return "canvas";
-  });
+  const [editMode, setEditMode] = useState<"canvas" | "sidebar">("sidebar");
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const editorPanelRef = useRef<HTMLDivElement>(null);
 
@@ -608,6 +603,19 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   useEffect(() => {
     try { window.localStorage.setItem(EDITMODE_STORAGE_KEY, editMode); } catch { /* ignore */ }
   }, [editMode]);
+
+  useEffect(() => {
+    if (startMode !== "ready") return;
+    if (window.matchMedia("(max-width: 768px)").matches) return;
+    setEditMode("sidebar");
+    setActivePanel(null);
+  }, [startMode]);
+
+  const resetDesktopEditMode = () => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) return;
+    setEditMode("sidebar");
+    setActivePanel(null);
+  };
 
   // Close the editor panel when clicking outside it (auto-save is continuous,
   // so closing loses nothing). Clicking another CV section re-opens instantly
@@ -896,6 +904,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       setCv({ ...INIT_CV, ...parsed });
       setActiveSection(0);
       setStartMode("ready");
+      resetDesktopEditMode();
     } catch (e: unknown) {
       setImportError(isAr ? `فشل الاستيراد: ${describeImportError(e, isAr)}` : `Import failed: ${describeImportError(e, false)}`);
     } finally {
@@ -912,6 +921,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     }
     setActiveSection(0);
     setStartMode("ready");
+    resetDesktopEditMode();
     showToast(isAr ? "✓ تم تحميل السيرة بنجاح" : "✓ Resume loaded successfully");
   }
 
@@ -1694,7 +1704,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", maxWidth: 560, width: "100%" }}>
           {/* New Resume */}
           <button
-            onClick={() => setStartMode("ready")}
+            onClick={() => { setStartMode("ready"); resetDesktopEditMode(); }}
             style={{ flex: 1, minWidth: 200, background: `linear-gradient(135deg, ${P.violet}33, ${P.violetLight}22)`, border: `1.5px solid ${P.violet}55`, borderRadius: 18, padding: "32px 24px", cursor: "pointer", textAlign: "center", transition: "all 0.2s", boxShadow: `0 4px 20px ${P.violet}22` }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 8px 32px ${P.violet}44`; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${P.violet}55`; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 20px ${P.violet}22`; }}
