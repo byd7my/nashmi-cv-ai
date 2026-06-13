@@ -589,8 +589,13 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
   const [previewScale, setPreviewScale] = useState(1);
+  const previewAreaRef = useRef<HTMLDivElement>(null);
   const scaledCvRef = useRef<HTMLDivElement>(null);
   const [scaledCvHeight, setScaledCvHeight] = useState(1100);
+
+  const CV_PAPER_WIDTH = 794;
+  const DESKTOP_PREVIEW_MAX_SCALE = 1.4;
+  const DESKTOP_PREVIEW_MIN_SCALE = 1.12;
 
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
@@ -642,29 +647,46 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
+    const computeDesktopScale = (areaWidth: number) => {
+      const usable = areaWidth - 48;
+      if (usable <= CV_PAPER_WIDTH) return 1;
+      const fitScale = usable / CV_PAPER_WIDTH;
+      return Math.min(DESKTOP_PREVIEW_MAX_SCALE, Math.max(DESKTOP_PREVIEW_MIN_SCALE, fitScale));
+    };
     const updateLayout = () => {
       const mobile = mq.matches;
       setIsMobile(mobile);
-      setPreviewScale(mobile ? Math.min(1, Math.max(0.38, (window.innerWidth - 32) / 794)) : 1);
+      if (mobile) {
+        setPreviewScale(Math.min(1, Math.max(0.38, (window.innerWidth - 32) / CV_PAPER_WIDTH)));
+        return;
+      }
+      const areaW = previewAreaRef.current?.clientWidth ?? Math.max(CV_PAPER_WIDTH, window.innerWidth - 360);
+      setPreviewScale(computeDesktopScale(areaW));
     };
     updateLayout();
     mq.addEventListener("change", updateLayout);
     window.addEventListener("resize", updateLayout);
+    const areaEl = previewAreaRef.current;
+    const ro = areaEl
+      ? new ResizeObserver(() => updateLayout())
+      : null;
+    if (areaEl && ro) ro.observe(areaEl);
     return () => {
       mq.removeEventListener("change", updateLayout);
       window.removeEventListener("resize", updateLayout);
+      ro?.disconnect();
     };
-  }, []);
+  }, [startMode]);
 
   useEffect(() => {
-    if (!isMobile || !scaledCvRef.current) return;
+    if (!scaledCvRef.current) return;
     const el = scaledCvRef.current;
     const ro = new ResizeObserver(entries => {
       for (const entry of entries) setScaledCvHeight(entry.contentRect.height);
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [isMobile, mobileTab, cv, activeCvLang]);
+  }, [mobileTab, cv, activeCvLang, editMode, previewScale]);
 
   const [sheetDragY, setSheetDragY] = useState(0);
   const [isSheetDragging, setIsSheetDragging] = useState(false);
@@ -1318,7 +1340,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     ? { preview: "معاينة", sections: "الأقسام", copilot: "المساعد الذكي", export: "تصدير" }
     : { preview: "Preview", sections: "Sections", copilot: "AI Assistant", export: "Export" };
 
-  const paperStyle = { width: "100%", maxWidth: 794, margin: "0 auto" as const, boxShadow: CANVAS.paperShadow, borderRadius: 2, overflow: "hidden" as const, position: "relative" as const, background: "#fff" };
+  const desktopPreviewMaxW = Math.round(CV_PAPER_WIDTH * previewScale);
 
   // ── UI helpers ─────────────────────────────────────────────────────────
   const AIBtn = ({ section, text, full = false }: { section: string; text: string; full?: boolean }) => (
@@ -1617,8 +1639,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setActivePanel(id);
   }, []);
 
-  const renderMobileScaledCv = (interactive: boolean) => {
-    const scaledW = Math.round(794 * previewScale);
+  const renderScaledCvPreview = (interactive: boolean) => {
+    const scaledW = Math.round(CV_PAPER_WIDTH * previewScale);
     const scaledH = Math.max(Math.round(scaledCvHeight * previewScale), 420);
     const inner = interactive ? (
       <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={handleSectionSelect} templateId={cvTemplate} />
@@ -1628,12 +1650,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     return (
       <div className="cv-preview-stage">
         <div className="cv-preview-scaler-wrap" style={{ width: scaledW, height: scaledH }}>
-          <div ref={scaledCvRef} className="cv-preview-paper-inner" style={{ width: 794, transform: `scale(${previewScale})`, transformOrigin: "top left" }}>
+          <div ref={scaledCvRef} className="cv-preview-paper-inner" style={{ width: CV_PAPER_WIDTH, transform: `scale(${previewScale})`, transformOrigin: "top left" }}>
             {inner}
             {!isPaid && renderWatermarkGrid()}
           </div>
         </div>
-        {interactive && !activePanel && (
+        {interactive && isMobile && !activePanel && (
           <div className="cv-tap-hint">
             <span style={{ fontSize: 22 }}>👆</span>
             <span>{isAr ? "انقر على أي قسم للتعديل" : "Tap any section to edit"}</span>
@@ -1836,10 +1858,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         }
         .cv-preview-paper-inner { background: #fff; }
         @media (min-width: 769px) {
-          .builder-preview .cv-paper {
+          .builder-preview .cv-preview-stage {
             width: 100%;
-            max-width: 794px;
-            align-self: stretch;
+            max-width: 100%;
+          }
+          .builder-preview .cv-preview-scaler-wrap {
+            margin: 0 auto;
           }
         }
         .cv-tap-hint {
@@ -2020,8 +2044,9 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
         {/* CV Preview — desktop always; mobile only on Preview tab */}
         {(!isMobile || mobileTab === "preview") && (
-        <div className="builder-preview builder-workspace" style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div ref={previewAreaRef} className="builder-preview builder-workspace" style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
           {!isMobile && (
+            <div style={{ width: "100%", maxWidth: desktopPreviewMaxW }}>
             <EliteImportFeature
               userSubscriptionTier={currentPlan}
               uiLang={isAr ? "ar" : "en"}
@@ -2030,19 +2055,22 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
               onSwitchLang={switchEliteCvLang}
               busy={eliteSwitchBusy}
             />
+            </div>
           )}
           {!isMobile && (
+            <div style={{ width: "100%", maxWidth: desktopPreviewMaxW }}>
             <TemplatePicker isAr={isAr} value={cvTemplate} onChange={setCvTemplate} variant="desktop" />
+            </div>
           )}
           {isPaid && !isMobile && (
-            <div style={{ width: "100%", maxWidth: 794, background: `${P.green}12`, border: `1px solid ${P.green}33`, borderRadius: 10, padding: "8px 14px", marginBottom: 12, fontSize: 12, color: P.green }}>
+            <div style={{ width: "100%", maxWidth: desktopPreviewMaxW, background: `${P.green}12`, border: `1px solid ${P.green}33`, borderRadius: 10, padding: "8px 14px", marginBottom: 12, fontSize: 12, color: P.green }}>
               {isAr
                 ? "✓ جلسة مدفوعة — بناء وتصدير سيرة واحدة. بعد التصدير تنتهي الجلسة."
                 : "✓ Paid session — build and export one resume. Session ends after export."}
             </div>
           )}
           {!isPaid && !isMobile && (
-            <div style={{ width: "100%", maxWidth: 794, background: P.card, border: `1px solid ${P.border}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ width: "100%", maxWidth: desktopPreviewMaxW, background: P.card, border: `1px solid ${P.border}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <span style={{ color: P.gold, fontWeight: 700, fontSize: 13 }}>🔒 {isAr ? "الباقة المجانية — المعاينة كاملة" : "Free Plan — Full Preview"}</span>
                 <span style={{ color: P.muted, fontSize: 12, marginLeft: isAr ? 0 : 8, marginRight: isAr ? 8 : 0 }}>  {isAr ? "· AI والتصدير للباقات المدفوعة" : "· AI & export on paid plans"}</span>
@@ -2068,20 +2096,14 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             </div>
           )}
           {isMobile ? (
-            renderMobileScaledCv(true)
+            renderScaledCvPreview(true)
           ) : editMode === "sidebar" ? (
-            <div ref={cvPreviewRef} className="cv-paper" style={paperStyle}>
-              <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate}/>
-              {!isPaid && renderWatermarkGrid()}
-            </div>
+            renderScaledCvPreview(false)
           ) : (
             <>
-              <div className="cv-paper" style={paperStyle}>
-                <EditableCVPreview cv={cv} cvIsAr={activeCvLang === "ar"} activePanel={activePanel} onSelect={setActivePanel} templateId={cvTemplate}/>
-                {!isPaid && renderWatermarkGrid()}
-              </div>
-              <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: 794, pointerEvents: "none", opacity: 0 }}>
-                <div ref={cvPreviewRef} style={{ width: 794 }}>
+              {renderScaledCvPreview(true)}
+              <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: -10000, width: CV_PAPER_WIDTH, pointerEvents: "none", opacity: 0 }}>
+                <div ref={cvPreviewRef} style={{ width: CV_PAPER_WIDTH }}>
                   <CVPreview cv={cv} lang={lang} cvLanguage={activeCvLang} userTier={userTier} templateId={cvTemplate}/>
                 </div>
               </div>
