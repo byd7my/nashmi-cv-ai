@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
+import { TR } from "@/nashmi/lib/translations";
 
 const App = lazy(() => import("@/nashmi/App"));
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Nashmi — AI Resume Builder" },
-      { name: "description", content: "Build an ATS-friendly resume with AI in Arabic or English." },
+      { title: TR.ar.siteTitle },
+      { name: "description", content: TR.ar.siteDescription },
     ],
   }),
   component: Index,

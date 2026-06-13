@@ -77,7 +77,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "نشمي | Nashmi - منصة بناء السير الذاتية بالذكاء الاصطناعي" },
+      { title: "نشمي — منصة بناء السيرة الذاتية بالذكاء الاصطناعي" },
       {
         name: "description",
         content:
@@ -86,7 +86,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "author", content: "Nashmi" },
       {
         property: "og:title",
-        content: "نشمي | Nashmi - منصة بناء السير الذاتية بالذكاء الاصطناعي",
+        content: "نشمي — منصة بناء السيرة الذاتية بالذكاء الاصطناعي",
       },
       {
         property: "og:description",
@@ -105,7 +105,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       {
         name: "twitter:title",
-        content: "نشمي | Nashmi - منصة بناء السير الذاتية بالذكاء الاصطناعي",
+        content: "نشمي — منصة بناء السيرة الذاتية بالذكاء الاصطناعي",
       },
       {
         name: "twitter:description",
@@ -132,7 +132,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="ar">
       <head>
         <HeadContent />
       </head>

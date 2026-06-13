@@ -16,6 +16,8 @@ export const NAV_ROUTES = {
 export const TR = {
   en: {
     brand: "Nashmi",
+    siteTitle: "Nashmi — AI Resume Builder",
+    siteDescription: "Build an ATS-friendly resume with AI in Arabic or English.",
     heroTitle: "نشمي | Nashmi",
     heroSub: "The All-in-One AI Platform for Building Your Resume with Professional Excellence",
     heroBody: "Create an intelligent, ATS-compatible resume that increases your acceptance rate at leading companies and professional organisations. Design your future with precision and simplicity.",
@@ -117,6 +119,8 @@ export const TR = {
   },
   ar: {
     brand: "نشمي",
+    siteTitle: "نشمي — منصة بناء السيرة الذاتية بالذكاء الاصطناعي",
+    siteDescription: "منصة الذكاء الاصطناعي لبناء سيرة ذاتية متوافقة مع ATS بالعربية أو الإنجليزية.",
     heroTitle: "نشمي | Nashmi",
     heroSub: "منصة الذكاء الاصطناعي المتكاملة لبناء سيرتك الذاتية باحترافية عالية",
     heroBody: "أنشئ سيرة ذاتية ذكية متوافقة مع أنظمة الـ ATS العالمية لتزيد من فرص قبولك في كبرى الشركات والجهات المهنية. صمم مستقبلك بدقة وبساطة.",

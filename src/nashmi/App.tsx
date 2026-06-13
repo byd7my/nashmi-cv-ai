@@ -14,6 +14,7 @@ import { AdminPage } from "@/nashmi/pages/AdminPage";
 import { LanguageModal } from "@/nashmi/components/LanguageModal";
 import { CvLangModal } from "@/nashmi/components/CvLangModal";
 import { parseBlogSlugFromHash } from "@/nashmi/lib/blog";
+import { applyHtmlLang, applySiteMeta } from "@/nashmi/lib/site-meta";
 
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -76,6 +77,15 @@ export default function App() {
       document.head.appendChild(s);
     }
   }, []);
+
+  useEffect(() => {
+    applyHtmlLang(lang);
+  }, [lang]);
+
+  useEffect(() => {
+    if (page !== "landing") return;
+    applySiteMeta(t.siteTitle, t.siteDescription);
+  }, [lang, page, t.siteTitle, t.siteDescription]);
 
   useEffect(() => {
     const raw = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
