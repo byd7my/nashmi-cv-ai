@@ -20,18 +20,28 @@ export const CV_TEMPLATES: {
 
 const TEMPLATE_STORAGE_KEY = "nashmi:cv-template";
 
+export const DEFAULT_CV_TEMPLATE: CvTemplateId = "classic";
+
 export function isCvTemplateId(value: string | null | undefined): value is CvTemplateId {
   return CV_TEMPLATE_IDS.includes(value as CvTemplateId);
 }
 
+export function getDefaultCvTemplate(): CvTemplateId {
+  return DEFAULT_CV_TEMPLATE;
+}
+
 export function getStoredCvTemplate(): CvTemplateId {
-  if (typeof window === "undefined") return "classic";
+  if (typeof window === "undefined") return DEFAULT_CV_TEMPLATE;
   try {
     const raw = window.localStorage.getItem(TEMPLATE_STORAGE_KEY);
-    return isCvTemplateId(raw) ? raw : "classic";
+    return isCvTemplateId(raw) ? raw : DEFAULT_CV_TEMPLATE;
   } catch {
-    return "classic";
+    return DEFAULT_CV_TEMPLATE;
   }
+}
+
+export function resetStoredCvTemplate(): void {
+  setStoredCvTemplate(DEFAULT_CV_TEMPLATE);
 }
 
 export function setStoredCvTemplate(id: CvTemplateId): void {

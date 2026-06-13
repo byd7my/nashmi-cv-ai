@@ -35,6 +35,9 @@ import {
 import {
   getStoredCvTemplate,
   setStoredCvTemplate,
+  resetStoredCvTemplate,
+  getDefaultCvTemplate,
+  DEFAULT_CV_TEMPLATE,
   getCvTemplateStyles,
   type CvTemplateId,
 } from "@/nashmi/lib/cv-templates";
@@ -85,7 +88,7 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId }: {
   templateId?: CvTemplateId;
 }) {
   const H = cvIsAr ? AR_HEADERS : EN_HEADERS;
-  const tpl = getCvTemplateStyles(templateId ?? getStoredCvTemplate());
+  const tpl = getCvTemplateStyles(templateId ?? getDefaultCvTemplate());
   const ffCv = cvIsAr
     ? "'Cairo', 'Tajawal', 'Noto Naskh Arabic', Tahoma, Arial, sans-serif"
     : "'Inter', 'Helvetica Neue', Arial, sans-serif";
@@ -605,7 +608,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   const [showExportLangWarning, setShowExportLangWarning] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [eliteSwitchBusy, setEliteSwitchBusy] = useState<"ar" | "en" | null>(null);
-  const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => getStoredCvTemplate());
+  const [cvTemplate, setCvTemplate] = useState<CvTemplateId>(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) {
+      return DEFAULT_CV_TEMPLATE;
+    }
+    return getStoredCvTemplate();
+  });
 
   // ── Click-to-edit canvas mode ──────────────────────────────────────────
   const [editMode, setEditMode] = useState<"canvas" | "sidebar">("sidebar");
@@ -629,6 +637,12 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   useEffect(() => {
     setSessionPlanTier(currentPlan || "starter");
   }, [currentPlan]);
+
+  useEffect(() => {
+    if (!isMobile || startMode !== "ready") return;
+    setCvTemplate(DEFAULT_CV_TEMPLATE);
+    setStoredCvTemplate(DEFAULT_CV_TEMPLATE);
+  }, [isMobile, startMode]);
 
   useEffect(() => {
     setStoredCvTemplate(cvTemplate);
@@ -748,11 +762,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
     const attempt = (tryCount = 0) => {
       const preview = document.querySelector('[data-tour="cv-preview"]');
-      const nav = document.querySelector(".mobile-bottomnav");
-      if ((!preview || !nav) && tryCount < 15) {
-        mobileTourTimerRef.current = window.setTimeout(() => attempt(tryCount + 1), 120);
+      if (!preview && tryCount < 40) {
+        mobileTourTimerRef.current = window.setTimeout(() => attempt(tryCount + 1), 150);
         return;
       }
+      if (!preview) return;
       setMobileTab("preview");
       setMobileTourStep(0);
     };
@@ -760,7 +774,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     if (mobileTourTimerRef.current !== null) {
       window.clearTimeout(mobileTourTimerRef.current);
     }
-    mobileTourTimerRef.current = window.setTimeout(() => attempt(0), 350);
+    mobileTourTimerRef.current = window.setTimeout(() => attempt(0), 500);
   }, []);
 
   const startFreshResume = useCallback(() => {
@@ -770,22 +784,22 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setCopilotHistory([
       { role: "assistant", content: isAr ? "مرحباً! أنا مساعدك الذكي. كيف يمكنني تحسين سيرتك؟" : "Hi! I'm your AI assistant. How can I improve your resume?" },
     ]);
+    setCvTemplate(DEFAULT_CV_TEMPLATE);
+    resetStoredCvTemplate();
     wipeFreeClientCvData();
     setStartMode("ready");
     resetDesktopEditMode();
-    scheduleMobileTour();
-  }, [isAr, scheduleMobileTour]);
+  }, [isAr]);
 
   const continueDraft = useCallback(() => {
     const stored = loadStoredCV();
     if (stored) setCv({ ...INIT_CV, ...stored });
     setStartMode("ready");
     resetDesktopEditMode();
-    scheduleMobileTour();
-  }, [scheduleMobileTour]);
+  }, []);
 
   useEffect(() => {
-    if (startMode !== "ready") return;
+    if (startMode !== "ready" || !isMobile) return;
     scheduleMobileTour();
     return () => {
       if (mobileTourTimerRef.current !== null) {
@@ -793,7 +807,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         mobileTourTimerRef.current = null;
       }
     };
-  }, [startMode, scheduleMobileTour]);
+  }, [startMode, isMobile, scheduleMobileTour]);
 
   useEffect(() => {
     if (mobileTourStep === null) return;
@@ -1035,9 +1049,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       parsed = smartCategorize(parsed);
       setCv({ ...INIT_CV, ...parsed });
       setActiveSection(0);
+      setCvTemplate(DEFAULT_CV_TEMPLATE);
+      resetStoredCvTemplate();
       setStartMode("ready");
       resetDesktopEditMode();
-      scheduleMobileTour();
     } catch (e: unknown) {
       setImportError(isAr ? `فشل الاستيراد: ${describeImportError(e, isAr)}` : `Import failed: ${describeImportError(e, false)}`);
     } finally {
@@ -1053,9 +1068,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       setActiveCvLang(imported.activeLang);
     }
     setActiveSection(0);
+    setCvTemplate(DEFAULT_CV_TEMPLATE);
+    resetStoredCvTemplate();
     setStartMode("ready");
     resetDesktopEditMode();
-    scheduleMobileTour();
     showToast(isAr ? "✓ تم تحميل السيرة بنجاح" : "✓ Resume loaded successfully");
   }
 

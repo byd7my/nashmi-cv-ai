@@ -3,7 +3,7 @@ import { EN_HEADERS, AR_HEADERS } from "@/nashmi/lib/cv-parser";
 import type { CVData } from "@/nashmi/lib/ats";
 import {
   getCvTemplateStyles,
-  getStoredCvTemplate,
+  getDefaultCvTemplate,
   type CvTemplateId,
 } from "@/nashmi/lib/cv-templates";
 
@@ -23,7 +23,7 @@ export function CVPreview({ cv, lang, cvLanguage, userTier, templateId }: CVPrev
     ? "'Cairo', 'Tajawal', 'Noto Naskh Arabic', Tahoma, Arial, sans-serif"
     : "'Inter', 'Helvetica Neue', Arial, sans-serif";
 
-  const tpl = getCvTemplateStyles(templateId ?? getStoredCvTemplate());
+  const tpl = getCvTemplateStyles(templateId ?? getDefaultCvTemplate());
   const sectionTitleStyle: CSSProperties = tpl.sectionTitle;
 
   const hasElitePackage = userTier === "elite" || userTier === "enterprise";

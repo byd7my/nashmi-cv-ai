@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { P, FF } from "@/nashmi/lib/tokens";
 
-export const MOBILE_TOUR_STORAGE_KEY = "nashmi:mobile-builder-tour-v2";
+export const MOBILE_TOUR_STORAGE_KEY = "nashmi:mobile-builder-tour-v3";
 
 export type MobileTourTarget = "cv-preview" | "tab-sections" | "tab-copilot" | "tab-export";
 
@@ -200,6 +200,49 @@ export function MobileBuilderTutorial({ step, isAr, onNext, onPrev, onClose }: P
           boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
         }}
       >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 17,
+              fontWeight: 900,
+              color: "#fff",
+              flexShrink: 0,
+              boxShadow: `0 4px 14px ${P.violet}44`,
+            }}
+          >
+            N
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: P.text, fontSize: 13, fontWeight: 800, lineHeight: 1.2 }}>
+              {isAr ? "مرحباً بك في نشمي" : "Welcome to Nashmi"}
+            </div>
+            <div style={{ color: P.muted, fontSize: 11, marginTop: 2 }}>
+              {isAr ? "جولة سريعة — 4 خطوات" : "Quick tour — 4 steps"}
+            </div>
+          </div>
+          <div style={{ marginInlineStart: "auto", display: "flex", gap: 5, flexShrink: 0 }}>
+            {Array.from({ length: total }).map((_, i) => (
+              <span
+                key={i}
+                style={{
+                  width: i === step ? 18 : 7,
+                  height: 7,
+                  borderRadius: 999,
+                  background: i === step ? P.violetLight : `${P.violet}33`,
+                  transition: "width 0.2s, background 0.2s",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={onClose}
