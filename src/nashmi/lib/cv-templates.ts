@@ -1,11 +1,11 @@
 import type { CSSProperties } from "react";
 
-export type CvTemplateId = "modern" | "executive" | "minimal" | "classic";
+export type CvTemplateId = "modern" | "executive" | "minimal" | "classic" | "professional";
 
 /** PDF export always uses this layout (single column, standard headings, real text). */
 export const ATS_PDF_TEMPLATE_ID: CvTemplateId = "classic";
 
-export const CV_TEMPLATE_IDS: CvTemplateId[] = ["modern", "executive", "minimal", "classic"];
+export const CV_TEMPLATE_IDS: CvTemplateId[] = ["modern", "executive", "minimal", "classic", "professional"];
 
 export const CV_TEMPLATES: {
   id: CvTemplateId;
@@ -13,6 +13,7 @@ export const CV_TEMPLATES: {
   accent: string;
 }[] = [
   { id: "classic", name: { ar: "كلاسيك", en: "Classic" }, accent: "#2563EB" },
+  { id: "professional", name: { ar: "احترافي", en: "Professional" }, accent: "#0F172A" },
   { id: "modern", name: { ar: "عصري", en: "Modern" }, accent: "#7C5CFF" },
   { id: "executive", name: { ar: "تنفيذي", en: "Executive" }, accent: "#B8860B" },
   { id: "minimal", name: { ar: "بسيط", en: "Minimal" }, accent: "#16A34A" },
@@ -128,6 +129,27 @@ export function getCvTemplateStyles(templateId: CvTemplateId): CvTemplateStyles 
           paddingBottom: 3,
           marginBottom: 8,
           marginTop: 4,
+        },
+        skillsSeparator: ", ",
+        pagePadding: "28px 32px",
+      };
+    case "professional":
+      return {
+        accent: tpl.accent,
+        headerAlign: "center",
+        headerBorder: "2px solid #111",
+        headerPadding: "0 0 14px 0",
+        nameSize: 22,
+        sectionTitle: {
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          borderBottom: "1px solid #111",
+          paddingBottom: 3,
+          marginBottom: 8,
+          marginTop: 4,
+          color: "#111",
         },
         skillsSeparator: ", ",
         pagePadding: "28px 32px",

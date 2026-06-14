@@ -86,7 +86,7 @@ export function TemplatePicker({ isAr, value, onChange, variant = "desktop" }: P
           <div className="tpl-strip-head">
             <span className="tpl-strip-label">{isAr ? "القالب" : "Template"}</span>
             <span className="tpl-strip-hint">
-              {isAr ? "PDF ATS موحّد" : "Same ATS PDF"}
+              {isAr ? "Classic / Professional PDF" : "Classic / Professional PDF"}
             </span>
           </div>
           <div className="tpl-strip-scroll">
@@ -128,7 +128,7 @@ export function TemplatePicker({ isAr, value, onChange, variant = "desktop" }: P
             key={tpl.id}
             type="button"
             onClick={() => onChange(tpl.id)}
-            title={isAr ? "كل القوالب تُصدَّر PDF ATS بنفس التنسيق الآمن" : "All templates export the same ATS-safe PDF layout"}
+            title={isAr ? "Classic و Professional لهما تخطيط PDF مختلف" : "Classic and Professional use distinct PDF layouts"}
             style={{
               background: active ? `${tpl.accent}22` : P.surface,
               border: `1px solid ${active ? tpl.accent : P.border}`,
@@ -146,7 +146,7 @@ export function TemplatePicker({ isAr, value, onChange, variant = "desktop" }: P
         );
       })}
       <span style={{ color: P.green, fontSize: 11, fontWeight: 700 }}>
-        ✓ {isAr ? "PDF ATS واحد لكل القوالب" : "Same ATS PDF for all"}
+        ✓ {isAr ? "Classic / Professional PDF" : "Classic / Professional PDF"}
       </span>
     </div>
   );
