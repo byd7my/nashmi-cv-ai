@@ -7,7 +7,6 @@ import { getSessionPlanTier } from "@/nashmi/lib/plan-session";
 import { LandingPage } from "@/nashmi/pages/LandingPage";
 import { BuilderPage } from "@/nashmi/pages/BuilderPage";
 import { AuthPage } from "@/nashmi/pages/AuthPage";
-import { TemplatesPage } from "@/nashmi/pages/TemplatesPage";
 import { BlogPage } from "@/nashmi/pages/BlogPage";
 import { CheckoutPage } from "@/nashmi/pages/CheckoutPage";
 import { AdminPage } from "@/nashmi/pages/AdminPage";
@@ -37,9 +36,9 @@ const GLOBAL_CSS = `
   ::-webkit-scrollbar-thumb:hover { background: #7C5CFF88; }
 `;
 
-type Page = "landing" | "builder" | "auth" | "templates" | "blog" | "checkout" | "admin";
+type Page = "landing" | "builder" | "auth" | "blog" | "checkout" | "admin";
 
-const PUBLIC_PAGES = new Set<string>(["landing", "builder", "templates", "blog", "checkout"]);
+const PUBLIC_PAGES = new Set<string>(["landing", "builder", "blog", "checkout"]);
 
 function hashToPage(): Page {
   if (typeof window === "undefined") return "landing";
@@ -196,9 +195,6 @@ export default function App() {
       break;
     case "auth":
       pageNode = <AuthPage lang={lang} t={t} onNav={navTo} onLangToggle={toggle} page={page}/>;
-      break;
-    case "templates":
-      pageNode = <TemplatesPage {...shared}/>;
       break;
     case "blog":
       pageNode = <BlogPage {...shared} blogSlug={blogSlug} />;

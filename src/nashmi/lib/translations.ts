@@ -1,13 +1,11 @@
 export const NAV_ROUTES = {
   en: [
     { label: "Features",  anchor: "features"  },
-    { label: "Templates", page:   "templates" },
     { label: "Pricing",   anchor: "pricing"   },
     { label: "Blog",      page:   "blog"      },
   ],
   ar: [
     { label: "المميزات", anchor: "features"  },
-    { label: "القوالب",  page:   "templates" },
     { label: "الأسعار",  anchor: "pricing"   },
     { label: "المدونة",  page:   "blog"      },
   ],
