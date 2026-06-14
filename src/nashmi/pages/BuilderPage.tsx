@@ -593,82 +593,82 @@ function buildCopilotCvPayload(cv: CVData) {
   };
 }
 
+function detectConversationLang(message: string, fallback: "ar" | "en"): "ar" | "en" {
+  const ar = (message.match(/[\u0600-\u06FF]/g) || []).length;
+  const en = (message.match(/[A-Za-z]/g) || []).length;
+  if (ar === 0 && en === 0) return fallback;
+  return ar >= en ? "ar" : "en";
+}
+
 function isCopilotEditRequest(message: string): boolean {
-  const m = message.trim().toLowerCase();
-  return /(حسّ?ن|عدّ?ل|أعد|حدّ?ث|حسن|عدل|حدث|rewrite|improve|edit|fix|update|enhance|optimi|add|أضف|اضف)/i.test(m);
-}
-
-function inferCopilotFallbackAction(message: string): "summary" | "skills" | "experience" | null {
-  const m = message.trim().toLowerCase();
-  if (/ملخص|summary|حسن ملخص|اجعله أكثر احتراف|more professional/i.test(m)) return "summary";
-  if (/مهارات|skills|كلمات مفتاح|keyword|ats|تقني|tech job|لوظائف التقن/i.test(m)) {
-    if (/ملخص|summary/.test(m)) return "summary";
-    return "skills";
+  const m = message.trim();
+  if (!m) return false;
+  if (/[\u0600-\u06FF]/.test(m)) {
+    return /(حسّ?ن|عدّ?ل|أعد|حدّ?ث|غيّ?ر|غير|اكتب|أكتب|ضيف|أضف|اضف|احذف|شيل|ازل|أزل|بدّ?ل|بدل|طوّ?ل|قصّ?ر|نقح|صغ|عد|سو|سوا|عدّ?ل|كمّ?ل|أكمل|اكمل)/.test(m);
   }
-  if (/خبرة|experience|exp-|وظائف|responsibilit|achiev|مهام|نقاط/i.test(m)) return "experience";
-  if (/حسن ملخصي|improve my summary/i.test(m)) return "summary";
-  if (/أضف كلمات|add ats|add keywords/i.test(m)) return "skills";
-  if (/حسن لوظائف/i.test(m)) return "summary";
-  return null;
+  return /\b(improve|edit|rewrite|fix|update|change|add|remove|delete|replace|shorten|lengthen|enhance|optimi|reword|proofread|write|shorten)\b/i.test(m);
 }
 
-async function runCopilotFallback(
+function buildCopilotEditPrompt(opts: {
+  conversationIsAr: boolean;
+  cvContentIsAr: boolean;
+  cvPayload: object;
+  historyText: string;
+  userRequest: string;
+  forceUpdates: boolean;
+}): string {
+  const { conversationIsAr, cvContentIsAr, cvPayload, historyText, userRequest, forceUpdates } = opts;
+  return `
+You are an expert resume writing assistant embedded in a CV builder.
+
+Conversation language (for "message" ONLY): ${conversationIsAr ? "Arabic" : "English"}
+Resume text language (for every "updates" value): ${cvContentIsAr ? "Arabic" : "English"}
+
+Current resume (text fields only):
+${JSON.stringify(cvPayload, null, 2)}
+
+Conversation history:
+${historyText || "(none)"}
+
+User request:
+${userRequest}
+
+Return ONLY valid JSON (no markdown, no code fences):
+{"message":"","updates":[]}
+
+Rules:
+- TEXT ONLY. Never change templates, layout, styling, fonts, colors, or design.
+- "message" MUST be in ${conversationIsAr ? "Arabic" : "English"} — the language the user is speaking.
+- Every string in "updates" MUST be in ${cvContentIsAr ? "Arabic" : "English"} — the resume language.
+- Allowed paths ONLY:
+  personal.name, personal.email, personal.phone, personal.city, personal.title, personal.linkedin, personal.website,
+  summary,
+  experience.N.role, experience.N.company, experience.N.from, experience.N.to, experience.N.desc,
+  education.N.school, education.N.degree, education.N.field, education.N.from, education.N.to, education.N.gpa, education.N.honors,
+  skills (array of strings),
+  languages.N.lang, languages.N.level,
+  certifications.N.title, certifications.N.issuer, certifications.N.date
+  (N = 0-based index)
+- Do not invent employers, schools, or degrees unless the user explicitly asks.
+- experience.desc: bullet lines (• optional per line).
+${forceUpdates
+    ? `- This is a direct TEXT EDIT request. "updates" MUST contain at least one valid change. Do not reply without applying edits.`
+    : `- If the user asks to change resume text, "updates" MUST NOT be empty.
+- If the user only asks a question (no edit), return "updates": [] and answer in "message".`}
+- When "updates" is not empty, "message" MUST name each changed section clearly.
+  `.trim();
+}
+
+async function runCopilotTextEditApply(
   message: string,
   cv: CVData,
-  cvLang: "ar" | "en",
-  uiIsAr: boolean,
-): Promise<{ next: CVData; reply: string } | null> {
-  const action = inferCopilotFallbackAction(message);
-  if (!action) return null;
-
-  if (action === "summary") {
-    const data = await callAI("improve_summary", cv.summary, cvLang, { cv });
-    const text = data.text?.trim();
-    if (!text) return null;
-    return {
-      next: { ...cv, summary: text },
-      reply: uiIsAr
-        ? `✓ تم تحديث الملخص المهني.\n\n${text}`
-        : `✓ Professional Summary updated.\n\n${text}`,
-    };
-  }
-
-  if (action === "skills") {
-    const data = await callAI("improve_skills", cv.skills.join(", "), cvLang, { cv });
-    const suggested = Array.isArray(data.json)
-      ? (data.json as string[])
-      : (data.text || "").split("\n").map((s) => s.trim()).filter(Boolean);
-    if (!suggested.length) return null;
-    const merged = [...cv.skills];
-    for (const skill of suggested) {
-      if (!merged.some((s) => s.toLowerCase() === skill.toLowerCase())) merged.push(skill);
-    }
-    return {
-      next: { ...cv, skills: merged },
-      reply: uiIsAr
-        ? `✓ تم تحديث المهارات (${merged.length} مهارة).\n\n${merged.join(" · ")}`
-        : `✓ Skills updated (${merged.length} total).\n\n${merged.join(" · ")}`,
-    };
-  }
-
-  const next = JSON.parse(JSON.stringify(cv)) as CVData;
-  const changed: string[] = [];
-  for (let i = 0; i < next.experience.length; i += 1) {
-    const exp = next.experience[i];
-    if (!exp?.desc?.trim() && !exp?.role?.trim()) continue;
-    const data = await callAI(`improve_exp-${i}`, exp.desc, cvLang, { cv: next });
-    const text = data.text?.trim();
-    if (!text) continue;
-    next.experience[i] = { ...exp, desc: text };
-    changed.push(uiIsAr ? `الخبرة ${i + 1}` : `Experience ${i + 1}`);
-  }
-  if (!changed.length) return null;
-  return {
-    next,
-    reply: uiIsAr
-      ? `✓ تم تحديث: ${changed.join("، ")}`
-      : `✓ Updated: ${changed.join(", ")}`,
-  };
+  cvContentLang: "ar" | "en",
+  conversationLang: "ar" | "en",
+): Promise<CopilotResponse | null> {
+  const data = await callAI("copilot_apply", message, conversationLang, { cv, cvContentLang });
+  const parsed = data.json as CopilotResponse | undefined;
+  if (!parsed?.updates?.length) return null;
+  return parsed;
 }
 
 async function callOpenAIRaw(
@@ -893,56 +893,21 @@ Return ONLY the JSON, no explanation, no markdown, no code blocks.
   }
 
   // ── Copilot ────────────────────────────────────────────────────────────
-  if (task === "copilot") {
+  if (task === "copilot" || task === "copilot_apply") {
     const cv = (extra as any)?.cv as CVData | undefined;
     const history = ((extra as any)?.history ?? []) as { role: string; content: string }[];
     const cvContentLang = String((extra as any)?.cvContentLang ?? lang);
     const cvContentIsAr = cvContentLang.startsWith("ar");
     const cvPayload = cv ? buildCopilotCvPayload(cv) : {};
     const historyText = history.map((h: any) => `${h.role === "user" ? "User" : "Assistant"}: ${h.content}`).join("\n");
-    const prompt = `
-You are an expert resume writing assistant embedded in a CV builder.
-
-UI language (for "message" only): ${isAr ? "Arabic" : "English"}
-Resume content language (for all "updates" values): ${cvContentIsAr ? "Arabic" : "English"}
-
-Current resume (text fields only):
-${JSON.stringify(cvPayload, null, 2)}
-
-Conversation history:
-${historyText || "(none)"}
-
-User request:
-${text}
-
-Return ONLY valid JSON with this exact shape (no markdown, no code fences):
-{
-  "message": "Your reply to the user",
-  "updates": []
-}
-
-Rules:
-- TEXT CONTENT ONLY. Never change templates, layout, styling, fonts, colors, margins, or visual design.
-- "message" MUST be in ${isAr ? "Arabic" : "English"} only — match the UI language, not the resume language.
-- All values inside "updates" MUST be written in ${cvContentIsAr ? "Arabic" : "English"} (the resume language).
-- When the user asks to edit, rewrite, improve, add, remove, or fix resume TEXT, you MUST include at least one item in "updates". Never claim you edited the resume without providing updates.
-- When the user asks a general question or advice without applying edits, return "updates": [].
-- Allowed update paths only:
-  personal.name, personal.email, personal.phone, personal.city, personal.title, personal.linkedin, personal.website,
-  summary,
-  experience.N.role, experience.N.company, experience.N.from, experience.N.to, experience.N.desc (N = 0-based index),
-  education.N.school, education.N.degree, education.N.field, education.N.from, education.N.to, education.N.gpa, education.N.honors,
-  skills (value must be a JSON array of strings),
-  languages.N.lang, languages.N.level,
-  certifications.N.title, certifications.N.issuer, certifications.N.date
-- Do not use paths outside this list.
-- Do not invent employers, schools, degrees, or certifications unless the user explicitly asks to add them.
-- For experience.desc use bullet lines (each line may start with •).
-- In "message", clearly state which section(s) you changed when updates is not empty.
-
-Example when user asks to improve the summary:
-{"message":"${isAr ? "تم تحديث الملخص المهني." : "Professional Summary updated."}","updates":[{"path":"summary","value":"${cvContentIsAr ? "ملخص محسّن هنا..." : "Improved summary here..."}"}]}
-    `.trim();
+    const prompt = buildCopilotEditPrompt({
+      conversationIsAr: isAr,
+      cvContentIsAr,
+      cvPayload,
+      historyText,
+      userRequest: text,
+      forceUpdates: task === "copilot_apply",
+    });
     const result = await callOpenAIRaw(prompt, { usageType: "copilot" });
     const parsed = parseCopilotResponse(result);
     return { text: parsed.message, json: parsed };
@@ -1572,35 +1537,47 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     setIsTyping(true);
     track("ai_copilot_used");
     try {
-      const data = await callAI("copilot", message, lang, {
+      const conversationLang = detectConversationLang(message, isAr ? "ar" : "en");
+      const convIsAr = conversationLang === "ar";
+
+      const data = await callAI("copilot", message, conversationLang, {
         cv,
         history: copilotHistory.slice(-8),
         cvContentLang: activeCvLang,
       });
-      const copilot = data.json as CopilotResponse | undefined;
-      let reply = (data.text || "").trim() || (isAr ? "عذراً، لم أتمكن من المعالجة." : "Sorry, could not process that.");
+      let copilot = data.json as CopilotResponse | undefined;
+      let reply = (data.text || "").trim() || (convIsAr ? "عذراً، لم أتمكن من المعالجة." : "Sorry, could not process that.");
       let didApply = false;
 
-      if (copilot?.updates?.length) {
-        const { next, appliedLabels } = applyCopilotUpdates(cv, copilot.updates, isAr);
-        if (appliedLabels.length > 0) {
-          setCv(next);
-          didApply = true;
-          const where = appliedLabels.join(isAr ? "، " : ", ");
-          if (!reply.includes(where) && !/عدّل|عدل|حدّث|حدث|updated|changed|modified|تم تحديث/i.test(reply)) {
-            reply += isAr
-              ? `\n\n✓ تم تطبيق التعديلات على: ${where}`
-              : `\n\n✓ Applied changes to: ${where}`;
-          }
+      const tryApply = (payload: CopilotResponse | undefined) => {
+        if (!payload?.updates?.length) return false;
+        const { next, appliedLabels } = applyCopilotUpdates(cv, payload.updates, convIsAr);
+        if (!appliedLabels.length) return false;
+        setCv(next);
+        reply = payload.message.trim() || reply;
+        const where = appliedLabels.join(convIsAr ? "، " : ", ");
+        if (!reply.includes(where) && !/عدّل|عدل|حدّث|حدث|updated|changed|modified|تم تحديث/i.test(reply)) {
+          reply += convIsAr
+            ? `\n\n✓ تم تطبيق التعديلات على: ${where}`
+            : `\n\n✓ Applied changes to: ${where}`;
+        }
+        return true;
+      };
+
+      didApply = tryApply(copilot);
+
+      if (!didApply && isCopilotEditRequest(message)) {
+        const retry = await runCopilotTextEditApply(message, cv, activeCvLang, conversationLang);
+        if (retry) {
+          copilot = retry;
+          didApply = tryApply(retry);
         }
       }
 
-      if (!didApply && isCopilotEditRequest(message)) {
-        const fallback = await runCopilotFallback(message, cv, activeCvLang, isAr);
-        if (fallback) {
-          setCv(fallback.next);
-          reply = fallback.reply;
-        }
+      if (isCopilotEditRequest(message) && !didApply) {
+        reply = convIsAr
+          ? "⚠️ لم أتمكن من تطبيق التعديل على النص. حاول صياغة الطلب بشكل أوضح (مثال: «عدّل الملخص» أو «حسّن الخبرة الأولى»)."
+          : "⚠️ Could not apply a text edit. Try a clearer request (e.g. “edit the summary” or “improve experience 1”).";
       }
 
       setCopilotHistory(h => [...h, { role: "assistant", content: reply }]);
