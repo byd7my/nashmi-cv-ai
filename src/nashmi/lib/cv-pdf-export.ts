@@ -103,7 +103,7 @@ function sanitizeLatin(text: string): string {
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/[\u2022\u2023\u2043\u2219\u00B7\u2027\u25CF\u25E6]/g, ", ")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\u2013]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -564,6 +564,10 @@ const PRO_SUMMARY_W = 492;
 const PRO_BULLET_X = 65;
 const PRO_BULLET_WRAP = 75;
 const PRO_BULLET_W = X_RIGHT - PRO_BULLET_WRAP;
+const PRO_SKILL_LABEL_X = 57;
+const PRO_SKILL_LABEL_W = 90;
+const PRO_SKILL_VALUE_X = 153;
+const PRO_SKILL_VALUE_W = 340;
 
 const PRO_EN = {
   summary: "SUMMARY",
@@ -571,6 +575,7 @@ const PRO_EN = {
   education: "EDUCATION",
   other: "OTHER",
   certs: "Certifications & Courses:",
+  projects: "Projects:",
   tech: "Technical Skills:",
   soft: "Soft Skills",
   languages: "Languages:",
@@ -672,7 +677,7 @@ class ProfessionalAtsPdfWriter {
     return this.isAr ? "right" : "left";
   }
 
-  private drawFullRule(width: number) {
+  private drawFullRule(width = RULE_W) {
     this.doc.setDrawColor(...BLACK);
     this.doc.setLineWidth(width);
     this.doc.line(X_LEFT, this.y, X_RIGHT, this.y);
@@ -717,8 +722,41 @@ class ProfessionalAtsPdfWriter {
       this.doc.line(X_LEFT, ulY, X_LEFT + textW, ulY);
     }
     this.y += this.lh() * 0.35;
-    this.drawFullRule(PRO_SECTION_RULE);
+    this.drawFullRule(RULE_W);
     this.y += this.gap(5);
+  }
+
+  private writeProSkillRow(label: string, value: string) {
+    const l = this.isAr ? sanitizeAr(label) : sanitizeLatin(label);
+    const v = this.prep(value);
+    if (!l || !v) return;
+
+    const labelLines = this.split(l, PRO_SKILL_LABEL_W);
+    const valueLines = this.split(v, PRO_SKILL_VALUE_W);
+    const rows = Math.max(labelLines.length, valueLines.length);
+
+    for (let i = 0; i < rows; i += 1) {
+      if (labelLines[i]) {
+        this.setFont(true, this.sizes.body);
+        this.doc.text(
+          labelLines[i],
+          this.isAr ? X_RIGHT : PRO_SKILL_LABEL_X,
+          this.y,
+          { align: this.isAr ? "right" : "left" },
+        );
+      }
+      if (valueLines[i]) {
+        this.setFont(false, this.sizes.body);
+        this.doc.text(
+          valueLines[i],
+          this.isAr ? X_LEFT : PRO_SKILL_VALUE_X,
+          this.y,
+          { align: this.isAr ? "left" : "left" },
+        );
+      }
+      this.y += this.lh();
+    }
+    this.y += this.gap(0.5);
   }
 
   private writeOBullets(raw: string) {
@@ -792,6 +830,33 @@ class ProfessionalAtsPdfWriter {
     this.y += this.gap(8);
   }
 
+  private formatProCertLine(c: CVData["certifications"][number], latin: boolean): string {
+    const title = latin ? sanitizeLatin(c.title) : sanitizeAr(c.title);
+    const issuer = latin ? sanitizeLatin(c.issuer) : sanitizeAr(c.issuer);
+    const date = latin ? sanitizeLatin(c.date) : sanitizeAr(c.date);
+    const name =
+      title && issuer && !title.toLowerCase().includes(issuer.toLowerCase())
+        ? `${title} | ${issuer}`
+        : title || issuer;
+    return date ? `${name} | ${date}` : name;
+  }
+
+  private formatGraduationBullet(e: CVData["experience"][number], latin: boolean): string {
+    const role = latin ? sanitizeLatin(e.role) : sanitizeAr(e.role);
+    const desc = (e.desc || "")
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map((l) => l.replace(/^[\s•\-–—oO]+/, "").trim())
+      .filter(Boolean)[0];
+    const cleanDesc = desc ? (latin ? sanitizeLatin(desc) : sanitizeAr(desc)) : "";
+    const roleLabel = /graduation\s*project|مشروع\s*التخرج/i.test(role)
+      ? role
+      : role
+        ? `Graduation Project: ${role}`
+        : "Graduation Project";
+    return cleanDesc ? `${roleLabel}: ${cleanDesc}` : roleLabel;
+  }
+
   render(cv: CVData) {
     const H = AR_HEADERS;
     const latin = !this.isAr;
@@ -803,10 +868,10 @@ class ProfessionalAtsPdfWriter {
       this.y += this.gap(2);
     }
 
-    const experience = (cv.experience || []).filter((e) => e.company?.trim() || e.role?.trim() || e.desc?.trim());
-    if (experience.length) {
+    const { work, graduation } = splitExperience(cv);
+    if (work.length) {
       this.writeSection(this.isAr ? H.experience : PRO_EN.experience);
-      for (const e of experience) {
+      for (const e of work) {
         const companyLine = this.prep(e.company) || this.prep(e.role);
         this.writeLine(companyLine, this.sizes.head, true);
         const detail = [
@@ -842,29 +907,30 @@ class ProfessionalAtsPdfWriter {
     }
 
     const certs = (cv.certifications || []).filter((c) => c.title?.trim() || c.issuer?.trim() || c.date?.trim());
-    const { technical, soft } = splitProfessionalSkills(cv.skills || [], latin);
+    const skillRows = buildSkillRows(cv, latin).filter(
+      (row) => row.label !== "Soft Skills" && row.label !== "Languages",
+    );
+    const { soft } = splitProfessionalSkills(cv.skills || [], latin);
     const langs = (cv.languages || []).filter((l) => this.prep(l.lang));
-    const hasOther = certs.length || technical.length || soft.length || langs.length;
+    const hasOther = certs.length || graduation.length || skillRows.length || soft.length || langs.length;
 
     if (hasOther) {
       this.writeSection(this.isAr ? "أخرى" : PRO_EN.other);
 
       if (certs.length) {
         this.writeSubhead(this.isAr ? "الشهادات والدورات:" : PRO_EN.certs);
-        this.writeSubBulletItems(
-          certs.map((c) => {
-            const title = this.prep(c.title);
-            const issuer = this.prep(c.issuer);
-            const date = this.prep(c.date);
-            const core = title && issuer ? `${title} | ${issuer}` : title || issuer;
-            return date ? `${core} ${date}` : core;
-          }),
-        );
+        this.writeSubBulletItems(certs.map((c) => this.formatProCertLine(c, latin)));
       }
 
-      if (technical.length) {
+      if (graduation.length) {
+        this.writeSubhead(this.isAr ? "المشاريع:" : PRO_EN.projects);
+        this.writeSubBulletItems(graduation.map((e) => this.formatGraduationBullet(e, latin)));
+      }
+
+      if (skillRows.length) {
         this.writeSubhead(this.isAr ? "المهارات التقنية:" : PRO_EN.tech);
-        this.writeSubBulletItems(technical);
+        for (const row of skillRows) this.writeProSkillRow(row.label, row.text);
+        this.y += this.gap(1);
       }
 
       if (soft.length) {
