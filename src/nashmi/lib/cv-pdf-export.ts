@@ -1,74 +1,101 @@
-import jsPDF from "jspdf";
+/**
+ * cv-pdf-export.ts
+ * Pure jsPDF ATS-compatible export — Professional template only.
+ * Single column, real selectable text, black only, 1 page A4.
+ *
+ * REPLACE the entire file content with this code.
+ * Do not change the function signature.
+ */
+
+import { jsPDF } from "jspdf";
 import { ArabicShaper } from "arabic-persian-reshaper";
 import bidiFactory from "bidi-js";
-import type { CVData } from "@/nashmi/lib/ats";
-import type { CvTemplateId } from "@/nashmi/lib/cv-templates";
+import { loadPdfJs } from "@/nashmi/lib/cv-parser";
 
-const PAGE_W = 595.28;
-const PAGE_H = 841.89;
-const X_LEFT = 51.4;
-const X_RIGHT = 543.9;
-const CENTER_X = PAGE_W / 2;
-const Y_TOP = 38;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface CvExperience {
+  jobTitle: string;
+  company: string;
+  location?: string;
+  startDate: string;
+  endDate: string;
+  bullets: string[];
+}
+
+export interface CvEducation {
+  institution: string;
+  location?: string;
+  degree: string;
+  year: string;
+  gpa?: string;
+  honors?: string;
+  bullets?: string[];
+}
+
+export interface CvCertification {
+  name: string;
+  issuer?: string;
+  year: string;
+}
+
+export interface CvProject {
+  name: string;
+  institution?: string;
+  year?: string;
+  bullets: string[];
+}
+
+export interface CvProjects {
+  enabled: boolean;
+  items: CvProject[];
+}
+
+export interface CvData {
+  fullName: string;
+  jobTitle?: string;
+  phone?: string;
+  email?: string;
+  linkedin?: string;
+  location?: string;
+  summary?: string;
+  experience?: CvExperience[];
+  education?: CvEducation[];
+  certifications?: CvCertification[];
+  projects?: CvProjects;
+  skills?: string[];          // raw skills list — auto-split into hard/soft
+  hardSkills?: string[];      // optional explicit override
+  softSkills?: string[];      // optional explicit override
+  languages?: string[];
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PAGE_W   = 595.28;
+const PAGE_H   = 841.89;
+const MARGIN_L = 51.4;
+const MARGIN_R = 543.9;
+const CONTENT_W = MARGIN_R - MARGIN_L;   // 492.5pt
 const PAGE_BOTTOM = PAGE_H - 30;
-const CONTENT_W = X_RIGHT - X_LEFT;
-const BLACK: [number, number, number] = [0, 0, 0];
-const RULE_W = 0.6;
-const MIN_FONT = 7;
-const MIN_LINE_H = 9;
-const BASE_LINE_H = 11;
 
-const BULLET_MARK_X = 65;
-const BULLET_TEXT_X = 78;
-const BULLET_NEST_X = 85;
-const BULLET_NEST_TEXT_X = 98;
-const BULLET_MAX_W = 465;
-const SUMMARY_W = 492;
-const ROW_LEFT_X = 57.4;
+const TECHNICAL_KEYWORDS = [
+  "windows","linux","cisco","network","server","active directory",
+  "microsoft","tcp","ip","dns","dhcp","vpn","routing","switching",
+  "python","javascript","typescript","sql","html","css","react","node",
+  "aws","azure","docker","git","solidworks","autocad","cad","cam",
+  "matlab","arduino","iot","troubleshoot","hardware","software",
+  "database","programming","coding","design","analysis","itil",
+  "monitoring","firewall","wireless","wifi","ethernet","backup",
+  "virtualization","vmware","hyper-v","powershell","bash","scripting",
+];
 
 const AMIRI_REGULAR =
   "https://cdn.jsdelivr.net/fontsource/fonts/amiri@5.2.8/arabic-400-normal.ttf";
 const AMIRI_BOLD =
   "https://cdn.jsdelivr.net/fontsource/fonts/amiri@5.2.8/arabic-700-normal.ttf";
 
-const TECHNICAL_KEYWORDS = [
-  "windows", "linux", "cisco", "network", "server", "active directory",
-  "microsoft", "tcp", "ip", "dns", "dhcp", "vpn", "routing", "switching",
-  "python", "javascript", "sql", "html", "css", "react", "node", "aws",
-  "azure", "docker", "git", "solidworks", "autocad", "cad", "arduino",
-  "iot", "troubleshoot", "hardware", "software", "database", "programming",
-];
-
-const EN_SECTIONS = {
-  summary: "PROFESSIONAL SUMMARY",
-  experience: "EXPERIENCE",
-  education: "EDUCATION",
-  other: "OTHER",
-  certs: "Certifications & Courses:",
-  projects: "Projects:",
-  hard: "Hard Skills:",
-  soft: "Soft Skills:",
-  languages: "Languages:",
-} as const;
-
-const AR_SECTIONS = {
-  summary: "الملخص المهني",
-  experience: "الخبرة",
-  education: "التعليم",
-  other: "أخرى",
-  certs: "الشهادات والدورات:",
-  projects: "المشاريع:",
-  hard: "المهارات التقنية:",
-  soft: "المهارات الشخصية:",
-  languages: "اللغات:",
-} as const;
-
 let arabicFontsLoaded = false;
 const bidi = bidiFactory();
-
-type Scale = { fontDelta: number; lineH: number };
-
-type FontOpts = { bold?: boolean; size: number; justify?: boolean };
 
 async function loadBinaryFont(url: string): Promise<string> {
   const res = await fetch(url);
@@ -95,437 +122,749 @@ async function ensureArabicFonts(doc: jsPDF): Promise<void> {
   arabicFontsLoaded = true;
 }
 
-function sanitizeLatin(text: string): string {
-  return text
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/[\u2022\u2023\u2043\u2219\u00B7\u2027\u25CF\u25E6]/g, ", ")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
-    .replace(/[^\x09\x0A\x0D\x20-\x7E\u2013]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+// ─── Arabic reshaping ─────────────────────────────────────────────────────────
 
-function sanitizeAr(text: string): string {
-  return text
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function shapeArabic(text: string): string {
-  const clean = sanitizeAr(text);
-  if (!clean) return "";
-  if (!/[\u0600-\u06FF]/.test(clean)) return clean;
-  const shaped = ArabicShaper.convertArabic(clean);
-  const levels = bidi.getEmbeddingLevels(shaped);
-  return bidi.getReorderedString(shaped, levels);
-}
-
-function prepText(text: string, isAr: boolean): string {
-  if (!text) return "";
-  return isAr ? shapeArabic(text) : sanitizeLatin(text);
-}
-
-function scaledSize(base: number, scale: Scale): number {
-  return Math.max(MIN_FONT, Math.round((base - scale.fontDelta) * 2) / 2);
-}
-
-function lineHeight(scale: Scale): number {
-  return Math.max(MIN_LINE_H, scale.lineH);
-}
-
-function setFont(doc: jsPDF, isAr: boolean, bold: boolean, size: number): void {
-  doc.setTextColor(...BLACK);
-  if (isAr) {
-    doc.setFont("Amiri", bold ? "bold" : "normal");
-  } else {
-    doc.setFont("helvetica", bold ? "bold" : "normal");
+async function reshapeArabic(text: string): Promise<string> {
+  if (!text || !/[\u0600-\u06FF]/.test(text)) return text;
+  try {
+    const shaped = ArabicShaper.convertArabic(text);
+    const levels = bidi.getEmbeddingLevels(shaped);
+    return bidi.getReorderedString(shaped, levels);
+  } catch {
+    return text;
   }
-  doc.setFontSize(size);
 }
 
-function splitLines(doc: jsPDF, text: string, maxWidth: number): string[] {
-  if (!text) return [];
-  const lines = doc.splitTextToSize(text, maxWidth) as string[];
-  return lines.length ? lines : [text];
-}
+// ─── Skill splitter ───────────────────────────────────────────────────────────
 
-function drawLine(doc: jsPDF, y: number): void {
-  doc.setDrawColor(...BLACK);
-  doc.setLineWidth(RULE_W);
-  doc.line(X_LEFT, y, X_RIGHT, y);
-}
-
-function formatDateRange(from: string, to: string, isAr: boolean): string {
-  const f = prepText(from, isAr);
-  const t = prepText(to, isAr);
-  if (f && t) return `${f} – ${t}`;
-  return f || t || "";
-}
-
-function parseBullets(raw: string): string[] {
-  return raw
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((l) => l.replace(/^[\s•\-–—oO]+/, "").trim())
-    .filter(Boolean);
-}
-
-function splitSkills(skills: string[], isAr: boolean): { hard: string[]; soft: string[] } {
+function splitSkills(skills: string[]): { hard: string[]; soft: string[] } {
   const hard: string[] = [];
   const soft: string[] = [];
-  for (const raw of skills) {
-    const skill = prepText(raw, isAr);
-    if (!skill) continue;
+  for (const skill of skills) {
     const lower = skill.toLowerCase();
-    if (TECHNICAL_KEYWORDS.some((k) => lower.includes(k))) hard.push(skill);
-    else soft.push(skill);
+    const isTech = TECHNICAL_KEYWORDS.some((kw) => lower.includes(kw));
+    if (isTech) hard.push(skill);
+    else         soft.push(skill);
   }
   return { hard, soft };
 }
 
-function buildContact(cv: CVData, isAr: boolean): string {
-  const parts = [
-    prepText(cv.personal.phone, isAr),
-    prepText(cv.personal.email, isAr),
-    prepText(cv.personal.linkedin, isAr),
-  ].filter(Boolean);
-  return parts.join("  |  ");
-}
+// ─── PDF renderer class ───────────────────────────────────────────────────────
 
-function buildEduLine2(e: CVData["education"][number], isAr: boolean): string {
-  const degree = [prepText(e.degree, isAr), prepText(e.field, isAr)].filter(Boolean).join(isAr ? " - " : " in ");
-  const parts = [degree].filter(Boolean);
-  if (e.showGpa && e.gpa) {
-    parts.push(`${isAr ? "المعدل" : "GPA"}: ${prepText(e.gpa, isAr)}${e.gpaScale ? `/${prepText(e.gpaScale, isAr)}` : ""}`);
-  }
-  if (e.honors) parts.push(`${isAr ? "مرتبة الشرف" : "Honors"}: ${prepText(e.honors, isAr)}`);
-  return parts.join(" | ");
-}
+class PdfRenderer {
+  doc: jsPDF;
+  y: number;
+  fontSize: number;
+  lineH: number;
+  lang: string;
+  fontFamily: "helvetica" | "Amiri" = "helvetica";
 
-class CvPdfRenderer {
-  y = Y_TOP;
-
-  constructor(
-    private readonly doc: jsPDF,
-    private readonly cv: CVData,
-    private readonly isAr: boolean,
-    private readonly scale: Scale,
-    private readonly S: typeof EN_SECTIONS | typeof AR_SECTIONS,
-  ) {}
-
-  private fs(base: number): number {
-    return scaledSize(base, this.scale);
+  constructor(lang: string) {
+    this.doc      = new jsPDF({ unit: "pt", format: "a4" });
+    this.y        = 38;
+    this.fontSize = 8;
+    this.lineH    = 11;
+    this.lang     = lang;
+    this.doc.setTextColor(0, 0, 0);
   }
 
-  private lh(): number {
-    return lineHeight(this.scale);
+  // Draw a full-width horizontal rule
+  drawLine() {
+    this.doc.setDrawColor(0, 0, 0);
+    this.doc.setLineWidth(0.6);
+    this.doc.line(MARGIN_L, this.y, MARGIN_R, this.y);
+    this.y += 5;
   }
 
-  private gap(n: number): number {
-    return n;
+  // Set font safely
+  setFont(style: "normal" | "bold" | "italic" | "bolditalic", size: number) {
+    this.doc.setTextColor(0, 0, 0);
+    if (this.fontFamily === "Amiri") {
+      const bold = style === "bold" || style === "bolditalic";
+      this.doc.setFont("Amiri", bold ? "bold" : "normal");
+    } else {
+      this.doc.setFont("helvetica", style);
+    }
+    this.doc.setFontSize(size);
   }
 
-  private renderText(
+  // Render wrapped text, return new y
+  renderText(
     text: string,
     x: number,
     maxWidth: number,
-    opts: FontOpts,
-    align: "left" | "right" | "center" = "left",
-  ): void {
-    const t = prepText(text, this.isAr);
-    if (!t) return;
-    setFont(this.doc, this.isAr, !!opts.bold, opts.size);
-    const lines = splitLines(this.doc, t, maxWidth);
+    size: number,
+    style: "normal" | "bold" | "italic" | "bolditalic" = "normal",
+    align: "left" | "center" | "right" = "left"
+  ): number {
+    if (!text || text.trim() === "") return this.y;
+    this.setFont(style, size);
+    const lines = this.doc.splitTextToSize(text, maxWidth);
     for (const line of lines) {
-      if (opts.justify && !this.isAr && align === "left") {
-        this.doc.text(line, X_LEFT, this.y, { align: "justify", maxWidth: SUMMARY_W });
-      } else {
-        this.doc.text(line, x, this.y, { align });
-      }
-      this.y += this.lh();
+      if (this.y > PAGE_BOTTOM) break;
+      let xPos = x;
+      if (align === "center") xPos = PAGE_W / 2;
+      if (align === "right")  xPos = MARGIN_R;
+      this.doc.text(line, xPos, this.y, { align });
+      this.y += this.lineH;
     }
-  }
-
-  private renderSplitRow(
-    left: string,
-    right: string,
-    leftBold = true,
-  ): void {
-    const l = prepText(left, this.isAr);
-    const r = prepText(right, this.isAr);
-    if (this.isAr) {
-      if (l) {
-        setFont(this.doc, this.isAr, leftBold, this.fs(9));
-        this.doc.text(l, X_RIGHT, this.y, { align: "right" });
-      }
-      if (r) {
-        setFont(this.doc, this.isAr, false, this.fs(9));
-        this.doc.text(r, X_LEFT, this.y, { align: "left" });
-      }
-    } else {
-      if (l) {
-        setFont(this.doc, false, leftBold, this.fs(9));
-        this.doc.text(l, ROW_LEFT_X, this.y, { align: "left" });
-      }
-      if (r) {
-        setFont(this.doc, false, false, this.fs(9));
-        this.doc.text(r, X_RIGHT, this.y, { align: "right" });
-      }
-    }
-    this.y += this.lh();
-  }
-
-  private renderBullet(text: string, nested = false): void {
-    const body = prepText(text, this.isAr);
-    if (!body) return;
-    const markX = nested ? BULLET_NEST_X : BULLET_MARK_X;
-    const textX = nested ? BULLET_NEST_TEXT_X : BULLET_TEXT_X;
-    const maxW = X_RIGHT - textX;
-    setFont(this.doc, this.isAr, false, this.fs(9));
-    if (this.isAr) {
-      this.doc.text("o ", markX, this.y, { align: "left" });
-      const lines = splitLines(this.doc, body, maxW);
-      for (const line of lines) {
-        this.doc.text(line, X_RIGHT, this.y, { align: "right" });
-        this.y += this.lh();
-      }
-    } else {
-      this.doc.text("o ", markX, this.y, { align: "left" });
-      const lines = splitLines(this.doc, body, BULLET_MAX_W);
-      for (const line of lines) {
-        this.doc.text(line, textX, this.y, { align: "left" });
-        this.y += this.lh();
-      }
-    }
-  }
-
-  private renderSectionHeader(title: string): void {
-    this.y += this.gap(6);
-    const label = this.isAr ? title : title.toUpperCase();
-    setFont(this.doc, this.isAr, true, this.fs(10));
-    const x = this.isAr ? X_RIGHT : X_LEFT;
-    const align = this.isAr ? "right" : "left";
-    this.doc.text(label, x, this.y, { align });
-    const textW = this.doc.getTextWidth(label);
-    const ulY = this.y + 1.2;
-    if (this.isAr) {
-      this.doc.line(X_RIGHT - textW, ulY, X_RIGHT, ulY);
-    } else {
-      this.doc.line(X_LEFT, ulY, X_LEFT + textW, ulY);
-    }
-    this.y += this.lh() * 0.35;
-    drawLine(this.doc, this.y);
-    this.y += this.gap(6);
-  }
-
-  private renderSubhead(label: string): void {
-    const text = `\u2022 ${label}`;
-    setFont(this.doc, this.isAr, true, this.fs(9));
-    const x = this.isAr ? X_RIGHT : ROW_LEFT_X;
-    this.doc.text(prepText(text, this.isAr), x, this.y, { align: this.isAr ? "right" : "left" });
-    this.y += this.lh();
-  }
-
-  private renderLanguages(): void {
-    const langs = (this.cv.languages || []).filter((l) => prepText(l.lang, this.isAr));
-    if (!langs.length) return;
-    const list = langs
-      .map((l) => {
-        const lang = prepText(l.lang, this.isAr);
-        const level = prepText(l.level, this.isAr);
-        return level ? `${lang} (${level})` : lang;
-      })
-      .join(", ");
-    const head = `\u2022 ${this.S.languages} `;
-    setFont(this.doc, this.isAr, true, this.fs(9));
-    const headPrepared = prepText(head, this.isAr);
-    const headW = this.doc.getTextWidth(headPrepared);
-    if (this.isAr) {
-      this.doc.text(headPrepared, X_RIGHT, this.y, { align: "right" });
-      setFont(this.doc, this.isAr, false, this.fs(9));
-      this.doc.text(list, X_LEFT, this.y, { align: "left" });
-    } else {
-      this.doc.text(headPrepared, ROW_LEFT_X, this.y, { align: "left" });
-      setFont(this.doc, this.isAr, false, this.fs(9));
-      this.doc.text(list, ROW_LEFT_X + headW, this.y, { align: "left" });
-    }
-    this.y += this.lh() + this.gap(6);
-  }
-
-  render(): number {
-    this.renderHeader();
-    this.renderSummary();
-    this.renderExperience();
-    this.renderEducation();
-    this.renderOther();
     return this.y;
   }
 
-  private renderHeader(): void {
-    this.y = Y_TOP;
-    const name = this.cv.personal.name || (this.isAr ? "الاسم الكامل" : "Full Name");
-    this.renderText(name, CENTER_X, CONTENT_W, { bold: true, size: this.fs(this.isAr ? 20 : 19) }, "center");
-    this.y += this.gap(14);
-
-    if (this.cv.personal.title) {
-      this.renderText(this.cv.personal.title, CENTER_X, CONTENT_W, { size: this.fs(9.5) }, "center");
-    }
-    this.y += this.gap(12);
-
-    const contact = buildContact(this.cv, this.isAr);
-    if (contact) {
-      this.renderText(contact, CENTER_X, CONTENT_W, { size: this.fs(8) }, "center");
-    }
-    this.y += this.gap(10);
-    drawLine(this.doc, this.y);
-    this.y += this.gap(8);
+  // Render right-aligned text on the SAME line as current y (no y advance)
+  renderRight(text: string, size: number, style: "normal" | "bold" = "normal") {
+    if (!text || text.trim() === "") return;
+    this.setFont(style, size);
+    this.doc.text(text, MARGIN_R, this.y, { align: "right" });
   }
 
-  private renderSummary(): void {
-    if (!prepText(this.cv.summary, this.isAr)) return;
-    this.renderSectionHeader(this.S.summary);
-    this.renderText(this.cv.summary, this.isAr ? X_RIGHT : X_LEFT, SUMMARY_W, {
-      size: this.fs(9),
-      justify: !this.isAr,
-    }, this.isAr ? "right" : "left");
-    this.y += this.gap(10);
+  // Section header: BOLD CAPS + rule below
+  renderSectionHeader(title: string) {
+    this.y += 4;
+    this.setFont("bold", 9);
+    this.doc.text(title.toUpperCase(), MARGIN_L, this.y);
+    this.y += 3;
+    this.drawLine();
   }
 
-  private renderExperience(): void {
-    const entries = (this.cv.experience || []).filter((e) => e.role?.trim() || e.company?.trim() || e.desc?.trim());
-    if (!entries.length) return;
-    this.renderSectionHeader(this.S.experience);
-    for (const e of entries) {
-      this.renderSplitRow(e.role, formatDateRange(e.from, e.to, this.isAr));
-      const companyLine = [prepText(e.company, this.isAr), prepText(this.cv.personal.city, this.isAr)]
-        .filter(Boolean)
-        .join(" | ");
-      if (companyLine) {
-        this.renderText(companyLine, this.isAr ? X_RIGHT : X_LEFT, CONTENT_W, { size: this.fs(9) }, this.isAr ? "right" : "left");
+  // Bullet line: "o " + text, wrapped
+  renderBullet(text: string, size = 8, indentX = 65, wrapX = 78) {
+    if (!text || text.trim() === "") return;
+    this.setFont("normal", size);
+    const maxW = MARGIN_R - wrapX;
+    const lines = this.doc.splitTextToSize(text, maxW);
+    // First line with "o "
+    if (this.y <= PAGE_BOTTOM) {
+      this.doc.text("o", indentX, this.y);
+      this.doc.text(lines[0], wrapX, this.y);
+      this.y += this.lineH;
+    }
+    // Continuation lines
+    for (let i = 1; i < lines.length; i++) {
+      if (this.y > PAGE_BOTTOM) break;
+      this.doc.text(lines[i], wrapX, this.y);
+      this.y += this.lineH;
+    }
+  }
+
+  // Sub-section label inside OTHER: "● Label:"
+  renderSubHeader(label: string) {
+    if (this.y > PAGE_BOTTOM) return;
+    this.setFont("bold", 9);
+    this.doc.text(`\u25CF ${label}`, MARGIN_L + 6, this.y);
+    this.y += this.lineH;
+  }
+}
+
+// ─── English PDF builder ───────────────────────────────────────────────────────
+
+function buildEnglishPdf(cv: CvData): Blob {
+  const r = new PdfRenderer("en");
+
+  // ── HEADER ──────────────────────────────────────────────────────────────────
+  r.setFont("bold", 19);
+  r.doc.text(cv.fullName || "Full Name", PAGE_W / 2, r.y, { align: "center" });
+  r.y += 14;
+
+  if (cv.jobTitle) {
+    r.setFont("normal", 9.5);
+    r.doc.text(cv.jobTitle, PAGE_W / 2, r.y, { align: "center" });
+    r.y += 12;
+  }
+
+  // Contact line
+  const contactParts: string[] = [];
+  if (cv.phone)    contactParts.push(cv.phone);
+  if (cv.email)    contactParts.push(cv.email);
+  if (cv.location) contactParts.push(cv.location);
+  if (cv.linkedin) contactParts.push(cv.linkedin);
+  if (contactParts.length > 0) {
+    r.setFont("normal", 8);
+    r.doc.text(contactParts.join("  |  "), PAGE_W / 2, r.y, { align: "center" });
+    r.y += 8;
+  }
+
+  r.y += 2;
+  r.drawLine();
+  r.y += 2;
+
+  // ── PROFESSIONAL SUMMARY ───────────────────────────────────────────────────
+  if (cv.summary && cv.summary.trim()) {
+    r.renderSectionHeader("Professional Summary");
+    r.renderText(cv.summary, MARGIN_L, CONTENT_W, 8);
+    r.y += 4;
+  }
+
+  // ── EXPERIENCE ─────────────────────────────────────────────────────────────
+  if (cv.experience && cv.experience.length > 0) {
+    r.renderSectionHeader("Experience");
+    for (const exp of cv.experience) {
+      if (r.y > PAGE_BOTTOM) break;
+
+      // Job title LEFT, dates RIGHT — same line
+      r.setFont("bold", 9);
+      r.doc.text(exp.jobTitle || "", MARGIN_L + 6, r.y);
+      const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" \u2013 ");
+      r.renderRight(dateStr, 8);
+      r.y += r.lineH;
+
+      // Company | Location
+      const companyLine = [exp.company, exp.location].filter(Boolean).join(" | ");
+      r.renderText(companyLine, MARGIN_L, CONTENT_W, 8);
+
+      // Bullets
+      for (const bullet of exp.bullets || []) {
+        r.renderBullet(bullet);
       }
-      for (const bullet of parseBullets(e.desc || "")) this.renderBullet(bullet);
-      this.y += this.gap(8);
+      r.y += 6;
     }
   }
 
-  private renderEducation(): void {
-    const entries = (this.cv.education || []).filter((e) => e.school?.trim() || e.degree?.trim());
-    if (!entries.length) return;
-    this.renderSectionHeader(this.S.education);
-    for (const e of entries) {
-      const year = prepText(e.to || e.from, this.isAr);
-      this.renderSplitRow(e.school, year);
-      const line2 = buildEduLine2(e, this.isAr);
-      if (line2) {
-        this.renderText(line2, this.isAr ? X_RIGHT : X_LEFT, CONTENT_W, { size: this.fs(9) }, this.isAr ? "right" : "left");
+  // ── EDUCATION ──────────────────────────────────────────────────────────────
+  if (cv.education && cv.education.length > 0) {
+    r.renderSectionHeader("Education");
+    for (const edu of cv.education) {
+      if (r.y > PAGE_BOTTOM) break;
+
+      // Institution LEFT, year RIGHT
+      r.setFont("bold", 9);
+      r.doc.text(edu.institution || "", MARGIN_L + 6, r.y);
+      r.renderRight(edu.year || "", 8);
+      r.y += r.lineH;
+
+      // Degree + GPA
+      const degreeGpa = [
+        edu.degree,
+        edu.gpa ? `GPA: ${edu.gpa}` : "",
+        edu.honors || "",
+      ].filter(Boolean).join("  |  ");
+      r.renderText(degreeGpa, MARGIN_L, CONTENT_W, 8);
+
+      // Optional education bullets
+      for (const bullet of edu.bullets || []) {
+        r.renderBullet(bullet);
       }
-      this.y += this.gap(8);
+      r.y += 6;
     }
   }
 
-  private renderOther(): void {
-    const certs = (this.cv.certifications || []).filter((c) => c.title?.trim() || c.issuer?.trim() || c.date?.trim());
-    const projects =
-      this.cv.projects?.enabled
-        ? (this.cv.projects.items || []).filter((p) => p.name?.trim() || p.institution?.trim() || p.year?.trim())
-        : [];
-    const { hard, soft } = splitSkills(this.cv.skills || [], this.isAr);
-    const hasLangs = (this.cv.languages || []).some((l) => prepText(l.lang, this.isAr));
-    if (!certs.length && !projects.length && !hard.length && !soft.length && !hasLangs) return;
+  // ── OTHER ──────────────────────────────────────────────────────────────────
+  const hasCerts    = cv.certifications && cv.certifications.length > 0;
+  const hasProjects = cv.projects?.enabled && (cv.projects?.items?.length ?? 0) > 0;
+  const allSkills   = cv.skills || [];
+  const { hard, soft } = (cv.hardSkills || cv.softSkills)
+    ? { hard: cv.hardSkills || [], soft: cv.softSkills || [] }
+    : splitSkills(allSkills);
+  const hasSkills   = hard.length > 0 || soft.length > 0;
+  const hasLangs    = cv.languages && cv.languages.length > 0;
 
-    this.renderSectionHeader(this.S.other);
+  if (hasCerts || hasProjects || hasSkills || hasLangs) {
+    r.renderSectionHeader("Other");
 
-    if (certs.length) {
-      this.renderSubhead(this.S.certs);
-      for (const c of certs) {
-        const name = prepText(c.title || c.issuer, this.isAr);
-        const year = prepText(c.date, this.isAr);
-        const line = year ? `${name} | ${year}` : name;
-        this.renderBullet(line);
+    // 4a — Certifications
+    if (hasCerts) {
+      r.renderSubHeader("Certifications & Courses:");
+      for (const cert of cv.certifications!) {
+        const certLine = [cert.name, cert.issuer, cert.year]
+          .filter(Boolean).join(" | ");
+        r.renderBullet(certLine);
       }
-      this.y += this.gap(6);
+      r.y += 4;
     }
 
-    if (projects.length) {
-      this.renderSubhead(this.S.projects);
-      for (const p of projects) {
-        const head = [
-          prepText(p.name, this.isAr),
-          prepText(p.institution, this.isAr),
-          prepText(p.year, this.isAr),
-        ].filter(Boolean);
-        const title = head.length >= 2
-          ? `${head[0]} – ${head[1]}${head[2] ? ` ${head[2]}` : ""}`
-          : head.join(" ");
-        if (title) this.renderBullet(title);
-        for (const bullet of p.bullets || []) {
-          const b = bullet.trim();
-          if (b) this.renderBullet(b, true);
+    // 4b — Projects (optional)
+    if (hasProjects) {
+      r.renderSubHeader("Projects:");
+      for (const proj of cv.projects!.items) {
+        if (r.y > PAGE_BOTTOM) break;
+        // Project title line
+        r.setFont("bold", 8);
+        const projTitle = [proj.name, proj.institution, proj.year]
+          .filter(Boolean).join(" \u2013 ");
+        r.doc.text(projTitle, MARGIN_L + 6, r.y);
+        r.y += r.lineH;
+        // Project bullets
+        for (const bullet of proj.bullets || []) {
+          r.renderBullet(bullet, 8, 72, 85);
         }
       }
-      this.y += this.gap(6);
+      r.y += 4;
     }
 
-    if (hard.length) {
-      this.renderSubhead(this.S.hard);
-      for (const skill of hard) this.renderBullet(skill);
-      this.y += this.gap(6);
+    // 4c — Hard Skills
+    if (hard.length > 0) {
+      r.renderSubHeader("Hard Skills:");
+      for (const skill of hard) {
+        r.renderBullet(skill);
+      }
+      r.y += 4;
     }
 
-    if (soft.length) {
-      this.renderSubhead(this.S.soft);
-      for (const skill of soft) this.renderBullet(skill);
-      this.y += this.gap(6);
+    // 4d — Soft Skills
+    if (soft.length > 0) {
+      r.renderSubHeader("Soft Skills:");
+      for (const skill of soft) {
+        r.renderBullet(skill);
+      }
+      r.y += 4;
     }
 
-    if (hasLangs) this.renderLanguages();
-  }
-}
-
-function renderCv(doc: jsPDF, cv: CVData, isAr: boolean, scale: Scale): number {
-  const S = isAr ? AR_SECTIONS : EN_SECTIONS;
-  const renderer = new CvPdfRenderer(doc, cv, isAr, scale, S);
-  return renderer.render();
-}
-
-async function buildScaledPdf(cv: CVData, isAr: boolean): Promise<jsPDF> {
-  let scale: Scale = { fontDelta: 0, lineH: BASE_LINE_H };
-  let best: { doc: jsPDF; finalY: number } | null = null;
-
-  for (let attempt = 0; attempt < 48; attempt += 1) {
-    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4", compress: true });
-    if (isAr) await ensureArabicFonts(doc);
-    doc.setProperties({
-      title: cv.personal.name ? `${cv.personal.name} - CV` : "Resume",
-      subject: "Curriculum Vitae",
-      creator: "Nashmi CV Builder",
-      keywords: (cv.skills || []).join(", "),
-    });
-
-    const finalY = renderCv(doc, cv, isAr, scale);
-    if (finalY <= PAGE_BOTTOM) return doc;
-    if (!best || finalY < best.finalY) best = { doc, finalY };
-
-    const nextLine = Math.max(MIN_LINE_H, Math.round((scale.lineH - 0.5) * 2) / 2);
-    const nextDelta = scale.fontDelta + 0.5;
-    if (scaledSize(9, { fontDelta: nextDelta, lineH: nextLine }) <= MIN_FONT && nextLine <= MIN_LINE_H) {
-      break;
+    // 4e — Languages (inline)
+    if (hasLangs) {
+      if (r.y <= PAGE_BOTTOM) {
+        r.setFont("bold", 9);
+        r.doc.text("\u25CF Languages: ", MARGIN_L + 6, r.y);
+        r.setFont("normal", 9);
+        // measure bold part width
+        r.doc.setFont("helvetica", "bold");
+        r.doc.setFontSize(9);
+        const boldW = r.doc.getTextWidth("\u25CF Languages: ");
+        r.doc.setFont("helvetica", "normal");
+        r.doc.text(cv.languages!.join(", "), MARGIN_L + 6 + boldW, r.y);
+        r.y += r.lineH;
+      }
     }
-    scale = { fontDelta: nextDelta, lineH: nextLine };
   }
 
-  return best!.doc;
+  return r.doc.output("blob");
 }
 
-/** ATS PDF — pure jsPDF text. Single layout for all templates. */
+// ─── Arabic PDF builder ────────────────────────────────────────────────────────
+
+async function buildArabicPdf(cv: CvData): Promise<Blob> {
+  const r = new PdfRenderer("ar");
+  await ensureArabicFonts(r.doc);
+  r.fontFamily = "Amiri";
+
+  const ar = async (text: string) => reshapeArabic(text);
+
+  // ── HEADER (centered) ──────────────────────────────────────────────────────
+  r.setFont("bold", 20);
+  const name = await ar(cv.fullName || "");
+  r.doc.text(name, PAGE_W / 2, r.y, { align: "center" });
+  r.y += 14;
+
+  if (cv.jobTitle) {
+    const title = await ar(cv.jobTitle);
+    r.setFont("normal", 10);
+    r.doc.text(title, PAGE_W / 2, r.y, { align: "center" });
+    r.y += 12;
+  }
+
+  // Contact (phone/email stay LTR)
+  const contactParts: string[] = [];
+  if (cv.phone)    contactParts.push(cv.phone);
+  if (cv.email)    contactParts.push(cv.email);
+  if (cv.location) contactParts.push(cv.location);
+  if (cv.linkedin) contactParts.push(cv.linkedin);
+  if (contactParts.length > 0) {
+    r.setFont("normal", 8);
+    r.doc.text(contactParts.join("  |  "), PAGE_W / 2, r.y, { align: "center" });
+    r.y += 8;
+  }
+  r.y += 2;
+  r.drawLine();
+  r.y += 2;
+
+  // ── SUMMARY ────────────────────────────────────────────────────────────────
+  if (cv.summary && cv.summary.trim()) {
+    const headerText = await ar("الملخص المهني");
+    r.setFont("bold", 9);
+    r.doc.text(headerText, MARGIN_R, r.y, { align: "right" });
+    r.y += 3;
+    r.drawLine();
+
+    const summaryText = await ar(cv.summary);
+    r.setFont("normal", 8);
+    const lines = r.doc.splitTextToSize(summaryText, CONTENT_W);
+    for (const line of lines) {
+      if (r.y > PAGE_BOTTOM) break;
+      r.doc.text(line, MARGIN_R, r.y, { align: "right" });
+      r.y += r.lineH;
+    }
+    r.y += 4;
+  }
+
+  // ── EXPERIENCE ─────────────────────────────────────────────────────────────
+  if (cv.experience && cv.experience.length > 0) {
+    const headerText = await ar("الخبرة");
+    r.setFont("bold", 9);
+    r.doc.text(headerText, MARGIN_R, r.y, { align: "right" });
+    r.y += 3;
+    r.drawLine();
+
+    for (const exp of cv.experience) {
+      if (r.y > PAGE_BOTTOM) break;
+      const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" \u2013 ");
+
+      // Job title RIGHT, date LEFT
+      r.setFont("bold", 9);
+      const jobTitleAr = await ar(exp.jobTitle || "");
+      r.doc.text(jobTitleAr, MARGIN_R, r.y, { align: "right" });
+      r.setFont("normal", 8);
+      r.doc.text(dateStr, MARGIN_L, r.y);
+      r.y += r.lineH;
+
+      const compLine = await ar([exp.company, exp.location].filter(Boolean).join(" | "));
+      r.setFont("normal", 8);
+      r.doc.text(compLine, MARGIN_R, r.y, { align: "right" });
+      r.y += r.lineH;
+
+      for (const bullet of exp.bullets || []) {
+        const bulletAr = await ar(bullet);
+        r.setFont("normal", 8);
+        const lines = r.doc.splitTextToSize(bulletAr, CONTENT_W - 20);
+        for (let i = 0; i < lines.length; i++) {
+          if (r.y > PAGE_BOTTOM) break;
+          if (i === 0) r.doc.text("o", MARGIN_R - r.doc.getTextWidth(lines[0]) - 8, r.y);
+          r.doc.text(lines[i], MARGIN_R, r.y, { align: "right" });
+          r.y += r.lineH;
+        }
+      }
+      r.y += 6;
+    }
+  }
+
+  // ── EDUCATION ──────────────────────────────────────────────────────────────
+  if (cv.education && cv.education.length > 0) {
+    const headerText = await ar("التعليم");
+    r.setFont("bold", 9);
+    r.doc.text(headerText, MARGIN_R, r.y, { align: "right" });
+    r.y += 3;
+    r.drawLine();
+
+    for (const edu of cv.education) {
+      if (r.y > PAGE_BOTTOM) break;
+      const instAr = await ar(edu.institution || "");
+      r.setFont("bold", 9);
+      r.doc.text(instAr, MARGIN_R, r.y, { align: "right" });
+      r.setFont("normal", 8);
+      r.doc.text(edu.year || "", MARGIN_L, r.y);
+      r.y += r.lineH;
+
+      const degParts = [edu.degree, edu.gpa ? `GPA: ${edu.gpa}` : "", edu.honors || ""]
+        .filter(Boolean).join(" | ");
+      const degAr = await ar(degParts);
+      r.doc.text(degAr, MARGIN_R, r.y, { align: "right" });
+      r.y += r.lineH;
+      r.y += 6;
+    }
+  }
+
+  // ── OTHER ──────────────────────────────────────────────────────────────────
+  const otherHeaderAr = await ar("أخرى");
+  r.setFont("bold", 9);
+  r.doc.text(otherHeaderAr, MARGIN_R, r.y, { align: "right" });
+  r.y += 3;
+  r.drawLine();
+
+  // Certs
+  if (cv.certifications && cv.certifications.length > 0) {
+    const label = await ar("الشهادات والدورات:");
+    r.setFont("bold", 9);
+    r.doc.text(`\u25CF ${label}`, MARGIN_R, r.y, { align: "right" });
+    r.y += r.lineH;
+    for (const cert of cv.certifications) {
+      const certLine = await ar([cert.name, cert.issuer, cert.year].filter(Boolean).join(" | "));
+      r.setFont("normal", 8);
+      r.doc.text(certLine, MARGIN_R, r.y, { align: "right" });
+      r.y += r.lineH;
+    }
+    r.y += 4;
+  }
+
+  // Projects
+  if (cv.projects?.enabled && (cv.projects?.items?.length ?? 0) > 0) {
+    const label = await ar("المشاريع:");
+    r.setFont("bold", 9);
+    r.doc.text(`\u25CF ${label}`, MARGIN_R, r.y, { align: "right" });
+    r.y += r.lineH;
+    for (const proj of cv.projects.items) {
+      const projTitle = await ar([proj.name, proj.institution, proj.year].filter(Boolean).join(" \u2013 "));
+      r.setFont("bold", 8);
+      r.doc.text(projTitle, MARGIN_R, r.y, { align: "right" });
+      r.y += r.lineH;
+      for (const bullet of proj.bullets || []) {
+        const bulletAr = await ar(bullet);
+        r.setFont("normal", 8);
+        r.doc.text(bulletAr, MARGIN_R, r.y, { align: "right" });
+        r.y += r.lineH;
+      }
+    }
+    r.y += 4;
+  }
+
+  // Hard/Soft Skills
+  const allSkills = cv.skills || [];
+  const { hard, soft } = (cv.hardSkills || cv.softSkills)
+    ? { hard: cv.hardSkills || [], soft: cv.softSkills || [] }
+    : splitSkills(allSkills);
+
+  if (hard.length > 0) {
+    const label = await ar("المهارات التقنية:");
+    r.setFont("bold", 9);
+    r.doc.text(`\u25CF ${label}`, MARGIN_R, r.y, { align: "right" });
+    r.y += r.lineH;
+    for (const skill of hard) {
+      const skillAr = await ar(skill);
+      r.setFont("normal", 8);
+      r.doc.text(skillAr, MARGIN_R, r.y, { align: "right" });
+      r.y += r.lineH;
+    }
+    r.y += 4;
+  }
+
+  if (soft.length > 0) {
+    const label = await ar("المهارات الشخصية:");
+    r.setFont("bold", 9);
+    r.doc.text(`\u25CF ${label}`, MARGIN_R, r.y, { align: "right" });
+    r.y += r.lineH;
+    for (const skill of soft) {
+      const skillAr = await ar(skill);
+      r.setFont("normal", 8);
+      r.doc.text(skillAr, MARGIN_R, r.y, { align: "right" });
+      r.y += r.lineH;
+    }
+    r.y += 4;
+  }
+
+  // Languages
+  if (cv.languages && cv.languages.length > 0) {
+    if (r.y <= PAGE_BOTTOM) {
+      const label = await ar("اللغات: ");
+      const langsText = cv.languages.join(", ");
+      r.setFont("bold", 9);
+      r.doc.text(`\u25CF ${label}${langsText}`, MARGIN_R, r.y, { align: "right" });
+      r.y += r.lineH;
+    }
+  }
+
+  return r.doc.output("blob");
+}
+
+// ─── PDF IMPORT PARSER ─────────────────────────────────────────────────────────
+// Place this in src/nashmi/lib/cv-pdf-import.ts (new file)
+// and call it from your import button handler.
+
+/**
+ * parsePdfToCvData
+ * Reads a PDF file and extracts CV fields.
+ * Works for nashmi-exported PDFs AND external PDFs.
+ * Returns a partial CvData object.
+ */
+export async function parsePdfToCvData(file: File): Promise<Partial<CvData>> {
+  const pdfjsLib = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await (pdfjsLib as any).getDocument({ data: arrayBuffer }).promise;
+
+  let fullText = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item: any) => item.str)
+      .join(" ");
+    fullText += pageText + "\n";
+  }
+
+  if (fullText.trim().length < 50) {
+    throw new Error(
+      "هذا الـ PDF لا يحتوي على نص قابل للقراءة. " +
+      "يرجى رفع PDF نصي (مثل ملفات نشمي) وليس صورة ممسوحة ضوئياً."
+    );
+  }
+
+  // ── Simple section parser ────────────────────────────────────────────────
+  const lines = fullText.split(/\n/).map((l) => l.trim()).filter(Boolean);
+
+  const cv: Partial<CvData> = {
+    experience: [],
+    education: [],
+    certifications: [],
+    languages: [],
+    skills: [],
+    projects: { enabled: false, items: [] },
+  };
+
+  // Name: usually first non-empty line
+  if (lines[0]) cv.fullName = lines[0];
+  if (lines[1] && !lines[1].includes("@") && !lines[1].match(/\d{9}/)) {
+    cv.jobTitle = lines[1];
+  }
+
+  // Contact line
+  for (const line of lines.slice(0, 5)) {
+    const emailMatch = line.match(/[\w.+-]+@[\w-]+\.\w+/);
+    if (emailMatch) cv.email = emailMatch[0];
+    const phoneMatch = line.match(/\+?[\d\s\-]{9,}/);
+    if (phoneMatch) cv.phone = phoneMatch[0].trim();
+    const linkedinMatch = line.match(/linkedin\.com\/in\/[\w-]+/i);
+    if (linkedinMatch) cv.linkedin = linkedinMatch[0];
+  }
+
+  // Section detection
+  type Section =
+    | "summary" | "experience" | "education"
+    | "certifications" | "skills" | "languages"
+    | "projects" | "other" | null;
+
+  let currentSection: Section = null;
+  let currentExp: CvExperience | null = null;
+  let currentEdu: CvEducation | null = null;
+  let currentProj: CvProject | null = null;
+  let summaryLines: string[] = [];
+
+  const SECTION_MAP: Record<string, Section> = {
+    "summary": "summary",
+    "professional summary": "summary",
+    "الملخص": "summary",
+    "experience": "experience",
+    "work experience": "experience",
+    "الخبرة": "experience",
+    "education": "education",
+    "التعليم": "education",
+    "certifications": "certifications",
+    "certifications & training": "certifications",
+    "الشهادات": "certifications",
+    "skills": "skills",
+    "technical skills": "skills",
+    "المهارات": "skills",
+    "languages": "languages",
+    "اللغات": "languages",
+    "projects": "projects",
+    "المشاريع": "projects",
+    "other": "other",
+    "أخرى": "other",
+  };
+
+  for (const line of lines) {
+    const lower = line.toLowerCase().replace(/[:\-_]/g, "").trim();
+
+    // Check if this is a section header
+    const detectedSection = SECTION_MAP[lower];
+    if (detectedSection) {
+      // Save any in-progress entries
+      if (currentExp) { cv.experience!.push(currentExp); currentExp = null; }
+      if (currentEdu) { cv.education!.push(currentEdu); currentEdu = null; }
+      if (currentProj && cv.projects) {
+        cv.projects.items.push(currentProj);
+        currentProj = null;
+      }
+      currentSection = detectedSection;
+      if (currentSection === "summary") summaryLines = [];
+      continue;
+    }
+
+    // Parse by section
+    switch (currentSection) {
+      case "summary":
+        summaryLines.push(line);
+        cv.summary = summaryLines.join(" ");
+        break;
+
+      case "experience": {
+        // Date pattern: "Oct 2025 – Dec 2025" or "Jun 2025 Aug 2025"
+        const dateMatch = line.match(
+          /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\s*[–\-]\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}/i
+        );
+        if (dateMatch) {
+          if (currentExp) cv.experience!.push(currentExp);
+          const [start, end] = dateMatch[0].split(/[–\-]/).map((s) => s.trim());
+          // Job title is usually on the same line, before the date
+          const jobTitle = line.replace(dateMatch[0], "").trim();
+          currentExp = { jobTitle, company: "", startDate: start, endDate: end, bullets: [] };
+        } else if (currentExp && !currentExp.company && !line.startsWith("o ") && !line.startsWith("-")) {
+          currentExp.company = line;
+        } else if (currentExp && (line.startsWith("o ") || line.startsWith("- "))) {
+          currentExp.bullets.push(line.replace(/^[o\-]\s*/, "").trim());
+        }
+        break;
+      }
+
+      case "education": {
+        const yearMatch = line.match(/\b(20\d{2}|19\d{2})\b/);
+        if (yearMatch && !currentEdu) {
+          currentEdu = {
+            institution: line.replace(yearMatch[0], "").trim(),
+            degree: "",
+            year: yearMatch[0],
+          };
+        } else if (currentEdu && !currentEdu.degree && !line.startsWith("o ")) {
+          currentEdu.degree = line;
+          const gpaMatch = line.match(/GPA[:\s]+([\d.]+)/i);
+          if (gpaMatch) currentEdu.gpa = gpaMatch[1];
+        } else if (currentEdu && (line.startsWith("o ") || line.startsWith("- "))) {
+          currentEdu.bullets = currentEdu.bullets || [];
+          currentEdu.bullets.push(line.replace(/^[o\-]\s*/, "").trim());
+        }
+        break;
+      }
+
+      case "certifications":
+      case "other": {
+        // Skip sub-headers like "● Courses and Certifications:"
+        if (line.startsWith("\u25CF") || line.startsWith("●")) break;
+        if (line.startsWith("o ") || line.startsWith("- ")) {
+          const certText = line.replace(/^[o\-\s●]+/, "").trim();
+          const yearMatch = certText.match(/\b(20\d{2}|19\d{2})\b/);
+          cv.certifications!.push({
+            name: certText.replace(yearMatch ? yearMatch[0] : "", "").replace(/\|.*$/, "").trim(),
+            year: yearMatch ? yearMatch[0] : "",
+          });
+        }
+        break;
+      }
+
+      case "skills": {
+        const skillList = line.split(/[,·\|]/).map((s) => s.trim()).filter(Boolean);
+        cv.skills = [...(cv.skills || []), ...skillList];
+        break;
+      }
+
+      case "languages": {
+        const langList = line.split(/[,·\|]/).map((s) => s.trim()).filter(Boolean);
+        cv.languages = [...(cv.languages || []), ...langList];
+        break;
+      }
+
+      case "projects": {
+        if (line.startsWith("o ") || line.startsWith("- ")) {
+          if (!currentProj) currentProj = { name: "Project", bullets: [] };
+          currentProj.bullets.push(line.replace(/^[o\-]\s*/, "").trim());
+        } else if (!line.startsWith("\u25CF")) {
+          if (currentProj && cv.projects) cv.projects.items.push(currentProj);
+          currentProj = { name: line, bullets: [] };
+          if (cv.projects) cv.projects.enabled = true;
+        }
+        break;
+      }
+    }
+  }
+
+  // Push any remaining open entries
+  if (currentExp) cv.experience!.push(currentExp);
+  if (currentEdu) cv.education!.push(currentEdu);
+  if (currentProj && cv.projects) cv.projects.items.push(currentProj);
+
+  return cv;
+}
+
+// ─── Main export function ─────────────────────────────────────────────────────
+
+/**
+ * renderCvToAtsPdfBlob
+ * Main entry point — called from BuilderPage.tsx
+ * @param cv       - CV data object
+ * @param lang     - "en" | "ar"
+ * @param template - ignored (Professional is the only template)
+ */
 export async function renderCvToAtsPdfBlob(
-  cv: CVData,
-  cvLanguage: "ar" | "en",
-  _templateId?: CvTemplateId,
+  cv: CvData,
+  lang: "en" | "ar",
+  template?: string
 ): Promise<Blob> {
-  const isAr = cvLanguage === "ar";
-  const doc = await buildScaledPdf(cv, isAr);
-  return doc.output("blob");
+  if (lang === "ar") {
+    return await buildArabicPdf(cv);
+  }
+  return buildEnglishPdf(cv);
 }

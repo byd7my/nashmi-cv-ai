@@ -42,7 +42,7 @@ import {
   getCvTemplateStyles,
   type CvTemplateId,
 } from "@/nashmi/lib/cv-templates";
-import { renderCvToAtsPdfBlob } from "@/nashmi/lib/cv-pdf-export";
+import { renderCvToAtsPdfBlob, parsePdfToCvData, type CvData as ExportCvData } from "@/nashmi/lib/cv-pdf-export";
 import { isMobileLayout } from "@/nashmi/lib/mobile-layout";
 import { NASHMI_BUILD_ID } from "@/nashmi/lib/build-version";
 
@@ -323,6 +323,113 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId, comp
       </Sec>
     </div>
   );
+}
+
+function descToBullets(desc: string): string[] {
+  return desc
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((l) => l.replace(/^[\s•\-–—oO]+/, "").trim())
+    .filter(Boolean);
+}
+
+function bulletsToDesc(bullets: string[]): string {
+  return bullets.map((b) => `• ${b}`).join("\n");
+}
+
+function builderCvToExportCv(cv: CVData): ExportCvData {
+  return {
+    fullName: cv.personal.name,
+    jobTitle: cv.personal.title || undefined,
+    phone: cv.personal.phone || undefined,
+    email: cv.personal.email || undefined,
+    linkedin: cv.personal.linkedin || undefined,
+    location: cv.personal.city || undefined,
+    summary: cv.summary || undefined,
+    experience: cv.experience
+      .filter((e) => e.role?.trim() || e.company?.trim() || e.desc?.trim())
+      .map((e) => ({
+        jobTitle: e.role,
+        company: e.company,
+        location: cv.personal.city || undefined,
+        startDate: e.from,
+        endDate: e.to,
+        bullets: descToBullets(e.desc),
+      })),
+    education: cv.education
+      .filter((e) => e.school?.trim() || e.degree?.trim())
+      .map((e) => ({
+        institution: e.school,
+        degree: [e.degree, e.field].filter(Boolean).join(" in "),
+        year: e.to || e.from,
+        gpa: e.showGpa && e.gpa ? e.gpa : undefined,
+        honors: e.honors || undefined,
+      })),
+    certifications: cv.certifications
+      .filter((c) => c.title?.trim() || c.issuer?.trim() || c.date?.trim())
+      .map((c) => ({
+        name: c.title || c.issuer,
+        issuer: c.issuer || undefined,
+        year: c.date,
+      })),
+    projects: cv.projects,
+    skills: cv.skills,
+    languages: cv.languages
+      .filter((l) => l.lang?.trim())
+      .map((l) => (l.level ? `${l.lang} (${l.level})` : l.lang)),
+  };
+}
+
+function exportCvToBuilderCv(parsed: Partial<ExportCvData>): Partial<CVData> {
+  const experience = (parsed.experience || []).map((e) => ({
+    role: e.jobTitle || "",
+    company: e.company || "",
+    from: e.startDate || "",
+    to: e.endDate || "",
+    desc: bulletsToDesc(e.bullets || []),
+  }));
+
+  const education = (parsed.education || []).map((e) => ({
+    school: e.institution || "",
+    degree: e.degree || "",
+    field: "",
+    from: "",
+    to: e.year || "",
+    gpa: e.gpa || "",
+    gpaScale: "5",
+    honors: e.honors || "",
+    showGpa: !!e.gpa,
+  }));
+
+  const certifications = (parsed.certifications || []).map((c) => ({
+    title: c.name || "",
+    issuer: c.issuer || "",
+    date: c.year || "",
+  }));
+
+  const languages = (parsed.languages || []).map((line) => {
+    const m = line.match(/^(.+?)\s*\((.+)\)\s*$/);
+    return m ? { lang: m[1].trim(), level: m[2].trim() } : { lang: line.trim(), level: "" };
+  });
+
+  return {
+    personal: {
+      name: parsed.fullName || "",
+      title: parsed.jobTitle || "",
+      phone: parsed.phone || "",
+      email: parsed.email || "",
+      linkedin: parsed.linkedin || "",
+      city: parsed.location || "",
+      website: "",
+    },
+    summary: parsed.summary || "",
+    ...(experience.length ? { experience } : {}),
+    ...(education.length ? { education } : {}),
+    certifications,
+    projects: parsed.projects ?? INIT_CV.projects,
+    skills: parsed.skills || [],
+    languages: languages.length ? languages : INIT_CV.languages,
+  };
 }
 
 class AiRateLimitError extends Error {
@@ -1145,6 +1252,18 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         return;
       }
 
+      if (isPdfFile(file)) {
+        const parsed = await parsePdfToCvData(file);
+        const merged = smartCategorize({ ...INIT_CV, ...exportCvToBuilderCv(parsed) });
+        setCv(merged);
+        setActiveSection(0);
+        setCvTemplate(DEFAULT_CV_TEMPLATE);
+        resetStoredCvTemplate();
+        setStartMode("ready");
+        resetDesktopEditMode();
+        return;
+      }
+
       const text = await extractTextFromFile(file);
       if (!text.trim()) {
         throw new Error(isPdfFile(file) ? "PDF_IMAGE_ONLY" : "EMPTY_FILE");
@@ -1178,7 +1297,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       setStartMode("ready");
       resetDesktopEditMode();
     } catch (e: unknown) {
-      setImportError(isAr ? `فشل الاستيراد: ${describeImportError(e, isAr)}` : `Import failed: ${describeImportError(e, false)}`);
+      if (isPdfFile(file) && e instanceof Error) {
+        setImportError(e.message);
+      } else {
+        setImportError(isAr ? `فشل الاستيراد: ${describeImportError(e, isAr)}` : `Import failed: ${describeImportError(e, false)}`);
+      }
     } finally {
       setImporting(false);
     }
@@ -1541,7 +1664,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const baseName = cv.personal.name ? cv.personal.name.replace(/\s+/g, "-").toLowerCase() : "resume";
       const exportedFiles: { filename: string; blob: Blob }[] = [];
 
-      const visibleBlob = await renderCvToAtsPdfBlob(cv, activeCvLang, cvTemplate);
+      const visibleBlob = await renderCvToAtsPdfBlob(builderCvToExportCv(cv), activeCvLang, cvTemplate);
       downloadBlob(visibleBlob, `nashmi-${baseName}-${activeCvLang}.pdf`);
       exportedFiles.push({ filename: `nashmi-${baseName}-${activeCvLang}.pdf`, blob: visibleBlob });
 
@@ -1554,7 +1677,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         }
 
         if (altCv) {
-          const hiddenBlob = await renderCvToAtsPdfBlob(altCv, otherLang, cvTemplate);
+          const hiddenBlob = await renderCvToAtsPdfBlob(builderCvToExportCv(altCv), otherLang, cvTemplate);
           downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
           exportedFiles.push({ filename: `nashmi-${baseName}-${otherLang}.pdf`, blob: hiddenBlob });
           showToast(
@@ -1808,7 +1931,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
           style={{ accentColor: P.violet, width: 18, height: 18 }}
         />
         <label htmlFor="projects-enabled" style={{ color: P.text, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-          {isAr ? "مشاريع / Projects" : "Projects"}
+          مشاريع / Projects
         </label>
       </div>
       {!cv.projects?.enabled ? (

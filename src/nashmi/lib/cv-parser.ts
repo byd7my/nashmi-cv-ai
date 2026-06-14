@@ -356,7 +356,7 @@ export function smartCategorize(cv: CVData): CVData {
   return { ...cv, education: edu };
 }
 
-async function loadPdfJs(): Promise<typeof window> {
+export async function loadPdfJs(): Promise<typeof window> {
   if ((window as any).pdfjsLib) return (window as any).pdfjsLib;
   // Use unpkg which is more reliable than cdnjs for CORS
   const CDN = "https://unpkg.com/pdfjs-dist@3.11.174/build";
