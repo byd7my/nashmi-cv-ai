@@ -1,3 +1,10 @@
+export interface CVProjectItem {
+  name: string;
+  institution: string;
+  year: string;
+  bullets: string[];
+}
+
 export interface CVData {
   personal: { name: string; email: string; phone: string; city: string; title: string; linkedin: string; website: string };
   summary: string;
@@ -6,6 +13,7 @@ export interface CVData {
   skills: string[];
   languages: Array<{ lang: string; level: string }>;
   certifications: Array<{ title: string; issuer: string; date: string }>;
+  projects: { enabled: boolean; items: CVProjectItem[] };
 }
 
 const ACTION_VERBS = /\b(led|designed|built|shipped|launched|optimized|increased|reduced|developed|managed|created|implemented|delivered|improved|automated|architected|قاد|طور|صمم|أدار|أنجز|أطلق|حسّن|نفّذ|بنى|أنشأ)\b/i;

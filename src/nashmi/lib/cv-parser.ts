@@ -10,6 +10,7 @@ export const INIT_CV: CVData = {
   skills: [],
   languages: [{ lang:"", level:"" }],
   certifications: [],
+  projects: { enabled: false, items: [{ name: "", institution: "", year: "", bullets: [""] }] },
 };
 
 const SECTION_KEYS: Record<string, string[]> = {
@@ -300,7 +301,34 @@ export function normalizeParsedCV(parsed: unknown): CVData {
           })
     : [];
 
-  return { personal, summary: (safe.summary as string || "").trim(), experience, education, skills, languages, certifications };
+  const rawProjects = safe.projects as Record<string, unknown> | undefined;
+  const projects =
+    rawProjects && typeof rawProjects === "object"
+      ? {
+          enabled: rawProjects.enabled === true,
+          items: Array.isArray(rawProjects.items) && (rawProjects.items as unknown[]).length
+            ? (rawProjects.items as Record<string, unknown>[]).map((p) => ({
+                name: String(p?.name || "").trim(),
+                institution: String(p?.institution || "").trim(),
+                year: String(p?.year || "").trim(),
+                bullets: Array.isArray(p?.bullets)
+                  ? (p.bullets as unknown[]).map((b) => String(b || "").trim()).filter(Boolean)
+                  : [""],
+              }))
+            : INIT_CV.projects.items,
+        }
+      : INIT_CV.projects;
+
+  return {
+    personal,
+    summary: (safe.summary as string || "").trim(),
+    experience,
+    education,
+    skills,
+    languages,
+    certifications,
+    projects,
+  };
 }
 
 export function smartCategorize(cv: CVData): CVData {
