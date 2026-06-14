@@ -507,8 +507,15 @@ function copilotPathLabel(path: string, cv: CVData, isAr: boolean): string {
 
 function setCopilotPath(root: CVData, path: string, value: unknown): boolean {
   if (path === "skills") {
-    if (!Array.isArray(value)) return false;
-    const skills = value.map(String).map((s) => s.trim()).filter(Boolean);
+    let skills: string[] = [];
+    if (Array.isArray(value)) {
+      skills = value.map(String).map((s) => s.trim()).filter(Boolean);
+    } else if (typeof value === "string") {
+      skills = value
+        .split(/\n|[,،]|(?:\s*[•·|]\s*)|(?:\s+-\s+)/)
+        .map((s) => s.replace(/^[\s•\-–—*]+/, "").trim())
+        .filter(Boolean);
+    }
     if (!skills.length) return false;
     root.skills = skills;
     return true;
@@ -541,7 +548,7 @@ function applyCopilotUpdates(
 ): { next: CVData; appliedLabels: string[] } {
   const next = JSON.parse(JSON.stringify(cv)) as CVData;
   const appliedLabels: string[] = [];
-  for (const update of updates) {
+  for (const update of normalizeCopilotUpdates(updates)) {
     if (!update?.path || !COPILOT_TEXT_PATH.test(update.path)) continue;
     if (!setCopilotPath(next, update.path, update.value)) continue;
     const label = copilotPathLabel(update.path, cv, isAr);
@@ -554,10 +561,11 @@ function parseCopilotResponse(raw: string): CopilotResponse {
   const clean = raw.replace(/```json|```/g, "").trim();
   const tryParse = (text: string): CopilotResponse | null => {
     try {
-      const parsed = JSON.parse(text) as { message?: unknown; updates?: unknown };
+      const parsed = JSON.parse(text) as { message?: unknown; updates?: unknown; changes?: unknown; edits?: unknown };
       if (typeof parsed?.message !== "string") return null;
-      const updates = Array.isArray(parsed.updates)
-        ? parsed.updates.filter(
+      const rawUpdates = parsed.updates ?? parsed.changes ?? parsed.edits;
+      const updates = Array.isArray(rawUpdates)
+        ? rawUpdates.filter(
             (u): u is CopilotUpdate =>
               !!u &&
               typeof u === "object" &&
@@ -565,7 +573,7 @@ function parseCopilotResponse(raw: string): CopilotResponse {
               "value" in (u as object),
           )
         : [];
-      return { message: parsed.message.trim(), updates };
+      return { message: parsed.message.trim(), updates: normalizeCopilotUpdates(updates) };
     } catch {
       return null;
     }
@@ -600,13 +608,35 @@ function detectConversationLang(message: string, fallback: "ar" | "en"): "ar" | 
   return ar >= en ? "ar" : "en";
 }
 
-function isCopilotEditRequest(message: string): boolean {
+function isCopilotQuestionOnly(message: string): boolean {
   const m = message.trim();
-  if (!m) return false;
-  if (/[\u0600-\u06FF]/.test(m)) {
-    return /(حسّ?ن|عدّ?ل|أعد|حدّ?ث|غيّ?ر|غير|اكتب|أكتب|ضيف|أضف|اضف|احذف|شيل|ازل|أزل|بدّ?ل|بدل|طوّ?ل|قصّ?ر|نقح|صغ|عد|سو|سوا|عدّ?ل|كمّ?ل|أكمل|اكمل)/.test(m);
+  if (!m) return true;
+  const editIntent =
+    /(حس|عد|غير|عدل|اكتب|أكتب|أضف|اضف|ضيف|احذ|شيل|بدل|نقح|سو|مهار|skill|ملخص|summary|experience|خبر|education|تعل|cert|شهاد|title|اسم|linkedin|لغ|language|improve|edit|change|fix|update|add|remove|rewrite|enhance|optimi|professional|better|stronger|shorter|longer)/i.test(m);
+  if (editIntent) return false;
+  return /[؟?]$/.test(m) && /^(what|how|why|who|when|where|is |are |can |does |do |explain|tell me|ما |كيف |لماذا |هل |ممكن تشرح|وش |ايش )/i.test(m);
+}
+
+function normalizeCopilotUpdate(raw: CopilotUpdate): CopilotUpdate | null {
+  if (!raw?.path || raw.value === undefined || raw.value === null) return null;
+  let path = String(raw.path).trim().toLowerCase().replace(/\s+/g, "");
+  if (path === "skills" || path === "skill" || path === "المهارات") return { path: "skills", value: raw.value };
+  if (path === "summary" || path === "الملخص" || path === "professionalsummary") return { path: "summary", value: raw.value };
+  if (path.startsWith("personal.")) return { path, value: raw.value };
+  if (/^experience\.\d+\./.test(path)) return { path, value: raw.value };
+  if (/^education\.\d+\./.test(path)) return { path, value: raw.value };
+  if (/^languages\.\d+\./.test(path)) return { path, value: raw.value };
+  if (/^certifications\.\d+\./.test(path)) return { path, value: raw.value };
+  return COPILOT_TEXT_PATH.test(path) ? { path, value: raw.value } : null;
+}
+
+function normalizeCopilotUpdates(raw: CopilotUpdate[]): CopilotUpdate[] {
+  const out: CopilotUpdate[] = [];
+  for (const item of raw) {
+    const normalized = normalizeCopilotUpdate(item);
+    if (normalized) out.push(normalized);
   }
-  return /\b(improve|edit|rewrite|fix|update|change|add|remove|delete|replace|shorten|lengthen|enhance|optimi|reword|proofread|write|shorten)\b/i.test(m);
+  return out;
 }
 
 function buildCopilotEditPrompt(opts: {
@@ -640,21 +670,26 @@ Rules:
 - TEXT ONLY. Never change templates, layout, styling, fonts, colors, or design.
 - "message" MUST be in ${conversationIsAr ? "Arabic" : "English"} — the language the user is speaking.
 - Every string in "updates" MUST be in ${cvContentIsAr ? "Arabic" : "English"} — the resume language.
+- Interpret the user's request freely in natural language (Arabic or English). Do NOT require specific wording.
+  Examples that ALL mean edit skills → path "skills":
+  "عدل مهاراتي", "عدل على مهاراتي", "حسن مهاراتي", "حسّن skills", "improve my skills", "fix skills section"
+  Examples for summary → path "summary":
+  "حسن ملخصي", "عدّل الملخص", "improve summary", "make summary shorter"
 - Allowed paths ONLY:
   personal.name, personal.email, personal.phone, personal.city, personal.title, personal.linkedin, personal.website,
   summary,
   experience.N.role, experience.N.company, experience.N.from, experience.N.to, experience.N.desc,
   education.N.school, education.N.degree, education.N.field, education.N.from, education.N.to, education.N.gpa, education.N.honors,
-  skills (array of strings),
+  skills (array of strings OR one comma/newline-separated string),
   languages.N.lang, languages.N.level,
   certifications.N.title, certifications.N.issuer, certifications.N.date
   (N = 0-based index)
 - Do not invent employers, schools, or degrees unless the user explicitly asks.
 - experience.desc: bullet lines (• optional per line).
 ${forceUpdates
-    ? `- This is a direct TEXT EDIT request. "updates" MUST contain at least one valid change. Do not reply without applying edits.`
-    : `- If the user asks to change resume text, "updates" MUST NOT be empty.
-- If the user only asks a question (no edit), return "updates": [] and answer in "message".`}
+    ? `- The user wants a resume TEXT change. "updates" MUST contain at least one valid change. Never reply without applying edits.`
+    : `- If the user wants any resume text changed (in any wording), "updates" MUST NOT be empty.
+- Only pure questions with no edit intent may use "updates": [].`}
 - When "updates" is not empty, "message" MUST name each changed section clearly.
   `.trim();
 }
@@ -669,6 +704,60 @@ async function runCopilotTextEditApply(
   const parsed = data.json as CopilotResponse | undefined;
   if (!parsed?.updates?.length) return null;
   return parsed;
+}
+
+async function runCopilotSectionFallback(
+  message: string,
+  cv: CVData,
+  cvContentLang: "ar" | "en",
+  convIsAr: boolean,
+): Promise<{ next: CVData; reply: string } | null> {
+  const m = message.toLowerCase();
+  if (/مهار|skill/i.test(m)) {
+    const data = await callAI("improve_skills", cv.skills.join(", "), cvContentLang, { cv });
+    const suggested = Array.isArray(data.json)
+      ? (data.json as string[])
+      : (data.text || "").split("\n").map((s) => s.trim()).filter(Boolean);
+    if (!suggested.length) return null;
+    const merged = [...cv.skills];
+    for (const skill of suggested) {
+      if (!merged.some((s) => s.toLowerCase() === skill.toLowerCase())) merged.push(skill);
+    }
+    return {
+      next: { ...cv, skills: merged },
+      reply: convIsAr
+        ? `✓ تم تحديث المهارات.\n\n${merged.join(" · ")}`
+        : `✓ Skills updated.\n\n${merged.join(" · ")}`,
+    };
+  }
+  if (/ملخص|summary/i.test(m)) {
+    const data = await callAI("improve_summary", cv.summary, cvContentLang, { cv });
+    const text = data.text?.trim();
+    if (!text) return null;
+    return {
+      next: { ...cv, summary: text },
+      reply: convIsAr ? `✓ تم تحديث الملخص المهني.\n\n${text}` : `✓ Professional Summary updated.\n\n${text}`,
+    };
+  }
+  if (/خبر|experience|exp/i.test(m)) {
+    const next = JSON.parse(JSON.stringify(cv)) as CVData;
+    const changed: string[] = [];
+    for (let i = 0; i < next.experience.length; i += 1) {
+      const exp = next.experience[i];
+      if (!exp?.desc?.trim() && !exp?.role?.trim()) continue;
+      const data = await callAI(`improve_exp-${i}`, exp.desc, cvContentLang, { cv: next });
+      const text = data.text?.trim();
+      if (!text) continue;
+      next.experience[i] = { ...exp, desc: text };
+      changed.push(convIsAr ? `الخبرة ${i + 1}` : `Experience ${i + 1}`);
+    }
+    if (!changed.length) return null;
+    return {
+      next,
+      reply: convIsAr ? `✓ تم تحديث: ${changed.join("، ")}` : `✓ Updated: ${changed.join(", ")}`,
+    };
+  }
+  return null;
 }
 
 async function callOpenAIRaw(
@@ -1540,7 +1629,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const conversationLang = detectConversationLang(message, isAr ? "ar" : "en");
       const convIsAr = conversationLang === "ar";
 
-      const data = await callAI("copilot", message, conversationLang, {
+      const wantsEdit = !isCopilotQuestionOnly(message);
+      const task = wantsEdit ? "copilot_apply" : "copilot";
+
+      const data = await callAI(task, message, conversationLang, {
         cv,
         history: copilotHistory.slice(-8),
         cvContentLang: activeCvLang,
@@ -1566,7 +1658,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
 
       didApply = tryApply(copilot);
 
-      if (!didApply && isCopilotEditRequest(message)) {
+      if (!didApply && wantsEdit) {
         const retry = await runCopilotTextEditApply(message, cv, activeCvLang, conversationLang);
         if (retry) {
           copilot = retry;
@@ -1574,10 +1666,19 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
         }
       }
 
-      if (isCopilotEditRequest(message) && !didApply) {
+      if (!didApply && wantsEdit) {
+        const sectionFallback = await runCopilotSectionFallback(message, cv, activeCvLang, convIsAr);
+        if (sectionFallback) {
+          setCv(sectionFallback.next);
+          reply = sectionFallback.reply;
+          didApply = true;
+        }
+      }
+
+      if (wantsEdit && !didApply) {
         reply = convIsAr
-          ? "⚠️ لم أتمكن من تطبيق التعديل على النص. حاول صياغة الطلب بشكل أوضح (مثال: «عدّل الملخص» أو «حسّن الخبرة الأولى»)."
-          : "⚠️ Could not apply a text edit. Try a clearer request (e.g. “edit the summary” or “improve experience 1”).";
+          ? "⚠️ لم أتمكن من تطبيق التعديل هذه المرة. جرّب مرة أخرى أو حدّد القسم بوضوح (مثل الملخص أو المهارات أو الخبرة)."
+          : "⚠️ Could not apply the edit this time. Please try again or mention the section (summary, skills, experience, etc.).";
       }
 
       setCopilotHistory(h => [...h, { role: "assistant", content: reply }]);
