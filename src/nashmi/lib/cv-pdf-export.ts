@@ -218,16 +218,89 @@ class PdfRenderer {
     this.doc.text(text, MARGIN_R, this.y, { align: "right" });
   }
 
-  // Section header: BOLD CAPS + rule below
+  // Section header: title above underline + full-width rule
   renderSectionHeader(title: string) {
-    this.y += 4;
+    this.y += 8;
     this.setFont("bold", 9);
-    this.doc.text(title.toUpperCase(), MARGIN_L, this.y);
-    this.y += 3;
+    const label = title.toUpperCase();
+    this.doc.text(label, MARGIN_L, this.y);
+    const w = this.doc.getTextWidth(label);
+    this.doc.setDrawColor(0, 0, 0);
+    this.doc.setLineWidth(0.6);
+    this.doc.line(MARGIN_L, this.y + 1.5, MARGIN_L + w, this.y + 1.5);
+    this.y += 9;
     this.drawLine();
+    this.y += 6;
   }
 
-  // Bullet line: "o " + text, wrapped
+  renderSectionHeaderAr(title: string) {
+    this.y += 8;
+    this.setFont("bold", 9);
+    this.doc.text(title, MARGIN_R, this.y, { align: "right" });
+    const w = this.doc.getTextWidth(title);
+    this.doc.setDrawColor(0, 0, 0);
+    this.doc.setLineWidth(0.6);
+    this.doc.line(MARGIN_R - w, this.y + 1.5, MARGIN_R, this.y + 1.5);
+    this.y += 9;
+    this.drawLine();
+    this.y += 6;
+  }
+
+  renderSplitRow(left: string, right: string, boldLeft = true) {
+    if (!left && !right) return;
+    if (left) {
+      this.setFont(boldLeft ? "bold" : "normal", 8);
+      this.doc.text(left, MARGIN_L, this.y);
+    }
+    if (right) {
+      this.setFont("normal", 8);
+      this.doc.text(right, MARGIN_R, this.y, { align: "right" });
+    }
+    this.y += this.lineH;
+  }
+
+  renderSplitRowAr(left: string, right: string, boldLeft = true) {
+    if (!left && !right) return;
+    if (left) {
+      this.setFont(boldLeft ? "bold" : "normal", 8);
+      this.doc.text(left, MARGIN_R, this.y, { align: "right" });
+    }
+    if (right) {
+      this.setFont("normal", 8);
+      this.doc.text(right, MARGIN_L, this.y);
+    }
+    this.y += this.lineH;
+  }
+
+  // Experience / education bullets: "- " prefix
+  renderDashBullet(text: string) {
+    if (!text || text.trim() === "") return;
+    this.setFont("normal", 8);
+    const wrapX = 61.4;
+    const maxW = MARGIN_R - wrapX;
+    const lines = this.doc.splitTextToSize(text, maxW) as string[];
+    for (let i = 0; i < lines.length; i += 1) {
+      if (this.y > PAGE_BOTTOM) break;
+      const x = i === 0 ? 53.4 : wrapX;
+      this.doc.text(i === 0 ? `- ${lines[i]}` : lines[i], x, this.y);
+      this.y += this.lineH;
+    }
+  }
+
+  renderDashBulletAr(text: string) {
+    if (!text || text.trim() === "") return;
+    this.setFont("normal", 8);
+    const maxW = CONTENT_W - 16;
+    const lines = this.doc.splitTextToSize(text, maxW) as string[];
+    for (let i = 0; i < lines.length; i += 1) {
+      if (this.y > PAGE_BOTTOM) break;
+      if (i === 0) this.doc.text("-", MARGIN_L, this.y);
+      this.doc.text(lines[i], MARGIN_R, this.y, { align: "right" });
+      this.y += this.lineH;
+    }
+  }
+
+  // Legacy bullet (unused in main layout)
   renderBullet(text: string, size = 8, indentX = 65, wrapX = 78) {
     if (!text || text.trim() === "") return;
     this.setFont("normal", size);
@@ -288,142 +361,71 @@ function buildEnglishPdf(cv: CvData): Blob {
   r.drawLine();
   r.y += 2;
 
-  // ── PROFESSIONAL SUMMARY ───────────────────────────────────────────────────
+  // ── SUMMARY ────────────────────────────────────────────────────────────────
   if (cv.summary && cv.summary.trim()) {
-    r.renderSectionHeader("Professional Summary");
+    r.renderSectionHeader("Summary");
     r.renderText(cv.summary, MARGIN_L, CONTENT_W, 8);
-    r.y += 4;
+    r.y += 6;
   }
 
-  // ── EXPERIENCE ─────────────────────────────────────────────────────────────
+  // ── EXPERIENCE ───────────────────────────────────────────────────────────
   if (cv.experience && cv.experience.length > 0) {
     r.renderSectionHeader("Experience");
     for (const exp of cv.experience) {
       if (r.y > PAGE_BOTTOM) break;
-
-      // Job title LEFT, dates RIGHT — same line
-      r.setFont("bold", 9);
-      r.doc.text(exp.jobTitle || "", MARGIN_L + 6, r.y);
+      const titlePart = exp.jobTitle || "";
+      const placePart = [exp.company, exp.location].filter(Boolean).join(" | ");
+      const headerLeft = titlePart && placePart
+        ? `${titlePart} \u2014 ${placePart}`
+        : titlePart || placePart;
       const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" \u2013 ");
-      r.renderRight(dateStr, 8);
-      r.y += r.lineH;
-
-      // Company | Location
-      const companyLine = [exp.company, exp.location].filter(Boolean).join(" | ");
-      r.renderText(companyLine, MARGIN_L, CONTENT_W, 8);
-
-      // Bullets
+      r.renderSplitRow(headerLeft, dateStr, true);
       for (const bullet of exp.bullets || []) {
-        r.renderBullet(bullet);
+        r.renderDashBullet(bullet);
       }
       r.y += 6;
     }
   }
 
-  // ── EDUCATION ──────────────────────────────────────────────────────────────
+  // ── EDUCATION ────────────────────────────────────────────────────────────
   if (cv.education && cv.education.length > 0) {
     r.renderSectionHeader("Education");
     for (const edu of cv.education) {
       if (r.y > PAGE_BOTTOM) break;
-
-      // Institution LEFT, year RIGHT
-      r.setFont("bold", 9);
-      r.doc.text(edu.institution || "", MARGIN_L + 6, r.y);
-      r.renderRight(edu.year || "", 8);
-      r.y += r.lineH;
-
-      // Degree + GPA
-      const degreeGpa = [
-        edu.degree,
-        edu.gpa ? `GPA: ${edu.gpa}` : "",
-        edu.honors || "",
-      ].filter(Boolean).join("  |  ");
-      r.renderText(degreeGpa, MARGIN_L, CONTENT_W, 8);
-
-      // Optional education bullets
-      for (const bullet of edu.bullets || []) {
-        r.renderBullet(bullet);
+      const eduLeft = [edu.degree, edu.institution].filter(Boolean).join(" | ");
+      r.renderSplitRow(eduLeft, edu.year || "", true);
+      const extras: string[] = [];
+      if (edu.gpa) extras.push(`GPA: ${edu.gpa}`);
+      if (edu.honors) extras.push(edu.honors);
+      if (extras.length) {
+        r.renderText(extras.join("  |  "), MARGIN_L, CONTENT_W, 8);
       }
       r.y += 6;
     }
   }
 
-  // ── OTHER ──────────────────────────────────────────────────────────────────
-  const hasCerts    = cv.certifications && cv.certifications.length > 0;
-  const hasProjects = cv.projects?.enabled && (cv.projects?.items?.length ?? 0) > 0;
-  const allSkills   = cv.skills || [];
-  const { hard, soft } = (cv.hardSkills || cv.softSkills)
-    ? { hard: cv.hardSkills || [], soft: cv.softSkills || [] }
-    : splitSkills(allSkills);
-  const hasSkills   = hard.length > 0 || soft.length > 0;
-  const hasLangs    = cv.languages && cv.languages.length > 0;
-
-  if (hasCerts || hasProjects || hasSkills || hasLangs) {
-    r.renderSectionHeader("Other");
-
-    // 4a — Certifications
-    if (hasCerts) {
-      r.renderSubHeader("Certifications & Courses:");
-      for (const cert of cv.certifications!) {
-        const certLine = [cert.name, cert.issuer, cert.year]
-          .filter(Boolean).join(" | ");
-        r.renderBullet(certLine);
-      }
-      r.y += 4;
+  // ── CERTIFICATIONS & TRAINING ────────────────────────────────────────────
+  if (cv.certifications && cv.certifications.length > 0) {
+    r.renderSectionHeader("Certifications & Training");
+    for (const cert of cv.certifications) {
+      if (r.y > PAGE_BOTTOM) break;
+      const left = [cert.name, cert.issuer].filter(Boolean).join(" \u2014 ");
+      r.renderSplitRow(left, cert.year || "", true);
     }
+    r.y += 4;
+  }
 
-    // 4b — Projects (optional)
-    if (hasProjects) {
-      r.renderSubHeader("Projects:");
-      for (const proj of cv.projects!.items) {
-        if (r.y > PAGE_BOTTOM) break;
-        // Project title line
-        r.setFont("bold", 8);
-        const projTitle = [proj.name, proj.institution, proj.year]
-          .filter(Boolean).join(" \u2013 ");
-        r.doc.text(projTitle, MARGIN_L + 6, r.y);
-        r.y += r.lineH;
-        // Project bullets
-        for (const bullet of proj.bullets || []) {
-          r.renderBullet(bullet, 8, 72, 85);
-        }
-      }
-      r.y += 4;
-    }
+  // ── SKILLS ─────────────────────────────────────────────────────────────────
+  if (cv.skills && cv.skills.length > 0) {
+    r.renderSectionHeader("Skills");
+    r.renderText(cv.skills.join(" \u00B7 "), MARGIN_L, CONTENT_W, 8);
+    r.y += 4;
+  }
 
-    // 4c — Hard Skills
-    if (hard.length > 0) {
-      r.renderSubHeader("Hard Skills:");
-      for (const skill of hard) {
-        r.renderBullet(skill);
-      }
-      r.y += 4;
-    }
-
-    // 4d — Soft Skills
-    if (soft.length > 0) {
-      r.renderSubHeader("Soft Skills:");
-      for (const skill of soft) {
-        r.renderBullet(skill);
-      }
-      r.y += 4;
-    }
-
-    // 4e — Languages (inline)
-    if (hasLangs) {
-      if (r.y <= PAGE_BOTTOM) {
-        r.setFont("bold", 9);
-        r.doc.text("\u25CF Languages: ", MARGIN_L + 6, r.y);
-        r.setFont("normal", 9);
-        // measure bold part width
-        r.doc.setFont("helvetica", "bold");
-        r.doc.setFontSize(9);
-        const boldW = r.doc.getTextWidth("\u25CF Languages: ");
-        r.doc.setFont("helvetica", "normal");
-        r.doc.text(cv.languages!.join(", "), MARGIN_L + 6 + boldW, r.y);
-        r.y += r.lineH;
-      }
-    }
+  // ── LANGUAGES ──────────────────────────────────────────────────────────────
+  if (cv.languages && cv.languages.length > 0) {
+    r.renderSectionHeader("Languages");
+    r.renderText(cv.languages.join(" \u00B7 "), MARGIN_L, CONTENT_W, 8);
   }
 
   return r.doc.output("blob");
@@ -468,12 +470,7 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
 
   // ── SUMMARY ────────────────────────────────────────────────────────────────
   if (cv.summary && cv.summary.trim()) {
-    const headerText = await ar("الملخص المهني");
-    r.setFont("bold", 9);
-    r.doc.text(headerText, MARGIN_R, r.y, { align: "right" });
-    r.y += 3;
-    r.drawLine();
-
+    r.renderSectionHeaderAr(await ar("الملخص المهني"));
     const summaryText = await ar(cv.summary);
     r.setFont("normal", 8);
     const lines = r.doc.splitTextToSize(summaryText, CONTENT_W);
@@ -482,44 +479,23 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
       r.doc.text(line, MARGIN_R, r.y, { align: "right" });
       r.y += r.lineH;
     }
-    r.y += 4;
+    r.y += 6;
   }
 
   // ── EXPERIENCE ─────────────────────────────────────────────────────────────
   if (cv.experience && cv.experience.length > 0) {
-    const headerText = await ar("الخبرة");
-    r.setFont("bold", 9);
-    r.doc.text(headerText, MARGIN_R, r.y, { align: "right" });
-    r.y += 3;
-    r.drawLine();
-
+    r.renderSectionHeaderAr(await ar("الخبرة"));
     for (const exp of cv.experience) {
       if (r.y > PAGE_BOTTOM) break;
       const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" \u2013 ");
-
-      // Job title RIGHT, date LEFT
-      r.setFont("bold", 9);
-      const jobTitleAr = await ar(exp.jobTitle || "");
-      r.doc.text(jobTitleAr, MARGIN_R, r.y, { align: "right" });
-      r.setFont("normal", 8);
-      r.doc.text(dateStr, MARGIN_L, r.y);
-      r.y += r.lineH;
-
-      const compLine = await ar([exp.company, exp.location].filter(Boolean).join(" | "));
-      r.setFont("normal", 8);
-      r.doc.text(compLine, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
-
+      const titlePart = await ar(exp.jobTitle || "");
+      const placePart = await ar([exp.company, exp.location].filter(Boolean).join(" | "));
+      const headerLeft = titlePart && placePart
+        ? `${titlePart} \u2014 ${placePart}`
+        : titlePart || placePart;
+      r.renderSplitRowAr(headerLeft, dateStr, true);
       for (const bullet of exp.bullets || []) {
-        const bulletAr = await ar(bullet);
-        r.setFont("normal", 8);
-        const lines = r.doc.splitTextToSize(bulletAr, CONTENT_W - 20);
-        for (let i = 0; i < lines.length; i++) {
-          if (r.y > PAGE_BOTTOM) break;
-          if (i === 0) r.doc.text("o", MARGIN_R - r.doc.getTextWidth(lines[0]) - 8, r.y);
-          r.doc.text(lines[i], MARGIN_R, r.y, { align: "right" });
-          r.y += r.lineH;
-        }
+        r.renderDashBulletAr(await ar(bullet));
       }
       r.y += 6;
     }
@@ -527,116 +503,45 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
 
   // ── EDUCATION ──────────────────────────────────────────────────────────────
   if (cv.education && cv.education.length > 0) {
-    const headerText = await ar("التعليم");
-    r.setFont("bold", 9);
-    r.doc.text(headerText, MARGIN_R, r.y, { align: "right" });
-    r.y += 3;
-    r.drawLine();
-
+    r.renderSectionHeaderAr(await ar("التعليم"));
     for (const edu of cv.education) {
       if (r.y > PAGE_BOTTOM) break;
-      const instAr = await ar(edu.institution || "");
-      r.setFont("bold", 9);
-      r.doc.text(instAr, MARGIN_R, r.y, { align: "right" });
-      r.setFont("normal", 8);
-      r.doc.text(edu.year || "", MARGIN_L, r.y);
-      r.y += r.lineH;
-
-      const degParts = [edu.degree, edu.gpa ? `GPA: ${edu.gpa}` : "", edu.honors || ""]
-        .filter(Boolean).join(" | ");
-      const degAr = await ar(degParts);
-      r.doc.text(degAr, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
+      const eduLeft = await ar([edu.degree, edu.institution].filter(Boolean).join(" | "));
+      r.renderSplitRowAr(eduLeft, edu.year || "", true);
+      const extras: string[] = [];
+      if (edu.gpa) extras.push(`GPA: ${edu.gpa}`);
+      if (edu.honors) extras.push(await ar(edu.honors));
+      if (extras.length) {
+        r.renderText(extras.join("  |  "), MARGIN_R, CONTENT_W, 8, "normal", "right");
+      }
       r.y += 6;
     }
   }
 
-  // ── OTHER ──────────────────────────────────────────────────────────────────
-  const otherHeaderAr = await ar("أخرى");
-  r.setFont("bold", 9);
-  r.doc.text(otherHeaderAr, MARGIN_R, r.y, { align: "right" });
-  r.y += 3;
-  r.drawLine();
-
-  // Certs
+  // ── CERTIFICATIONS ─────────────────────────────────────────────────────────
   if (cv.certifications && cv.certifications.length > 0) {
-    const label = await ar("الشهادات والدورات:");
-    r.setFont("bold", 9);
-    r.doc.text(`\u25CF ${label}`, MARGIN_R, r.y, { align: "right" });
-    r.y += r.lineH;
+    r.renderSectionHeaderAr(await ar("الشهادات والدورات"));
     for (const cert of cv.certifications) {
-      const certLine = await ar([cert.name, cert.issuer, cert.year].filter(Boolean).join(" | "));
-      r.setFont("normal", 8);
-      r.doc.text(certLine, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
+      if (r.y > PAGE_BOTTOM) break;
+      const left = await ar([cert.name, cert.issuer].filter(Boolean).join(" \u2014 "));
+      r.renderSplitRowAr(left, cert.year || "", true);
     }
     r.y += 4;
   }
 
-  // Projects
-  if (cv.projects?.enabled && (cv.projects?.items?.length ?? 0) > 0) {
-    const label = await ar("المشاريع:");
-    r.setFont("bold", 9);
-    r.doc.text(`\u25CF ${label}`, MARGIN_R, r.y, { align: "right" });
-    r.y += r.lineH;
-    for (const proj of cv.projects.items) {
-      const projTitle = await ar([proj.name, proj.institution, proj.year].filter(Boolean).join(" \u2013 "));
-      r.setFont("bold", 8);
-      r.doc.text(projTitle, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
-      for (const bullet of proj.bullets || []) {
-        const bulletAr = await ar(bullet);
-        r.setFont("normal", 8);
-        r.doc.text(bulletAr, MARGIN_R, r.y, { align: "right" });
-        r.y += r.lineH;
-      }
-    }
+  // ── SKILLS ─────────────────────────────────────────────────────────────────
+  if (cv.skills && cv.skills.length > 0) {
+    r.renderSectionHeaderAr(await ar("المهارات"));
+    const skillsText = (await Promise.all(cv.skills.map((s) => ar(s)))).join(" \u00B7 ");
+    r.renderText(skillsText, MARGIN_R, CONTENT_W, 8, "normal", "right");
     r.y += 4;
   }
 
-  // Hard/Soft Skills
-  const allSkills = cv.skills || [];
-  const { hard, soft } = (cv.hardSkills || cv.softSkills)
-    ? { hard: cv.hardSkills || [], soft: cv.softSkills || [] }
-    : splitSkills(allSkills);
-
-  if (hard.length > 0) {
-    const label = await ar("المهارات التقنية:");
-    r.setFont("bold", 9);
-    r.doc.text(`\u25CF ${label}`, MARGIN_R, r.y, { align: "right" });
-    r.y += r.lineH;
-    for (const skill of hard) {
-      const skillAr = await ar(skill);
-      r.setFont("normal", 8);
-      r.doc.text(skillAr, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
-    }
-    r.y += 4;
-  }
-
-  if (soft.length > 0) {
-    const label = await ar("المهارات الشخصية:");
-    r.setFont("bold", 9);
-    r.doc.text(`\u25CF ${label}`, MARGIN_R, r.y, { align: "right" });
-    r.y += r.lineH;
-    for (const skill of soft) {
-      const skillAr = await ar(skill);
-      r.setFont("normal", 8);
-      r.doc.text(skillAr, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
-    }
-    r.y += 4;
-  }
-
-  // Languages
+  // ── LANGUAGES ──────────────────────────────────────────────────────────────
   if (cv.languages && cv.languages.length > 0) {
-    if (r.y <= PAGE_BOTTOM) {
-      const label = await ar("اللغات: ");
-      const langsText = cv.languages.join(", ");
-      r.setFont("bold", 9);
-      r.doc.text(`\u25CF ${label}${langsText}`, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
-    }
+    r.renderSectionHeaderAr(await ar("اللغات"));
+    const langsText = cv.languages.join(" \u00B7 ");
+    r.renderText(langsText, MARGIN_R, CONTENT_W, 8, "normal", "right");
   }
 
   return r.doc.output("blob");

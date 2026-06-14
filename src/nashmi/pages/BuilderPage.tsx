@@ -289,23 +289,6 @@ function EditableCVPreview({ cv, cvIsAr, activePanel, onSelect, templateId, comp
         )) : <Placeholder label={cvIsAr ? "أضف شهادة أو دورة" : "Add a certification"}/>}
       </Sec>
 
-      {/* Projects (optional) */}
-      {cv.projects?.enabled && (cv.projects.items || []).some(p => p.name || p.institution || p.year) && (
-        <Sec id="projects" mb={10}>
-          <div style={{ ...headStyle, marginBottom: 8, pointerEvents: "none" }}>{cvIsAr ? "المشاريع" : "Projects"}</div>
-          {(cv.projects.items || []).filter(p => p.name || p.institution || p.year).map((p, i) => (
-            <div key={i} style={{ marginBottom: 8, fontSize: 10 }}>
-              <div style={{ fontWeight: 700 }}>
-                {[p.name, p.institution, p.year].filter(Boolean).join(cvIsAr ? " · " : " · ")}
-              </div>
-              {(p.bullets || []).filter(Boolean).map((b, j) => (
-                <div key={j} style={{ marginTop: 3, fontSize: 9.5, color: "#333" }}>• {b}</div>
-              ))}
-            </div>
-          ))}
-        </Sec>
-      )}
-
       {/* Skills */}
       <Sec id="skills" mb={14}>
         <div style={{ ...headStyle, marginTop: 4, pointerEvents: "none" }}>{H.skills}</div>
@@ -372,7 +355,6 @@ function builderCvToExportCv(cv: CVData): ExportCvData {
         issuer: c.issuer || undefined,
         year: c.date,
       })),
-    projects: cv.projects,
     skills: cv.skills,
     languages: cv.languages
       .filter((l) => l.lang?.trim())
@@ -732,7 +714,7 @@ interface Props {
   setCurrentPlan: (plan: string) => void;
 }
 
-type Section = -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type Section = -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, currentPlan, setCurrentPlan }: Props) {
   const isAr = lang === "ar";
@@ -1748,7 +1730,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
   }
 
   const SECTIONS = t.builderNav;
-  const MOBILE_SECTION_IDS = ["personal", "summary", "experience-0", "education-0", "certifications", "projects", "skills", "languages"] as const;
+  const MOBILE_SECTION_IDS = ["personal", "summary", "experience-0", "education-0", "certifications", "skills", "languages"] as const;
   const MOBILE_TAB_LABELS = isAr
     ? { preview: "معاينة", sections: "الأقسام", copilot: "المساعد الذكي", export: "تصدير" }
     : { preview: "Preview", sections: "Sections", copilot: "AI Assistant", export: "Export" };
@@ -1914,99 +1896,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     </div>
   );
 
-  const renderProjectsFields = () => (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, padding: "12px 14px", background: P.surface, border: `1px solid ${P.border}`, borderRadius: 10 }}>
-        <input
-          type="checkbox"
-          id="projects-enabled"
-          checked={!!cv.projects?.enabled}
-          onChange={(ev) => setCv(prev => ({
-            ...prev,
-            projects: {
-              enabled: ev.target.checked,
-              items: prev.projects?.items?.length ? prev.projects.items : INIT_CV.projects.items,
-            },
-          }))}
-          style={{ accentColor: P.violet, width: 18, height: 18 }}
-        />
-        <label htmlFor="projects-enabled" style={{ color: P.text, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-          مشاريع / Projects
-        </label>
-      </div>
-      {!cv.projects?.enabled ? (
-        <p style={{ color: P.muted, fontSize: 12, lineHeight: 1.6, margin: 0 }}>
-          {isAr ? "فعّل هذا القسم لإظهار المشاريع في المعاينة وملف PDF." : "Enable to show projects in preview and PDF export."}
-        </p>
-      ) : (
-        <>
-          {(cv.projects?.items || []).map((p, i) => (
-            <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, padding: "16px 14px", marginBottom: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `مشروع ${i + 1}` : `Project ${i + 1}`}</span>
-                {(cv.projects?.items?.length || 0) > 1 && (
-                  <button
-                    onClick={() => setCv(prev => ({
-                      ...prev,
-                      projects: {
-                        ...prev.projects,
-                        items: prev.projects.items.filter((_, idx) => idx !== i),
-                      },
-                    }))}
-                    style={{ background: `${P.red}15`, border: `1px solid ${P.red}33`, color: P.red, borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 11 }}
-                  >
-                    {t.removeItem}
-                  </button>
-                )}
-              </div>
-              <Inp label={isAr ? "اسم المشروع" : "Project Name"} value={p.name} onChange={v => {
-                const items = [...(cv.projects?.items || INIT_CV.projects.items)];
-                items[i] = { ...items[i], name: v };
-                setCv(prev => ({ ...prev, projects: { ...prev.projects, enabled: true, items } }));
-              }} placeholder={isAr ? "مشروع التخرج" : "Graduation Project"} isAr={isAr}/>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Inp label={isAr ? "المؤسسة" : "Institution"} value={p.institution} onChange={v => {
-                  const items = [...(cv.projects?.items || INIT_CV.projects.items)];
-                  items[i] = { ...items[i], institution: v };
-                  setCv(prev => ({ ...prev, projects: { ...prev.projects, enabled: true, items } }));
-                }} placeholder={isAr ? "الكلية التقنية" : "Technical College"} isAr={isAr}/>
-                <Inp label={isAr ? "السنة" : "Year"} value={p.year} onChange={v => {
-                  const items = [...(cv.projects?.items || INIT_CV.projects.items)];
-                  items[i] = { ...items[i], year: v };
-                  setCv(prev => ({ ...prev, projects: { ...prev.projects, enabled: true, items } }));
-                }} placeholder="2025"/>
-              </div>
-              <Txta
-                label={isAr ? "نقاط المشروع (سطر لكل نقطة)" : "Project bullets (one per line)"}
-                value={(p.bullets || []).join("\n")}
-                onChange={v => {
-                  const items = [...(cv.projects?.items || INIT_CV.projects.items)];
-                  items[i] = { ...items[i], bullets: v.split("\n") };
-                  setCv(prev => ({ ...prev, projects: { ...prev.projects, enabled: true, items } }));
-                }}
-                rows={4}
-                placeholder={isAr ? "• وصف مختصر للمشروع" : "• Brief project description"}
-                isAr={isAr}
-              />
-            </div>
-          ))}
-          <button
-            onClick={() => setCv(prev => ({
-              ...prev,
-              projects: {
-                enabled: true,
-                items: [...(prev.projects?.items || INIT_CV.projects.items), { name: "", institution: "", year: "", bullets: [""] }],
-              },
-            }))}
-            style={{ width: "100%", background: "transparent", border: `1px dashed ${P.border}`, color: P.muted, borderRadius: 10, padding: "12px", cursor: "pointer", fontSize: 13, fontFamily: ff }}
-          >
-            {t.addItem} {isAr ? "مشروع" : "Project"}
-          </button>
-        </>
-      )}
-    </div>
-  );
-
   const renderSkillsFields = () => (
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -2081,9 +1970,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       case 2: return <div>{cv.experience.map((_, i) => renderExpItem(i))}{renderAddExpBtn()}</div>;
       case 3: return <div>{cv.education.map((_, i) => renderEduItem(i))}{renderAddEduBtn()}</div>;
       case 4: return renderCertFields();
-      case 5: return renderProjectsFields();
-      case 6: return renderSkillsFields();
-      case 7: return renderLanguagesFields();
+      case 5: return renderSkillsFields();
+      case 6: return renderLanguagesFields();
     }
   };
 
@@ -2094,9 +1982,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     if (panel.startsWith("experience-")) return `${SECTIONS[2]} ${Number(panel.slice("experience-".length)) + 1}`;
     if (panel.startsWith("education-")) return `${SECTIONS[3]} ${Number(panel.slice("education-".length)) + 1}`;
     if (panel === "certifications") return SECTIONS[4];
-    if (panel === "projects") return SECTIONS[5];
-    if (panel === "skills") return SECTIONS[6];
-    return SECTIONS[7];
+    if (panel === "skills") return SECTIONS[5];
+    return SECTIONS[6];
   };
 
   const renderPanelContent = (panel: string) => {
@@ -2111,7 +1998,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       return <div>{renderEduItem(i)}{renderAddEduBtn(n => setActivePanel(`education-${n}`))}</div>;
     }
     if (panel === "certifications") return renderCertFields();
-    if (panel === "projects") return renderProjectsFields();
     if (panel === "skills") return renderSkillsFields();
     return renderLanguagesFields();
   };
@@ -2156,9 +2042,8 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       else if (id.startsWith("experience")) sectionIdx = 2;
       else if (id.startsWith("education")) sectionIdx = 3;
       else if (id === "certifications") sectionIdx = 4;
-      else if (id === "projects") sectionIdx = 5;
-      else if (id === "skills") sectionIdx = 6;
-      else if (id === "languages") sectionIdx = 7;
+      else if (id === "skills") sectionIdx = 5;
+      else if (id === "languages") sectionIdx = 6;
       else return;
       setActiveSection(sectionIdx);
       return;
@@ -2748,7 +2633,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
             </h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {MOBILE_SECTION_IDS.map((id, i) => {
-                const icons = ["👤", "📝", "💼", "🎓", "🏅", "📁", "⚡", "🌐"];
+                const icons = ["👤", "📝", "💼", "🎓", "🏅", "⚡", "🌐"];
                 return (
                   <button
                     key={id}
