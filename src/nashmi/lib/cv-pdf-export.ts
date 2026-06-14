@@ -1,12 +1,14 @@
 import jsPDF from "jspdf";
 import type { CVData } from "@/nashmi/lib/ats";
 import { AR_HEADERS, EN_HEADERS } from "@/nashmi/lib/cv-parser";
-import { ATS_PDF_TEMPLATE_ID, getCvTemplateStyles, type CvTemplateId } from "@/nashmi/lib/cv-templates";
+import type { CvTemplateId } from "@/nashmi/lib/cv-templates";
 
 const MARGIN = 14;
 const PAGE_H = 297;
 const PAGE_W = 210;
 const CONTENT_W = PAGE_W - MARGIN * 2;
+const BLACK: [number, number, number] = [0, 0, 0];
+const RULE_WIDTH = 0.35;
 
 const AMIRI_REGULAR =
   "https://cdn.jsdelivr.net/fontsource/fonts/amiri@5.2.8/arabic-400-normal.ttf";
@@ -40,11 +42,22 @@ async function ensureArabicFonts(doc: jsPDF): Promise<void> {
   arabicFontsLoaded = true;
 }
 
+/** Strip encoding artifacts; Latin exports keep ASCII only. */
+function sanitizeExportText(text: string, latinOnly: boolean): string {
+  let s = text
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[\u2022\u2023\u2043\u2219\u00B7\u2027\u25CF\u25E6]/g, ", ")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+  if (latinOnly) {
+    s = s.replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "");
+  }
+  return s.replace(/\s+/g, " ").trim();
+}
+
 type WriteOpts = {
   size?: number;
   bold?: boolean;
   gap?: number;
-  color?: [number, number, number];
 };
 
 class AtsPdfWriter {
@@ -52,23 +65,28 @@ class AtsPdfWriter {
   private readonly x: number;
   private readonly align: "left" | "right";
   private readonly font: string;
-  private readonly tpl;
 
   constructor(
     private readonly doc: jsPDF,
     private readonly isAr: boolean,
-    templateId: CvTemplateId = "modern",
   ) {
-    this.tpl = getCvTemplateStyles(templateId);
     this.x = isAr ? PAGE_W - MARGIN : MARGIN;
     this.align = isAr ? "right" : "left";
     this.font = isAr ? "Amiri" : "helvetica";
   }
 
+  private prepare(text: string): string {
+    return sanitizeExportText(text, !this.isAr);
+  }
+
   private setFont(bold: boolean, size: number) {
     this.doc.setFont(this.font, bold ? "bold" : "normal");
     this.doc.setFontSize(size);
-    this.doc.setTextColor(17, 17, 17);
+    this.doc.setTextColor(...BLACK);
+  }
+
+  private lineHeight(size: number): number {
+    return size * 0.42;
   }
 
   private ensureSpace(height: number) {
@@ -77,38 +95,33 @@ class AtsPdfWriter {
     this.y = MARGIN;
   }
 
+  private renderLines(lines: string[], size: number, gap: number) {
+    const blockH = lines.length * this.lineHeight(size) + gap;
+    this.ensureSpace(blockH);
+    this.doc.text(lines, this.x, this.y, { align: this.align });
+    this.y += blockH;
+    this.doc.setTextColor(...BLACK);
+  }
+
   write(text: string, opts: WriteOpts = {}) {
-    const trimmed = text.trim();
+    const trimmed = this.prepare(text);
     if (!trimmed) return;
     const size = opts.size ?? 10;
     const gap = opts.gap ?? 2.5;
     this.setFont(Boolean(opts.bold), size);
-    if (opts.color) this.doc.setTextColor(...opts.color);
-
     const lines = this.doc.splitTextToSize(trimmed, CONTENT_W) as string[];
-    const blockH = lines.length * (size * 0.42) + gap;
-    this.ensureSpace(blockH);
-    this.doc.text(lines, this.x, this.y, { align: this.align, maxWidth: CONTENT_W });
-    this.y += blockH;
-    this.doc.setTextColor(17, 17, 17);
+    this.renderLines(lines, size, gap);
   }
 
   writeSection(title: string) {
     this.ensureSpace(10);
     this.setFont(true, 10);
-    this.doc.setTextColor(17, 17, 17);
-    const label =
-      this.tpl.sectionTitle.textTransform === "none" ? title : this.isAr ? title : title.toUpperCase();
-    this.doc.text(label, this.x, this.y, { align: this.align, maxWidth: CONTENT_W });
-    this.y += 4;
-    const lineY = this.y;
-    const accent = this.tpl.accent;
-    this.doc.setDrawColor(
-      parseInt(accent.slice(1, 3), 16),
-      parseInt(accent.slice(3, 5), 16),
-      parseInt(accent.slice(5, 7), 16),
-    );
-    this.doc.setLineWidth(this.tpl.sectionTitle.borderBottom ? 0.35 : 0.2);
+    const label = this.prepare(this.isAr ? title : title.toUpperCase());
+    const lines = this.doc.splitTextToSize(label, CONTENT_W) as string[];
+    this.renderLines(lines, 10, 4);
+    const lineY = this.y - 1;
+    this.doc.setDrawColor(...BLACK);
+    this.doc.setLineWidth(RULE_WIDTH);
     this.doc.line(MARGIN, lineY, PAGE_W - MARGIN, lineY);
     this.y += 5;
   }
@@ -116,16 +129,13 @@ class AtsPdfWriter {
   writeBullets(raw: string) {
     raw
       .split(/\n+/)
-      .map((line) => line.replace(/^[\s•\-–—]+/, "").trim())
+      .map((line) => this.prepare(line.replace(/^[\s•\-–—]+/, "")))
       .filter(Boolean)
       .forEach((line) => this.write(`- ${line}`, { size: 9.5, gap: 1.5 }));
   }
 }
 
-/**
- * ATS-friendly PDF: real text layer, single column, standard section headings.
- * Template choice affects preview styling only — export always uses classic ATS layout.
- */
+/** ATS-friendly PDF: real text layer, single column, standard section headings. */
 export async function renderCvToAtsPdfBlob(
   cv: CVData,
   cvLanguage: "ar" | "en",
@@ -144,13 +154,13 @@ export async function renderCvToAtsPdfBlob(
     keywords: cv.skills.join(", "),
   });
 
-  const w = new AtsPdfWriter(doc, isAr, ATS_PDF_TEMPLATE_ID);
+  const w = new AtsPdfWriter(doc, isAr);
 
   const name = cv.personal.name || (isAr ? "الاسم الكامل" : "Full Name");
   w.write(name, { size: 18, bold: true, gap: 3 });
 
   if (cv.personal.title) {
-    w.write(cv.personal.title, { size: 11, gap: 3, color: [68, 68, 68] });
+    w.write(cv.personal.title, { size: 11, gap: 3 });
   }
 
   const contact = [
@@ -162,7 +172,7 @@ export async function renderCvToAtsPdfBlob(
   ]
     .filter(Boolean)
     .join(" | ");
-  if (contact) w.write(contact, { size: 9, gap: 6, color: [85, 85, 85] });
+  if (contact) w.write(contact, { size: 9, gap: 6 });
 
   if (cv.summary.trim()) {
     w.writeSection(H.summary);
@@ -195,7 +205,7 @@ export async function renderCvToAtsPdfBlob(
         extras.push(`${isAr ? "المعدل" : "GPA"}: ${e.gpa}${e.gpaScale ? `/${e.gpaScale}` : ""}`);
       }
       if (e.honors) extras.push(`${isAr ? "مرتبة الشرف" : "Honors"}: ${e.honors}`);
-      if (extras.length) w.write(extras.join(" | "), { size: 9, gap: 1.5, color: [85, 85, 85] });
+      if (extras.length) w.write(extras.join(" | "), { size: 9, gap: 1.5 });
       w.write("", { gap: 2 });
     });
   }
@@ -211,7 +221,11 @@ export async function renderCvToAtsPdfBlob(
 
   if (cv.skills.length) {
     w.writeSection(H.skills);
-    w.write(cv.skills.join(", "), { size: 10, gap: 5 });
+    const skillsText = cv.skills
+      .map((skill) => sanitizeExportText(skill, !isAr))
+      .filter(Boolean)
+      .join(", ");
+    w.write(skillsText, { size: 10, gap: 5 });
   }
 
   const languages = cv.languages.filter((l) => l.lang);
