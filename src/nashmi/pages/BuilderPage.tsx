@@ -449,6 +449,150 @@ function rateLimitUserMessage(isAr: boolean, usageType?: string, limit?: number)
   }
 }
 
+type CopilotUpdate = { path: string; value: unknown };
+
+type CopilotResponse = {
+  message: string;
+  updates: CopilotUpdate[];
+};
+
+const COPILOT_TEXT_PATH =
+  /^(summary|personal\.(name|email|phone|city|title|linkedin|website)|experience\.\d+\.(role|company|from|to|desc)|education\.\d+\.(school|degree|field|from|to|gpa|honors)|languages\.\d+\.(lang|level)|certifications\.\d+\.(title|issuer|date)|skills)$/;
+
+function copilotPathLabel(path: string, cv: CVData, isAr: boolean): string {
+  if (path === "summary") return isAr ? "الملخص المهني" : "Professional Summary";
+  if (path === "skills") return isAr ? "المهارات" : "Skills";
+  if (path.startsWith("personal.")) {
+    const field = path.split(".")[1];
+    const labels: Record<string, [string, string]> = {
+      name: ["الاسم", "Name"],
+      title: ["المسمى الوظيفي", "Job Title"],
+      email: ["البريد", "Email"],
+      phone: ["الجوال", "Phone"],
+      city: ["المدينة", "City"],
+      linkedin: ["LinkedIn", "LinkedIn"],
+      website: ["الموقع", "Website"],
+    };
+    const pair = labels[field];
+    return pair ? (isAr ? pair[0] : pair[1]) : path;
+  }
+  const expMatch = path.match(/^experience\.(\d+)\./);
+  if (expMatch) {
+    const idx = Number(expMatch[1]);
+    const role = cv.experience[idx]?.role?.trim();
+    return isAr
+      ? `الخبرة ${idx + 1}${role ? ` (${role})` : ""}`
+      : `Experience ${idx + 1}${role ? ` (${role})` : ""}`;
+  }
+  const eduMatch = path.match(/^education\.(\d+)\./);
+  if (eduMatch) {
+    const idx = Number(eduMatch[1]);
+    const school = cv.education[idx]?.school?.trim();
+    return isAr
+      ? `التعليم ${idx + 1}${school ? ` (${school})` : ""}`
+      : `Education ${idx + 1}${school ? ` (${school})` : ""}`;
+  }
+  const langMatch = path.match(/^languages\.(\d+)\./);
+  if (langMatch) {
+    const idx = Number(langMatch[1]) + 1;
+    return isAr ? `اللغة ${idx}` : `Language ${idx}`;
+  }
+  const certMatch = path.match(/^certifications\.(\d+)\./);
+  if (certMatch) {
+    const idx = Number(certMatch[1]) + 1;
+    return isAr ? `الشهادة ${idx}` : `Certification ${idx}`;
+  }
+  return path;
+}
+
+function setCopilotPath(root: CVData, path: string, value: unknown): boolean {
+  if (path === "skills") {
+    if (!Array.isArray(value)) return false;
+    const skills = value.map(String).map((s) => s.trim()).filter(Boolean);
+    if (!skills.length) return false;
+    root.skills = skills;
+    return true;
+  }
+  const strVal = typeof value === "string" ? value : String(value ?? "");
+  const parts = path.split(".");
+  let cur: unknown = root;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const part = parts[i];
+    if (cur === null || typeof cur !== "object") return false;
+    if (Array.isArray(cur)) {
+      const idx = Number(part);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= cur.length) return false;
+      cur = cur[idx];
+    } else {
+      cur = (cur as Record<string, unknown>)[part];
+      if (cur === undefined) return false;
+    }
+  }
+  const last = parts[parts.length - 1];
+  if (cur === null || typeof cur !== "object" || Array.isArray(cur)) return false;
+  (cur as Record<string, unknown>)[last] = strVal;
+  return true;
+}
+
+function applyCopilotUpdates(
+  cv: CVData,
+  updates: CopilotUpdate[],
+  isAr: boolean,
+): { next: CVData; appliedLabels: string[] } {
+  const next = JSON.parse(JSON.stringify(cv)) as CVData;
+  const appliedLabels: string[] = [];
+  for (const update of updates) {
+    if (!update?.path || !COPILOT_TEXT_PATH.test(update.path)) continue;
+    if (!setCopilotPath(next, update.path, update.value)) continue;
+    const label = copilotPathLabel(update.path, cv, isAr);
+    if (!appliedLabels.includes(label)) appliedLabels.push(label);
+  }
+  return { next, appliedLabels };
+}
+
+function parseCopilotResponse(raw: string): CopilotResponse {
+  const clean = raw.replace(/```json|```/g, "").trim();
+  const tryParse = (text: string): CopilotResponse | null => {
+    try {
+      const parsed = JSON.parse(text) as { message?: unknown; updates?: unknown };
+      if (typeof parsed?.message !== "string") return null;
+      const updates = Array.isArray(parsed.updates)
+        ? parsed.updates.filter(
+            (u): u is CopilotUpdate =>
+              !!u &&
+              typeof u === "object" &&
+              typeof (u as CopilotUpdate).path === "string" &&
+              "value" in (u as object),
+          )
+        : [];
+      return { message: parsed.message.trim(), updates };
+    } catch {
+      return null;
+    }
+  };
+  const direct = tryParse(clean);
+  if (direct) return direct;
+  const start = clean.indexOf("{");
+  const end = clean.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    const nested = tryParse(clean.slice(start, end + 1));
+    if (nested) return nested;
+  }
+  return { message: raw.trim(), updates: [] };
+}
+
+function buildCopilotCvPayload(cv: CVData) {
+  return {
+    personal: cv.personal,
+    summary: cv.summary,
+    experience: cv.experience,
+    education: cv.education,
+    skills: cv.skills,
+    languages: cv.languages,
+    certifications: cv.certifications,
+  };
+}
+
 async function callOpenAIRaw(
   prompt: string,
   options?: {
@@ -672,31 +816,50 @@ Return ONLY the JSON, no explanation, no markdown, no code blocks.
 
   // ── Copilot ────────────────────────────────────────────────────────────
   if (task === "copilot") {
-    const cv = (extra as any)?.cv;
+    const cv = (extra as any)?.cv as CVData | undefined;
     const history = ((extra as any)?.history ?? []) as { role: string; content: string }[];
-    const cvSummary = JSON.stringify({
-      name: cv?.personal?.name,
-      title: cv?.personal?.title,
-      summary: cv?.summary,
-      skills: cv?.skills,
-      experience: cv?.experience?.map((e: any) => ({ role: e.role, company: e.company })),
-    });
+    const cvPayload = cv ? buildCopilotCvPayload(cv) : {};
     const historyText = history.map((h: any) => `${h.role === "user" ? "User" : "Assistant"}: ${h.content}`).join("\n");
     const prompt = `
-You are an expert resume writing assistant. Help the user improve their resume.
+You are an expert resume writing assistant embedded in a CV builder.
 
-Current resume data:
-${cvSummary}
+Current resume (text fields only):
+${JSON.stringify(cvPayload, null, 2)}
 
 Conversation history:
-${historyText}
+${historyText || "(none)"}
 
-User: ${text}
+User request:
+${text}
 
-Respond in ${isAr ? "Arabic" : "English"} concisely and helpfully.
+Return ONLY valid JSON with this exact shape (no markdown, no code fences):
+{
+  "message": "Your reply to the user",
+  "updates": []
+}
+
+Rules:
+- TEXT CONTENT ONLY. Never change templates, layout, styling, fonts, colors, margins, or visual design.
+- When the user asks to edit, rewrite, improve, add, remove, or fix resume TEXT, apply the changes in "updates" and explain in "message" exactly which sections you changed (use clear section names).
+- When the user asks a general question or advice without applying edits, return "updates": [].
+- Allowed update paths only:
+  personal.name, personal.email, personal.phone, personal.city, personal.title, personal.linkedin, personal.website,
+  summary,
+  experience.N.role, experience.N.company, experience.N.from, experience.N.to, experience.N.desc (N = 0-based index),
+  education.N.school, education.N.degree, education.N.field, education.N.from, education.N.to, education.N.gpa, education.N.honors,
+  skills (value must be a JSON array of strings),
+  languages.N.lang, languages.N.level,
+  certifications.N.title, certifications.N.issuer, certifications.N.date
+- Do not use paths outside this list.
+- Do not invent employers, schools, degrees, or certifications unless the user explicitly asks to add them.
+- For experience.desc use bullet lines (each line may start with •).
+- "message" must be in ${isAr ? "Arabic" : "English"} and must state where each text change was applied when updates is not empty.
+
+${outLang}
     `.trim();
     const result = await callOpenAIRaw(prompt, { usageType: "copilot" });
-    return { text: result.trim() };
+    const parsed = parseCopilotResponse(result);
+    return { text: parsed.message, json: parsed };
   }
 
   // fallback
@@ -1324,7 +1487,22 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
     track("ai_copilot_used");
     try {
       const data = await callAI("copilot", message, aiLang, { cv, history: copilotHistory.slice(-8) });
-      const reply = (data.text || "").trim() || (isAr ? "عذراً، لم أتمكن من المعالجة." : "Sorry, could not process that.");
+      const copilot = data.json as CopilotResponse | undefined;
+      let reply = (data.text || "").trim() || (isAr ? "عذراً، لم أتمكن من المعالجة." : "Sorry, could not process that.");
+
+      if (copilot?.updates?.length) {
+        const { next, appliedLabels } = applyCopilotUpdates(cv, copilot.updates, isAr);
+        if (appliedLabels.length > 0) {
+          setCv(next);
+          const where = appliedLabels.join(isAr ? "، " : ", ");
+          if (!reply.includes(where) && !/عدّل|عدل|حدّث|حدث|updated|changed|modified/i.test(reply)) {
+            reply += isAr
+              ? `\n\n✓ تم تطبيق التعديلات على: ${where}`
+              : `\n\n✓ Applied changes to: ${where}`;
+          }
+        }
+      }
+
       setCopilotHistory(h => [...h, { role: "assistant", content: reply }]);
     } catch (err) {
       if (err instanceof AiRateLimitError) {
