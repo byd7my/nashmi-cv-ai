@@ -124,14 +124,39 @@ async function ensureArabicFonts(doc: jsPDF): Promise<void> {
 
 // ─── Arabic reshaping ─────────────────────────────────────────────────────────
 
-async function reshapeArabic(text: string): Promise<string> {
-  if (!text || !/[\u0600-\u06FF]/.test(text)) return text;
+// IMPORTANT: shaping and bidi reordering must happen in the right order, and per
+// VISUAL LINE \u2014 never on a whole paragraph before width-wrapping. Reordering a
+// whole paragraph then splitting it by width puts the last words on the first
+// line and mirrors the reading order (the classic "scrambled Arabic" bug).
+//
+// Correct pipeline:
+//   1. keep the LOGICAL text for wrapping (so words stay in reading order)
+//   2. wrap to width using the SHAPED glyph widths
+//   3. reorder EACH wrapped line for visual display
+//
+// The logical (un-reordered) text is also drawn as an invisible layer so that
+// ATS parsers extract correct, searchable Arabic instead of reversed glyphs.
+
+const ARABIC_RE = /[\u0600-\u06FF]/;
+
+/** Connect Arabic letters into their contextual presentation forms. Logical order preserved. */
+function shapeArabic(text: string): string {
+  if (!text || !ARABIC_RE.test(text)) return text;
   try {
-    const shaped = ArabicShaper.convertArabic(text);
-    const levels = bidi.getEmbeddingLevels(shaped);
-    return bidi.getReorderedString(shaped, levels);
+    return ArabicShaper.convertArabic(text);
   } catch {
     return text;
+  }
+}
+
+/** Reorder a single (already width-wrapped) line for correct RTL/LTR visual display. */
+function reorderVisual(line: string): string {
+  if (!line || !ARABIC_RE.test(line)) return line;
+  try {
+    const levels = bidi.getEmbeddingLevels(line);
+    return bidi.getReorderedString(line, levels);
+  } catch {
+    return line;
   }
 }
 
@@ -233,11 +258,72 @@ class PdfRenderer {
     this.y += 6;
   }
 
+  // ── Arabic drawing primitives ────────────────────────────────────────────
+  //
+  // All take LOGICAL (normal, reading-order) Arabic. They draw two layers:
+  //   • an invisible logical layer  → ATS-readable / searchable text
+  //   • a visible shaped+reordered layer → correct on-screen appearance
+  // Non-Arabic text (Latin, numbers, dates) is drawn once, normally.
+
+  /** Draw one logical line at an anchor with the given alignment (both layers). */
+  drawAr(logical: string, xPos: number, align: "left" | "center" | "right") {
+    if (!logical) return;
+    if (ARABIC_RE.test(logical)) {
+      // Invisible logical layer (correct order) for ATS / copy-paste / search.
+      this.doc.text(logical, xPos, this.y, { align, renderingMode: "invisible" });
+      // Visible shaped + bidi-reordered layer for humans.
+      const visible = reorderVisual(shapeArabic(logical));
+      this.doc.text(visible, xPos, this.y, { align, renderingMode: "fill" });
+    } else {
+      this.doc.text(logical, xPos, this.y, { align, renderingMode: "fill" });
+    }
+  }
+
+  /**
+   * Word-wrap LOGICAL Arabic to a pixel width, measuring with SHAPED glyph
+   * widths. Returns logical lines (still in reading order).
+   */
+  wrapAr(text: string, maxWidth: number): string[] {
+    const words = text.split(/\s+/).filter(Boolean);
+    if (!words.length) return [];
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      const trial = cur ? `${cur} ${w}` : w;
+      if (cur && this.doc.getTextWidth(shapeArabic(trial)) > maxWidth) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = trial;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  /** Right-aligned (or centered) wrapped Arabic paragraph. */
+  renderArParagraph(
+    text: string,
+    size: number,
+    style: "normal" | "bold" = "normal",
+    align: "right" | "center" = "right"
+  ) {
+    if (!text || !text.trim()) return;
+    this.setFont(style, size);
+    const xPos = align === "center" ? PAGE_W / 2 : MARGIN_R;
+    const maxW = align === "center" ? CONTENT_W : MARGIN_R - MARGIN_L;
+    for (const line of this.wrapAr(text, maxW)) {
+      if (this.y > PAGE_BOTTOM) break;
+      this.drawAr(line, xPos, align);
+      this.y += this.lineH;
+    }
+  }
+
   renderSectionHeaderAr(title: string) {
     this.y += 8;
     this.setFont("bold", 9);
-    this.doc.text(title, MARGIN_R, this.y, { align: "right" });
-    const w = this.doc.getTextWidth(title);
+    this.drawAr(title, MARGIN_R, "right");
+    const w = this.doc.getTextWidth(shapeArabic(title));
     this.doc.setDrawColor(0, 0, 0);
     this.doc.setLineWidth(0.6);
     this.doc.line(MARGIN_R - w, this.y + 1.5, MARGIN_R, this.y + 1.5);
@@ -259,15 +345,16 @@ class PdfRenderer {
     this.y += this.lineH;
   }
 
+  // RTL row: title (logical Arabic) on the right, date/meta on the left.
   renderSplitRowAr(left: string, right: string, boldLeft = true) {
     if (!left && !right) return;
     if (left) {
       this.setFont(boldLeft ? "bold" : "normal", 8);
-      this.doc.text(left, MARGIN_R, this.y, { align: "right" });
+      this.drawAr(left, MARGIN_R, "right");
     }
     if (right) {
       this.setFont("normal", 8);
-      this.doc.text(right, MARGIN_L, this.y);
+      this.drawAr(right, MARGIN_L, "left");
     }
     this.y += this.lineH;
   }
@@ -287,15 +374,17 @@ class PdfRenderer {
     }
   }
 
+  // RTL bullet: dash marker on the right (line start), text wraps to its left.
   renderDashBulletAr(text: string) {
     if (!text || text.trim() === "") return;
     this.setFont("normal", 8);
-    const maxW = CONTENT_W - 16;
-    const lines = this.doc.splitTextToSize(text, maxW) as string[];
+    const dashGap = 10;
+    const maxW = CONTENT_W - dashGap;
+    const lines = this.wrapAr(text, maxW);
     for (let i = 0; i < lines.length; i += 1) {
       if (this.y > PAGE_BOTTOM) break;
-      if (i === 0) this.doc.text("-", MARGIN_L, this.y);
-      this.doc.text(lines[i], MARGIN_R, this.y, { align: "right" });
+      if (i === 0) this.doc.text("•", MARGIN_R, this.y, { align: "right" });
+      this.drawAr(lines[i], MARGIN_R - dashGap, "right");
       this.y += this.lineH;
     }
   }
@@ -438,22 +527,22 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
   await ensureArabicFonts(r.doc);
   r.fontFamily = "Amiri";
 
-  const ar = async (text: string) => reshapeArabic(text);
+  // NOTE: every string below is passed in LOGICAL (reading) order. The renderer
+  // shapes, width-wraps, and bidi-reorders per line — and writes an invisible
+  // logical layer for ATS. Do NOT pre-reshape here.
 
   // ── HEADER (centered) ──────────────────────────────────────────────────────
   r.setFont("bold", 20);
-  const name = await ar(cv.fullName || "");
-  r.doc.text(name, PAGE_W / 2, r.y, { align: "center" });
+  r.drawAr(cv.fullName || "", PAGE_W / 2, "center");
   r.y += 14;
 
   if (cv.jobTitle) {
-    const title = await ar(cv.jobTitle);
     r.setFont("normal", 10);
-    r.doc.text(title, PAGE_W / 2, r.y, { align: "center" });
+    r.drawAr(cv.jobTitle, PAGE_W / 2, "center");
     r.y += 12;
   }
 
-  // Contact (phone/email stay LTR)
+  // Contact (phone/email stay LTR; single normal line)
   const contactParts: string[] = [];
   if (cv.phone)    contactParts.push(cv.phone);
   if (cv.email)    contactParts.push(cv.email);
@@ -461,7 +550,7 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
   if (cv.linkedin) contactParts.push(cv.linkedin);
   if (contactParts.length > 0) {
     r.setFont("normal", 8);
-    r.doc.text(contactParts.join("  |  "), PAGE_W / 2, r.y, { align: "center" });
+    r.drawAr(contactParts.join("  |  "), PAGE_W / 2, "center");
     r.y += 8;
   }
   r.y += 2;
@@ -470,32 +559,25 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
 
   // ── SUMMARY ────────────────────────────────────────────────────────────────
   if (cv.summary && cv.summary.trim()) {
-    r.renderSectionHeaderAr(await ar("الملخص المهني"));
-    const summaryText = await ar(cv.summary);
-    r.setFont("normal", 8);
-    const lines = r.doc.splitTextToSize(summaryText, CONTENT_W);
-    for (const line of lines) {
-      if (r.y > PAGE_BOTTOM) break;
-      r.doc.text(line, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
-    }
+    r.renderSectionHeaderAr("الملخص المهني");
+    r.renderArParagraph(cv.summary, 8);
     r.y += 6;
   }
 
   // ── EXPERIENCE ─────────────────────────────────────────────────────────────
   if (cv.experience && cv.experience.length > 0) {
-    r.renderSectionHeaderAr(await ar("الخبرة"));
+    r.renderSectionHeaderAr("الخبرة");
     for (const exp of cv.experience) {
       if (r.y > PAGE_BOTTOM) break;
       const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" \u2013 ");
-      const titlePart = await ar(exp.jobTitle || "");
-      const placePart = await ar([exp.company, exp.location].filter(Boolean).join(" | "));
+      const titlePart = exp.jobTitle || "";
+      const placePart = [exp.company, exp.location].filter(Boolean).join(" | ");
       const headerLeft = titlePart && placePart
         ? `${titlePart} \u2014 ${placePart}`
         : titlePart || placePart;
       r.renderSplitRowAr(headerLeft, dateStr, true);
       for (const bullet of exp.bullets || []) {
-        r.renderDashBulletAr(await ar(bullet));
+        r.renderDashBulletAr(bullet);
       }
       r.y += 6;
     }
@@ -503,16 +585,16 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
 
   // ── EDUCATION ──────────────────────────────────────────────────────────────
   if (cv.education && cv.education.length > 0) {
-    r.renderSectionHeaderAr(await ar("التعليم"));
+    r.renderSectionHeaderAr("التعليم");
     for (const edu of cv.education) {
       if (r.y > PAGE_BOTTOM) break;
-      const eduLeft = await ar([edu.degree, edu.institution].filter(Boolean).join(" | "));
+      const eduLeft = [edu.degree, edu.institution].filter(Boolean).join(" | ");
       r.renderSplitRowAr(eduLeft, edu.year || "", true);
       const extras: string[] = [];
       if (edu.gpa) extras.push(`GPA: ${edu.gpa}`);
-      if (edu.honors) extras.push(await ar(edu.honors));
+      if (edu.honors) extras.push(edu.honors);
       if (extras.length) {
-        r.renderText(extras.join("  |  "), MARGIN_R, CONTENT_W, 8, "normal", "right");
+        r.renderArParagraph(extras.join("  |  "), 8);
       }
       r.y += 6;
     }
@@ -520,10 +602,10 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
 
   // ── CERTIFICATIONS ─────────────────────────────────────────────────────────
   if (cv.certifications && cv.certifications.length > 0) {
-    r.renderSectionHeaderAr(await ar("الشهادات والدورات"));
+    r.renderSectionHeaderAr("الشهادات والدورات");
     for (const cert of cv.certifications) {
       if (r.y > PAGE_BOTTOM) break;
-      const left = await ar([cert.name, cert.issuer].filter(Boolean).join(" \u2014 "));
+      const left = [cert.name, cert.issuer].filter(Boolean).join(" \u2014 ");
       r.renderSplitRowAr(left, cert.year || "", true);
     }
     r.y += 4;
@@ -531,17 +613,15 @@ async function buildArabicPdf(cv: CvData): Promise<Blob> {
 
   // ── SKILLS ─────────────────────────────────────────────────────────────────
   if (cv.skills && cv.skills.length > 0) {
-    r.renderSectionHeaderAr(await ar("المهارات"));
-    const skillsText = (await Promise.all(cv.skills.map((s) => ar(s)))).join(" \u00B7 ");
-    r.renderText(skillsText, MARGIN_R, CONTENT_W, 8, "normal", "right");
+    r.renderSectionHeaderAr("المهارات");
+    r.renderArParagraph(cv.skills.join(" \u00B7 "), 8);
     r.y += 4;
   }
 
   // ── LANGUAGES ──────────────────────────────────────────────────────────────
   if (cv.languages && cv.languages.length > 0) {
-    r.renderSectionHeaderAr(await ar("اللغات"));
-    const langsText = cv.languages.join(" \u00B7 ");
-    r.renderText(langsText, MARGIN_R, CONTENT_W, 8, "normal", "right");
+    r.renderSectionHeaderAr("اللغات");
+    r.renderArParagraph(cv.languages.join(" \u00B7 "), 8);
   }
 
   return r.doc.output("blob");
