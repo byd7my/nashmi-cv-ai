@@ -1,20 +1,20 @@
 /**
  * Isolated pdfmake-rtl engine for Arabic ATS PDFs only.
- * Uses full Noto Sans Arabic (Arabic + Latin glyphs) — one font, no mixed-font tofu.
+ * Uses Cairo (full Arabic + Latin in one TTF) — single font, no tofu, no font-switching.
  */
 
 import pdfMake from "pdfmake-rtl/build/pdfmake";
 import type { TDocumentDefinitions } from "pdfmake-rtl/interfaces";
 
-/** Full TTF — includes Arabic script + basic Latin (digits, punctuation, English). */
-const NOTO_ARABIC_REGULAR =
-  "https://cdn.jsdelivr.net/gh/notofonts/noto-fonts@main/hinted/ttf/NotoSansArabic/NotoSansArabic-Regular.ttf";
-const NOTO_ARABIC_BOLD =
-  "https://cdn.jsdelivr.net/gh/notofonts/noto-fonts@main/hinted/ttf/NotoSansArabic/NotoSansArabic-Bold.ttf";
+/** Static Cairo TTFs — verified cmap: Latin (W), %, /, and Arabic glyphs in one file. */
+const CAIRO_REGULAR =
+  "https://cdn.jsdelivr.net/npm/pdfmake-rtl@2.1.2/fonts/Cairo/Cairo-Regular.ttf";
+const CAIRO_BOLD =
+  "https://cdn.jsdelivr.net/npm/pdfmake-rtl@2.1.2/fonts/Cairo/Cairo-Bold.ttf";
 
 const VFS = {
-  regular: "nashmi-noto-arabic-regular.ttf",
-  bold: "nashmi-noto-arabic-bold.ttf",
+  regular: "nashmi-cairo-regular.ttf",
+  bold: "nashmi-cairo-bold.ttf",
 } as const;
 
 let engineReady: Promise<void> | null = null;
@@ -36,8 +36,8 @@ async function ensureArabicPdfEngine(): Promise<typeof pdfMake> {
   if (!engineReady) {
     engineReady = (async () => {
       const [regular, bold] = await Promise.all([
-        loadBinaryFont(NOTO_ARABIC_REGULAR),
-        loadBinaryFont(NOTO_ARABIC_BOLD),
+        loadBinaryFont(CAIRO_REGULAR),
+        loadBinaryFont(CAIRO_BOLD),
       ]);
 
       pdfMake.addVirtualFileSystem({
@@ -46,7 +46,7 @@ async function ensureArabicPdfEngine(): Promise<typeof pdfMake> {
       });
 
       pdfMake.addFonts({
-        NotoSansArabic: {
+        Cairo: {
           normal: VFS.regular,
           bold: VFS.bold,
           italics: VFS.regular,

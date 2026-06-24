@@ -175,7 +175,7 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
     pageSize: "A4",
     pageMargins: PAGE_MARGINS,
     defaultStyle: {
-      font: "NotoSansArabic",
+      font: "Cairo",
       fontSize: BODY_FONT,
       color: "#000000",
       lineHeight: LINE_HEIGHT,
