@@ -134,6 +134,8 @@ async function callOpenAI(prompt: string): Promise<string> {
   }
 }
 
+const PRESERVE_ENGLISH_TERMS_RULE = `Keep all technical terms, product names, brand names, software, certifications, and acronyms in their original English form. Never translate or transliterate them. This includes (non-exhaustive): Windows, Windows Server, Microsoft 365, Active Directory, Cisco, Linux, TCP/IP, DNS, DHCP, VPN, LAN/WAN, Packet Tracer, SLA, GPA, IT. Translate only natural-language words around them. Preserve all numbers, percentages, and symbols (e.g. 95%, 10/11, 4.94/5) exactly as written.`;
+
 async function translateField(
   text: string,
   target: CvTranslateLang,
@@ -147,6 +149,8 @@ async function translateField(
 Translate the following resume ${context} into ${targetLabel}.
 Keep formatting (bullets, line breaks). Do not add explanations.
 Return ONLY the translated text.
+
+${PRESERVE_ENGLISH_TERMS_RULE}
 
 Text:
 ${trimmed}
@@ -225,6 +229,7 @@ Return ONLY valid JSON with the exact same structure and keys.
 
 Rules:
 - Translate summary, job titles, companies, responsibilities, degrees, fields, honors, skills, certification titles, and language labels.
+- ${PRESERVE_ENGLISH_TERMS_RULE}
 - For Arabic output: transliterate personal.name into Arabic script (e.g. عبدالرحمن صالح الخلف). Do not leave the name in Latin letters.
 - Keep email, phone, linkedin, and website unchanged.
 - Preserve bullet formatting in experience descriptions.

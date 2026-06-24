@@ -14,14 +14,10 @@ export const ARABIC_RE = /[\u0600-\u06FF]/;
 const BIDI_CONTROL_RE =
   /[\u200E\u200F\u061C\u2066-\u2069\u202A-\u202E\uFEFF\u200B-\u200D\u2060\u180E\u00AD\u2028\u2029\uFFF9-\uFFFB]/g;
 
-/** Replace punctuation that some fonts render as empty boxes. */
+/** Strip invisible bidi controls and normalize whitespace only — never alter digits or symbols (% / + . etc.). */
 export function sanitizeArabicPdfText(text: string): string {
   return text
     .replace(BIDI_CONTROL_RE, "")
-    .replace(/[\u2013\u2014\u2212\u2010\u2011]/g, "-")
-    .replace(/[\u00B7\u2022\u2023\u25CF\u25E6\u2027]/g, "|")
-    .replace(/[\u2018\u2019\u2032]/g, "'")
-    .replace(/[\u201C\u201D\u2033]/g, '"')
     .replace(/\u00A0/g, " ")
     .replace(/\s+/g, " ")
     .trim();

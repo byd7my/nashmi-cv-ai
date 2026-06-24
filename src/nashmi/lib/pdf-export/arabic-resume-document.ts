@@ -11,12 +11,15 @@ import {
 } from "@/nashmi/lib/pdf-export/arabic-bidi";
 
 const LIST_SEP = " | ";
-const PAGE_MARGINS: [number, number, number, number] = [51.4, 30, 51.4, 20];
+const BODY_FONT = 9;
+const SECTION_FONT = 10.5;
+const LINE_HEIGHT = 0.98;
+const PAGE_MARGINS: [number, number, number, number] = [51.4, 26, 51.4, 18];
 
 function hr(): Content {
   return {
     canvas: [{ type: "line", x1: 0, y1: 0, x2: 492.5, y2: 0, lineWidth: 0.5 }],
-    margin: [0, 1, 0, 1] as [number, number, number, number],
+    margin: [0, 0.5, 0, 0.5] as [number, number, number, number],
   };
 }
 
@@ -29,7 +32,7 @@ function sectionHeader(title: string): Content[] {
     {
       ...bodyText(title, true),
       style: "section",
-      margin: [0, 4, 0, 1] as [number, number, number, number],
+      margin: [0, 2, 0, 0.5] as [number, number, number, number],
     },
     hr(),
   ];
@@ -42,7 +45,7 @@ function splitRow(main: string, side: string, boldMain = true): Content {
         text: prepareSideText(side),
         width: 112,
         alignment: "left",
-        fontSize: 7.5,
+        fontSize: BODY_FONT,
         color: "#000000",
       },
       {
@@ -50,12 +53,12 @@ function splitRow(main: string, side: string, boldMain = true): Content {
         width: "*",
         alignment: "right",
         bold: boldMain,
-        fontSize: 7.5,
+        fontSize: BODY_FONT,
         color: "#000000",
       },
     ],
     columnGap: 6,
-    margin: [0, 0, 0, 1] as [number, number, number, number],
+    margin: [0, 0, 0, 0.5] as [number, number, number, number],
   };
 }
 
@@ -63,8 +66,18 @@ function bulletList(bullets: string[]): Content {
   return {
     ul: bullets.map((bullet) => prepareArabicLine(bullet)),
     style: "body",
-    margin: [0, 0, 0, 1] as [number, number, number, number],
+    margin: [0, 0, 0, 0.5] as [number, number, number, number],
   };
+}
+
+/** Contact fields are pure LTR — no Arabic bidi processing. */
+function buildContactLine(cv: CvData): string {
+  const parts: string[] = [];
+  if (cv.phone?.trim()) parts.push(cv.phone.trim());
+  if (cv.email?.trim()) parts.push(cv.email.trim());
+  if (cv.linkedin?.trim()) parts.push(cv.linkedin.trim());
+  if (cv.location?.trim()) parts.push(cv.location.trim());
+  return parts.join("  |  ");
 }
 
 /** Build pdfmake doc — compact single-page RTL, one font for all glyphs. */
@@ -77,17 +90,13 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
     ...(cv.jobTitle ? [{ ...bodyText(cv.jobTitle), style: "jobTitle" } as Content] : []),
   );
 
-  const contactParts: string[] = [];
-  if (cv.phone) contactParts.push(sanitizeArabicPdfText(cv.phone));
-  if (cv.email) contactParts.push(sanitizeArabicPdfText(cv.email));
-  if (cv.location) contactParts.push(prepareArabicLine(cv.location));
-  if (cv.linkedin) contactParts.push(sanitizeArabicPdfText(cv.linkedin));
-
-  if (contactParts.length > 0) {
+  const contactLine = buildContactLine(cv);
+  if (contactLine) {
     content.push({
-      text: sanitizeArabicPdfText(contactParts.join("  |  ")),
+      text: contactLine,
       style: "contact",
-      margin: [0, 0, 0, 2] as [number, number, number, number],
+      direction: "ltr",
+      margin: [0, 0, 0, 1] as [number, number, number, number],
     });
   }
 
@@ -98,7 +107,7 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
     content.push({
       ...bodyText(cv.summary),
       style: "body",
-      margin: [0, 0, 0, 2] as [number, number, number, number],
+      margin: [0, 0, 0, 1] as [number, number, number, number],
     });
   }
 
@@ -129,7 +138,7 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
         content.push({
           text: extras.join("  |  "),
           style: "body",
-          margin: [0, 0, 0, 2] as [number, number, number, number],
+          margin: [0, 0, 0, 1] as [number, number, number, number],
         });
       }
     }
@@ -148,13 +157,17 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
     content.push({
       text: joinPreparedParts(cv.skills, LIST_SEP),
       style: "body",
-      margin: [0, 0, 0, 2] as [number, number, number, number],
+      margin: [0, 0, 0, 1] as [number, number, number, number],
     });
   }
 
   if (cv.languages?.length) {
     content.push(...sectionHeader(H.languages));
-    content.push({ text: joinPreparedParts(cv.languages, LIST_SEP), style: "body" });
+    content.push({
+      text: joinPreparedParts(cv.languages, LIST_SEP),
+      style: "body",
+      margin: [0, 0, 0, 0] as [number, number, number, number],
+    });
   }
 
   return {
@@ -163,36 +176,37 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
     pageMargins: PAGE_MARGINS,
     defaultStyle: {
       font: "NotoSansArabic",
-      fontSize: 7.5,
+      fontSize: BODY_FONT,
       color: "#000000",
-      lineHeight: 1.02,
+      lineHeight: LINE_HEIGHT,
       alignment: "right",
     },
     styles: {
       name: {
-        fontSize: 16,
+        fontSize: 15,
         bold: true,
+        alignment: "center",
+        margin: [0, 0, 0, 0.5] as [number, number, number, number],
+      },
+      jobTitle: {
+        fontSize: 10,
         alignment: "center",
         margin: [0, 0, 0, 1] as [number, number, number, number],
       },
-      jobTitle: {
-        fontSize: 8.5,
-        alignment: "center",
-        margin: [0, 0, 0, 2] as [number, number, number, number],
-      },
       contact: {
-        fontSize: 7.5,
+        fontSize: BODY_FONT,
         alignment: "center",
+        lineHeight: LINE_HEIGHT,
       },
       section: {
-        fontSize: 8.5,
+        fontSize: SECTION_FONT,
         bold: true,
         alignment: "right",
       },
       body: {
-        fontSize: 7.5,
+        fontSize: BODY_FONT,
         alignment: "right",
-        lineHeight: 1.02,
+        lineHeight: LINE_HEIGHT,
       },
     },
     content,
