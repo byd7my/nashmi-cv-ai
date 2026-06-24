@@ -1,6 +1,6 @@
 /**
  * Tier-aware PDF export controller.
- * English → jsPDF (cv-pdf-export.ts). Arabic → isolated pdfmake stack.
+ * English → jsPDF (cv-pdf-export.ts). Arabic → isolated pdfmake-rtl stack.
  * Elite concurrent exports use Promise.all with no shared mutable render state.
  */
 

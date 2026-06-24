@@ -1,10 +1,9 @@
 /**
- * Arabic text preparation for pdfmake ATS export.
+ * Arabic text preparation for pdfmake-rtl ATS export.
  * Single-font rendering (Noto Sans Arabic) — no inline font switching (avoids bidi tofu boxes).
  */
 
 export const ARABIC_RE = /[\u0600-\u06FF]/;
-const LATIN_WORD_RE = /[A-Za-z]{2,}/;
 
 /**
  * Invisible bidi / format chars — these are the "empty square" tofu boxes in the PDF.
@@ -28,47 +27,12 @@ export function sanitizeArabicPdfText(text: string): string {
     .trim();
 }
 
-function isArabicWord(token: string): boolean {
-  return ARABIC_RE.test(token) && !LATIN_WORD_RE.test(token);
-}
-
-/** pdfmake reverses contiguous Arabic word groups — pre-reverse to match editor order. */
-function compensatePdfMakeWordOrder(words: string[]): string[] {
-  if (words.length <= 1) return words;
-  return [...words].reverse();
-}
-
-function applyWordOrderFix(tokens: string[]): string[] {
-  const out = [...tokens];
-  let i = 0;
-  while (i < out.length) {
-    if (!isArabicWord(out[i])) {
-      i += 1;
-      continue;
-    }
-    let j = i;
-    while (j < out.length && isArabicWord(out[j])) j += 1;
-    const group = out.slice(i, j);
-    if (group.length > 1) {
-      const fixed = compensatePdfMakeWordOrder(group);
-      for (let k = 0; k < fixed.length; k += 1) out[i + k] = fixed[k];
-    }
-    i = j;
-  }
-  return out;
-}
-
 /**
- * Prepare one line for pdfmake with a single Arabic-capable font.
- * Strips bidi controls; fixes Arabic word order; leaves English/numbers unchanged.
+ * Prepare one line for pdfmake-rtl — sanitize only; word order unchanged.
+ * pdfmake-rtl handles bidi / mixed Arabic+English automatically.
  */
 export function prepareArabicLine(text: string): string {
-  const clean = sanitizeArabicPdfText(text);
-  if (!clean) return "";
-  if (!ARABIC_RE.test(clean)) return clean;
-
-  const tokens = clean.split(/\s+/).filter(Boolean);
-  return applyWordOrderFix(tokens).join(" ");
+  return sanitizeArabicPdfText(text);
 }
 
 /** Alias for date / side-column strings. */

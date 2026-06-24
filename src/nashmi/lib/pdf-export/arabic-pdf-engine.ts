@@ -1,10 +1,10 @@
 /**
- * Isolated pdfmake engine for Arabic ATS PDFs only.
+ * Isolated pdfmake-rtl engine for Arabic ATS PDFs only.
  * Uses full Noto Sans Arabic (Arabic + Latin glyphs) — one font, no mixed-font tofu.
  */
 
-import pdfMake from "pdfmake/build/pdfmake";
-import type { TDocumentDefinitions } from "pdfmake/interfaces";
+import pdfMake from "pdfmake-rtl/build/pdfmake";
+import type { TDocumentDefinitions } from "pdfmake-rtl/interfaces";
 
 /** Full TTF — includes Arabic script + basic Latin (digits, punctuation, English). */
 const NOTO_ARABIC_REGULAR =

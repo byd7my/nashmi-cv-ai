@@ -1,4 +1,4 @@
-import type { Content, TDocumentDefinitions } from "pdfmake/interfaces";
+import type { Content, TDocumentDefinitions } from "pdfmake-rtl/interfaces";
 
 import { AR_HEADERS } from "@/nashmi/lib/cv-parser";
 import type { CvData } from "@/nashmi/lib/cv-pdf-export";
@@ -59,13 +59,12 @@ function splitRow(main: string, side: string, boldMain = true): Content {
   };
 }
 
-function dashBullets(bullets: string[]): Content[] {
-  return bullets.map((bullet) => ({
-    text: sanitizeArabicPdfText(`- ${prepareArabicLine(bullet)}`),
+function bulletList(bullets: string[]): Content {
+  return {
+    ul: bullets.map((bullet) => prepareArabicLine(bullet)),
     style: "body",
-    alignment: "right" as const,
-    margin: [0, 0, 0, 0] as [number, number, number, number],
-  }));
+    margin: [0, 0, 0, 1] as [number, number, number, number],
+  };
 }
 
 /** Build pdfmake doc — compact single-page RTL, one font for all glyphs. */
@@ -113,7 +112,7 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
       const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" - ");
       content.push(splitRow(headerMain, dateStr, true));
       if (exp.bullets?.length) {
-        content.push(...dashBullets(exp.bullets));
+        content.push(bulletList(exp.bullets));
       }
     }
   }
@@ -159,6 +158,7 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
   }
 
   return {
+    rtl: true,
     pageSize: "A4",
     pageMargins: PAGE_MARGINS,
     defaultStyle: {
