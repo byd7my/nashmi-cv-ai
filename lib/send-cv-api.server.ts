@@ -1,3 +1,5 @@
+import { NASHMI_CONTACT_EMAIL } from "@/nashmi/lib/site-contact";
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TOTAL_ATTACHMENT_CHARS = 4_000_000;
 
@@ -112,7 +114,7 @@ export async function handleSendCvRequest(request: Request): Promise<Response> {
   const safeName = typeof name === "string" ? name.trim().slice(0, 80) : "";
   const subject = isAr ? "سيرتك الذاتية من نشمي جاهزة ✦" : "Your resume from Nashmi is ready ✦";
   const from = resolveFromAddress();
-  const replyTo = process.env.EMAIL_REPLY_TO?.trim() || "support@nashmi.club";
+  const replyTo = process.env.EMAIL_REPLY_TO?.trim() || NASHMI_CONTACT_EMAIL;
 
   try {
     const resendRes = await fetch("https://api.resend.com/emails", {

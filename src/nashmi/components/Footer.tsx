@@ -1,4 +1,5 @@
 import { P, FF } from "@/nashmi/lib/tokens";
+import { NASHMI_CONTACT_EMAIL, NASHMI_WHATSAPP_URL, NASHMI_WHATSAPP_DISPLAY_AR, NASHMI_WHATSAPP_DISPLAY_EN } from "@/nashmi/lib/site-contact";
 import { NAV_ROUTES } from "@/nashmi/lib/translations";
 import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import { Mail, MessageCircle } from "lucide-react";
@@ -34,13 +35,13 @@ export function Footer({ lang, t, onNav }: FooterProps) {
           ))}
           <a href="/privacy" style={{ color:P.muted, fontSize:13, fontFamily:ff, textDecoration:"none" }}>{isAr ? "سياسة الخصوصية" : "Privacy Policy"}</a>
           <a href="/terms" style={{ color:P.muted, fontSize:13, fontFamily:ff, textDecoration:"none" }}>{isAr ? "الشروط والأحكام" : "Terms & Conditions"}</a>
-          <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); window.open("https://api.whatsapp.com/send?phone=966552967837", "_blank", "noopener,noreferrer"); }} style={{ display:"inline-flex", alignItems:"center", gap:6, color:"#25D366", fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid #25D36644`, padding:"6px 12px", borderRadius:8, cursor:"pointer" }}>
+          <a href={NASHMI_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); window.open(NASHMI_WHATSAPP_URL, "_blank", "noopener,noreferrer"); }} style={{ display:"inline-flex", alignItems:"center", gap:6, color:"#25D366", fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid #25D36644`, padding:"6px 12px", borderRadius:8, cursor:"pointer" }}>
             <MessageCircle size={16} />
-            {isAr ? "واتساب: 0552967837" : "WhatsApp: +966 55 296 7837"}
+            {isAr ? `واتساب: ${NASHMI_WHATSAPP_DISPLAY_AR}` : `WhatsApp: ${NASHMI_WHATSAPP_DISPLAY_EN}`}
           </a>
-          <a href="mailto:nashmi4cvs@gmail.com" style={{ display:"inline-flex", alignItems:"center", gap:6, color:P.violetLight, fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid ${P.violet}44`, padding:"6px 12px", borderRadius:8 }}>
+          <a href={`mailto:${NASHMI_CONTACT_EMAIL}`} style={{ display:"inline-flex", alignItems:"center", gap:6, color:P.violetLight, fontSize:13, fontFamily:ff, textDecoration:"none", border:`1px solid ${P.violet}44`, padding:"6px 12px", borderRadius:8 }}>
             <Mail size={16} />
-            nashmi4cvs@gmail.com
+            {NASHMI_CONTACT_EMAIL}
           </a>
         </div>
         <div style={{ color:P.muted, fontSize:13 }}>© 2026 {t.brand}. {isAr ? "جميع الحقوق محفوظة" : "All rights reserved."}</div>

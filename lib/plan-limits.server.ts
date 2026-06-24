@@ -73,7 +73,7 @@ export async function resolvePlanTierFromRequest(req: {
   const sessionId = readHeader(req, "x-nashmi-session-id").trim();
 
   if (purchaseToken.length >= 16 && sessionId.length >= 8) {
-    const { lookupActivePurchaseTier } = await import("./purchases-api.server");
+    const { lookupActivePurchaseTier } = await import("./activation-api.server");
     const verified = await lookupActivePurchaseTier(
       purchaseToken.slice(0, 128),
       sessionId.slice(0, 128),

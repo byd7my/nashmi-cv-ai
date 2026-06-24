@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { P, FF } from "@/nashmi/lib/tokens";
+import { NASHMI_CONTACT_EMAIL, NASHMI_WHATSAPP_URL, NASHMI_WHATSAPP_DISPLAY_AR } from "@/nashmi/lib/site-contact";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -54,8 +55,8 @@ function PrivacyPage() {
         <Section title="التواصل معنا">
           لأي استفسار يخص الخصوصية:
           <ul style={{ ...ulStyle, marginTop: 12 }}>
-            <li>واتساب: <a href="https://api.whatsapp.com/send?phone=966552967837" target="_blank" rel="noreferrer" style={{ color: P.violetLight }}>+966 55 296 7837</a></li>
-            <li>البريد: <a href="mailto:nashmi4cvs@gmail.com" style={{ color: P.violetLight }}>nashmi4cvs@gmail.com</a></li>
+            <li>واتساب: <a href={NASHMI_WHATSAPP_URL} target="_blank" rel="noreferrer" style={{ color: P.violetLight }}>{NASHMI_WHATSAPP_DISPLAY_AR}</a></li>
+            <li>البريد: <a href="mailto:nashmicv@outlook.com" style={{ color: P.violetLight }}>nashmicv@outlook.com</a></li>
           </ul>
         </Section>
       </div>

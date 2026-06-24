@@ -34,6 +34,8 @@ import {
   EDITMODE_STORAGE_KEY,
   STARTMODE_STORAGE_KEY,
 } from "@/nashmi/lib/client-data-wipe";
+import { SALLA_PREMIUM_URL, SALLA_ELITE_URL } from "@/nashmi/lib/constants";
+import { PlanActivationPanel } from "@/nashmi/components/PlanActivationPanel";
 import {
   setStoredCvTemplate,
   resetStoredCvTemplate,
@@ -43,6 +45,7 @@ import {
   type CvTemplateId,
 } from "@/nashmi/lib/cv-templates";
 import { renderCvToAtsPdfBlob, parsePdfToCvData, type CvData as ExportCvData } from "@/nashmi/lib/cv-pdf-export";
+import { exportResumePdfs } from "@/nashmi/lib/pdf-export/export-controller";
 import { isMobileLayout } from "@/nashmi/lib/mobile-layout";
 import { NASHMI_BUILD_ID } from "@/nashmi/lib/build-version";
 
@@ -1012,14 +1015,14 @@ interface Props {
   onNav: (page: string) => void;
   initialCV?: CVData | null;
   cvLang?: CvLang | null;
-  onSelectPlan: (plan: string) => void;
+  onPlanActivated?: (plan: string) => void;
   currentPlan: string | null;
   setCurrentPlan: (plan: string) => void;
 }
 
 type Section = -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, currentPlan, setCurrentPlan }: Props) {
+export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated, currentPlan, setCurrentPlan }: Props) {
   const isAr = lang === "ar";
   const isCvAr = (cvLang || lang) === "ar";   // language of the resume content
   const aiLang = cvLang || lang;
@@ -2002,35 +2005,41 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
       const baseName = cv.personal.name ? cv.personal.name.replace(/\s+/g, "-").toLowerCase() : "resume";
       const exportedFiles: { filename: string; blob: Blob }[] = [];
 
-      const visibleBlob = await renderCvToAtsPdfBlob(builderCvToExportCv(cv), activeCvLang, cvTemplate);
-      downloadBlob(visibleBlob, `nashmi-${baseName}-${activeCvLang}.pdf`);
-      exportedFiles.push({ filename: `nashmi-${baseName}-${activeCvLang}.pdf`, blob: visibleBlob });
+      let altCv: CVData | null =
+        isElite && otherLangCv && cvMatchesLanguage(otherLangCv, otherLang) ? otherLangCv : null;
+      if (isElite && !altCv) {
+        const prepared = await ensureOtherLangCv();
+        if (prepared.ok) altCv = prepared.cv;
+        else if (prepared.error) showToast(prepared.error, "error");
+      }
 
-      if (isElite) {
-        let altCv = otherLangCv && cvMatchesLanguage(otherLangCv, otherLang) ? otherLangCv : null;
-        if (!altCv) {
-          const prepared = await ensureOtherLangCv();
-          if (prepared.ok) altCv = prepared.cv;
-          else showToast(prepared.error, "error");
-        }
+      const pdfFiles = await exportResumePdfs({
+        baseName,
+        primaryCv: builderCvToExportCv(cv),
+        primaryLang: activeCvLang,
+        exportBoth: isElite && !!altCv,
+        secondaryCv: altCv ? builderCvToExportCv(altCv) : undefined,
+        secondaryLang: otherLang,
+      });
 
-        if (altCv) {
-          const hiddenBlob = await renderCvToAtsPdfBlob(builderCvToExportCv(altCv), otherLang, cvTemplate);
-          downloadBlob(hiddenBlob, `nashmi-${baseName}-${otherLang}.pdf`);
-          exportedFiles.push({ filename: `nashmi-${baseName}-${otherLang}.pdf`, blob: hiddenBlob });
-          showToast(
-            isAr
-              ? "✓ تم تصدير النسختين PDF (متوافق ATS) — شكراً لاستخدامك نشمي"
-              : "✓ Both ATS-friendly PDFs exported — thank you for using Nashmi",
-          );
-        } else {
-          showToast(
-            isAr
-              ? "✓ تم تصدير النسخة الحالية — تعذّرت ترجمة النسخة الثانية"
-              : "✓ Current version exported — second version translation failed",
-            "error",
-          );
-        }
+      for (const file of pdfFiles) {
+        downloadBlob(file.blob, file.filename);
+        exportedFiles.push({ filename: file.filename, blob: file.blob });
+      }
+
+      if (isElite && altCv) {
+        showToast(
+          isAr
+            ? "✓ تم تصدير النسختين PDF (متوافق ATS) — شكراً لاستخدامك نشمي"
+            : "✓ Both ATS-friendly PDFs exported — thank you for using Nashmi",
+        );
+      } else if (isElite && !altCv) {
+        showToast(
+          isAr
+            ? "✓ تم تصدير النسخة الحالية — تعذّرت ترجمة النسخة الثانية"
+            : "✓ Current version exported — second version translation failed",
+          "error",
+        );
       } else {
         showToast(
           isAr
@@ -3187,18 +3196,35 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onSelectPlan, c
                 {isAr ? "تحسين AI والمساعد الذكي والتصدير متاحان للباقات المدفوعة فقط. اختر باقتك للمتابعة." : "AI Improve, AI assistant, and export are available on paid plans only. Choose a plan to continue."}
               </p>
             </div>
-            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-              {[{ tier: "premium", name: t.plans[1].name, price: t.plans[1].price, cur: t.plans[1].cur }, { tier: "elite", name: t.plans[2].name, price: t.plans[2].price, cur: t.plans[2].cur }].map(p => (
-                <button key={p.tier} onClick={() => {
-                  try { window.localStorage.setItem(CV_STORAGE_KEY, JSON.stringify(cv)); } catch { /* ignore */ }
-                  preserveDraftForCheckout();
-                  setShowUpgrade(false);
-                  onSelectPlan(p.tier);
-                  onNav("checkout");
-                }} style={{ flex: 1, background: p.tier === "elite" ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : "transparent", border: `1px solid ${p.tier === "elite" ? "transparent" : P.borderLight}`, color: p.tier === "elite" ? "#fff" : P.text, borderRadius: 12, padding: "14px 12px", cursor: "pointer", fontFamily: ff, boxShadow: p.tier === "elite" ? `0 6px 24px ${P.violet}44` : "none" }}>
-                  <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{p.name}</div>
-                  <div style={{ fontSize: 22, fontWeight: 900 }}>{p.price} <span style={{ fontSize: 13, fontWeight: 600 }}>{p.cur}</span></div>
-                </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 16 }}>
+              {([
+                { tier: "premium" as const, name: t.plans[1].name, price: t.plans[1].price, cur: t.plans[1].cur, cta: t.plans[1].cta, url: SALLA_PREMIUM_URL },
+                { tier: "elite" as const, name: t.plans[2].name, price: t.plans[2].price, cur: t.plans[2].cur, cta: t.plans[2].cta, url: SALLA_ELITE_URL },
+              ]).map(p => (
+                <div key={p.tier} style={{ background: P.surface, border: `1px solid ${p.tier === "elite" ? P.violet : P.border}`, borderRadius: 14, padding: "14px 14px 12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, gap: 8 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, color: P.text }}>{p.name}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: p.tier === "elite" ? P.violetLight : P.text }}>
+                      {p.price} <span style={{ fontSize: 12, fontWeight: 600 }}>{p.cur}</span>
+                    </div>
+                  </div>
+                  <PlanActivationPanel
+                    plan={p.tier}
+                    sallaUrl={p.url}
+                    ctaLabel={p.cta}
+                    isAr={isAr}
+                    highlight={p.tier === "elite"}
+                    compact
+                    onBeforeSalla={() => {
+                      try { window.localStorage.setItem(CV_STORAGE_KEY, JSON.stringify(cv)); } catch { /* ignore */ }
+                    }}
+                    onActivated={tier => {
+                      setCurrentPlan(tier);
+                      onPlanActivated?.(tier);
+                      setShowUpgrade(false);
+                    }}
+                  />
+                </div>
               ))}
             </div>
             <button onClick={() => setShowUpgrade(false)} style={{ width: "100%", background: "none", border: "none", color: P.muted, cursor: "pointer", fontSize: 13, padding: "8px 0", fontFamily: ff }}>

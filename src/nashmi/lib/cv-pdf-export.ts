@@ -8,8 +8,6 @@
  */
 
 import { jsPDF } from "jspdf";
-import { ArabicShaper } from "arabic-persian-reshaper";
-import bidiFactory from "bidi-js";
 import { loadPdfJs } from "@/nashmi/lib/cv-parser";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -89,13 +87,16 @@ const TECHNICAL_KEYWORDS = [
   "virtualization","vmware","hyper-v","powershell","bash","scripting",
 ];
 
-const AMIRI_REGULAR =
-  "https://cdn.jsdelivr.net/fontsource/fonts/amiri@5.2.8/arabic-400-normal.ttf";
-const AMIRI_BOLD =
-  "https://cdn.jsdelivr.net/fontsource/fonts/amiri@5.2.8/arabic-700-normal.ttf";
+const NOTO_SANS_REGULAR =
+  "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@5.2.5/latin-400-normal.ttf";
+const NOTO_SANS_BOLD =
+  "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@5.2.5/latin-700-normal.ttf";
 
-let arabicFontsLoaded = false;
-const bidi = bidiFactory();
+/** Cached base64 font payloads — registered on every new jsPDF document. */
+const fontCache: {
+  enRegular?: string;
+  enBold?: string;
+} = {};
 
 async function loadBinaryFont(url: string): Promise<string> {
   const res = await fetch(url);
@@ -109,30 +110,82 @@ async function loadBinaryFont(url: string): Promise<string> {
   return btoa(binary);
 }
 
-async function ensureArabicFonts(doc: jsPDF): Promise<void> {
-  if (arabicFontsLoaded) return;
-  const [regular, bold] = await Promise.all([
-    loadBinaryFont(AMIRI_REGULAR),
-    loadBinaryFont(AMIRI_BOLD),
+async function loadFontCache(): Promise<void> {
+  if (fontCache.enRegular) return;
+  const [enRegular, enBold] = await Promise.all([
+    loadBinaryFont(NOTO_SANS_REGULAR),
+    loadBinaryFont(NOTO_SANS_BOLD),
   ]);
-  doc.addFileToVFS("Amiri-Regular.ttf", regular);
-  doc.addFileToVFS("Amiri-Bold.ttf", bold);
-  doc.addFont("Amiri-Regular.ttf", "Amiri", "normal");
-  doc.addFont("Amiri-Bold.ttf", "Amiri", "bold");
-  arabicFontsLoaded = true;
+  fontCache.enRegular = enRegular;
+  fontCache.enBold = enBold;
 }
 
-// ─── Arabic reshaping ─────────────────────────────────────────────────────────
+function registerEnglishFonts(doc: jsPDF): void {
+  if (!fontCache.enRegular || !fontCache.enBold) return;
+  doc.addFileToVFS("NotoSans-Regular.ttf", fontCache.enRegular);
+  doc.addFileToVFS("NotoSans-Bold.ttf", fontCache.enBold);
+  doc.addFont("NotoSans-Regular.ttf", "NotoSans", "normal");
+  doc.addFont("NotoSans-Bold.ttf", "NotoSans", "bold");
+}
 
-async function reshapeArabic(text: string): Promise<string> {
-  if (!text || !/[\u0600-\u06FF]/.test(text)) return text;
-  try {
-    const shaped = ArabicShaper.convertArabic(text);
-    const levels = bidi.getEmbeddingLevels(shaped);
-    return bidi.getReorderedString(shaped, levels);
-  } catch {
-    return text;
+/** ATS-safe inline separator for skills/languages lists. */
+const LIST_SEP = " | ";
+
+/** Replace Unicode punctuation that Helvetica/jsPDF renders as garbled glyphs. */
+function sanitizePdfText(text: string): string {
+  return text
+    .replace(/[\u2013\u2014\u2212]/g, "-")
+    .replace(/[\u00B7\u2022\u2023\u25CF\u25E6\u2027]/g, "|")
+    .replace(/[\u2018\u2019\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u2033]/g, '"')
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Word-aware wrapping — avoids jsPDF splitTextToSize breaking mid-word. */
+function wrapTextLines(
+  doc: jsPDF,
+  text: string,
+  maxWidth: number,
+): string[] {
+  const clean = sanitizePdfText(text);
+  if (!clean) return [];
+
+  const words = clean.split(" ");
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (doc.getTextWidth(candidate) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) lines.push(current);
+
+    if (doc.getTextWidth(word) <= maxWidth) {
+      current = word;
+      continue;
+    }
+
+    // Last resort: break a single long token (email, URL, long skill)
+    let chunk = "";
+    for (const ch of word) {
+      const next = chunk + ch;
+      if (doc.getTextWidth(next) <= maxWidth) {
+        chunk = next;
+      } else {
+        if (chunk) lines.push(chunk);
+        chunk = ch;
+      }
+    }
+    current = chunk;
   }
+
+  if (current) lines.push(current);
+  return lines;
 }
 
 // ─── Skill splitter ───────────────────────────────────────────────────────────
@@ -157,7 +210,6 @@ class PdfRenderer {
   fontSize: number;
   lineH: number;
   lang: string;
-  fontFamily: "helvetica" | "Amiri" = "helvetica";
 
   constructor(lang: string) {
     this.doc      = new jsPDF({ unit: "pt", format: "a4" });
@@ -166,6 +218,10 @@ class PdfRenderer {
     this.lineH    = 11;
     this.lang     = lang;
     this.doc.setTextColor(0, 0, 0);
+  }
+
+  wrapLines(text: string, maxWidth: number): string[] {
+    return wrapTextLines(this.doc, text, maxWidth);
   }
 
   // Draw a full-width horizontal rule
@@ -179,12 +235,8 @@ class PdfRenderer {
   // Set font safely
   setFont(style: "normal" | "bold" | "italic" | "bolditalic", size: number) {
     this.doc.setTextColor(0, 0, 0);
-    if (this.fontFamily === "Amiri") {
-      const bold = style === "bold" || style === "bolditalic";
-      this.doc.setFont("Amiri", bold ? "bold" : "normal");
-    } else {
-      this.doc.setFont("helvetica", style);
-    }
+    const bold = style === "bold" || style === "bolditalic";
+    this.doc.setFont("NotoSans", bold ? "bold" : "normal");
     this.doc.setFontSize(size);
   }
 
@@ -199,7 +251,7 @@ class PdfRenderer {
   ): number {
     if (!text || text.trim() === "") return this.y;
     this.setFont(style, size);
-    const lines = this.doc.splitTextToSize(text, maxWidth);
+    const lines = this.wrapLines(text, maxWidth);
     for (const line of lines) {
       if (this.y > PAGE_BOTTOM) break;
       let xPos = x;
@@ -215,14 +267,14 @@ class PdfRenderer {
   renderRight(text: string, size: number, style: "normal" | "bold" = "normal") {
     if (!text || text.trim() === "") return;
     this.setFont(style, size);
-    this.doc.text(text, MARGIN_R, this.y, { align: "right" });
+    this.doc.text(sanitizePdfText(text), MARGIN_R, this.y, { align: "right" });
   }
 
   // Section header: title above underline + full-width rule
   renderSectionHeader(title: string) {
     this.y += 8;
     this.setFont("bold", 9);
-    const label = title.toUpperCase();
+    const label = sanitizePdfText(title).toUpperCase();
     this.doc.text(label, MARGIN_L, this.y);
     const w = this.doc.getTextWidth(label);
     this.doc.setDrawColor(0, 0, 0);
@@ -233,41 +285,15 @@ class PdfRenderer {
     this.y += 6;
   }
 
-  renderSectionHeaderAr(title: string) {
-    this.y += 8;
-    this.setFont("bold", 9);
-    this.doc.text(title, MARGIN_R, this.y, { align: "right" });
-    const w = this.doc.getTextWidth(title);
-    this.doc.setDrawColor(0, 0, 0);
-    this.doc.setLineWidth(0.6);
-    this.doc.line(MARGIN_R - w, this.y + 1.5, MARGIN_R, this.y + 1.5);
-    this.y += 9;
-    this.drawLine();
-    this.y += 6;
-  }
-
   renderSplitRow(left: string, right: string, boldLeft = true) {
     if (!left && !right) return;
     if (left) {
       this.setFont(boldLeft ? "bold" : "normal", 8);
-      this.doc.text(left, MARGIN_L, this.y);
+      this.doc.text(sanitizePdfText(left), MARGIN_L, this.y);
     }
     if (right) {
       this.setFont("normal", 8);
-      this.doc.text(right, MARGIN_R, this.y, { align: "right" });
-    }
-    this.y += this.lineH;
-  }
-
-  renderSplitRowAr(left: string, right: string, boldLeft = true) {
-    if (!left && !right) return;
-    if (left) {
-      this.setFont(boldLeft ? "bold" : "normal", 8);
-      this.doc.text(left, MARGIN_R, this.y, { align: "right" });
-    }
-    if (right) {
-      this.setFont("normal", 8);
-      this.doc.text(right, MARGIN_L, this.y);
+      this.doc.text(sanitizePdfText(right), MARGIN_R, this.y, { align: "right" });
     }
     this.y += this.lineH;
   }
@@ -278,24 +304,11 @@ class PdfRenderer {
     this.setFont("normal", 8);
     const wrapX = 61.4;
     const maxW = MARGIN_R - wrapX;
-    const lines = this.doc.splitTextToSize(text, maxW) as string[];
+    const lines = this.wrapLines(text, maxW);
     for (let i = 0; i < lines.length; i += 1) {
       if (this.y > PAGE_BOTTOM) break;
       const x = i === 0 ? 53.4 : wrapX;
       this.doc.text(i === 0 ? `- ${lines[i]}` : lines[i], x, this.y);
-      this.y += this.lineH;
-    }
-  }
-
-  renderDashBulletAr(text: string) {
-    if (!text || text.trim() === "") return;
-    this.setFont("normal", 8);
-    const maxW = CONTENT_W - 16;
-    const lines = this.doc.splitTextToSize(text, maxW) as string[];
-    for (let i = 0; i < lines.length; i += 1) {
-      if (this.y > PAGE_BOTTOM) break;
-      if (i === 0) this.doc.text("-", MARGIN_L, this.y);
-      this.doc.text(lines[i], MARGIN_R, this.y, { align: "right" });
       this.y += this.lineH;
     }
   }
@@ -305,7 +318,7 @@ class PdfRenderer {
     if (!text || text.trim() === "") return;
     this.setFont("normal", size);
     const maxW = MARGIN_R - wrapX;
-    const lines = this.doc.splitTextToSize(text, maxW);
+    const lines = this.wrapLines(text, maxW);
     // First line with "o "
     if (this.y <= PAGE_BOTTOM) {
       this.doc.text("o", indentX, this.y);
@@ -324,24 +337,26 @@ class PdfRenderer {
   renderSubHeader(label: string) {
     if (this.y > PAGE_BOTTOM) return;
     this.setFont("bold", 9);
-    this.doc.text(`\u25CF ${label}`, MARGIN_L + 6, this.y);
+    this.doc.text(`- ${sanitizePdfText(label)}`, MARGIN_L + 6, this.y);
     this.y += this.lineH;
   }
 }
 
 // ─── English PDF builder ───────────────────────────────────────────────────────
 
-function buildEnglishPdf(cv: CvData): Blob {
+async function buildEnglishPdf(cv: CvData): Promise<Blob> {
+  await loadFontCache();
   const r = new PdfRenderer("en");
+  registerEnglishFonts(r.doc);
 
   // ── HEADER ──────────────────────────────────────────────────────────────────
   r.setFont("bold", 19);
-  r.doc.text(cv.fullName || "Full Name", PAGE_W / 2, r.y, { align: "center" });
+  r.doc.text(sanitizePdfText(cv.fullName || "Full Name"), PAGE_W / 2, r.y, { align: "center" });
   r.y += 14;
 
   if (cv.jobTitle) {
     r.setFont("normal", 9.5);
-    r.doc.text(cv.jobTitle, PAGE_W / 2, r.y, { align: "center" });
+    r.doc.text(sanitizePdfText(cv.jobTitle), PAGE_W / 2, r.y, { align: "center" });
     r.y += 12;
   }
 
@@ -376,9 +391,9 @@ function buildEnglishPdf(cv: CvData): Blob {
       const titlePart = exp.jobTitle || "";
       const placePart = [exp.company, exp.location].filter(Boolean).join(" | ");
       const headerLeft = titlePart && placePart
-        ? `${titlePart} \u2014 ${placePart}`
+        ? `${titlePart} - ${placePart}`
         : titlePart || placePart;
-      const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" \u2013 ");
+      const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" - ");
       r.renderSplitRow(headerLeft, dateStr, true);
       for (const bullet of exp.bullets || []) {
         r.renderDashBullet(bullet);
@@ -409,7 +424,7 @@ function buildEnglishPdf(cv: CvData): Blob {
     r.renderSectionHeader("Certifications & Training");
     for (const cert of cv.certifications) {
       if (r.y > PAGE_BOTTOM) break;
-      const left = [cert.name, cert.issuer].filter(Boolean).join(" \u2014 ");
+      const left = [cert.name, cert.issuer].filter(Boolean).join(" - ");
       r.renderSplitRow(left, cert.year || "", true);
     }
     r.y += 4;
@@ -418,130 +433,14 @@ function buildEnglishPdf(cv: CvData): Blob {
   // ── SKILLS ─────────────────────────────────────────────────────────────────
   if (cv.skills && cv.skills.length > 0) {
     r.renderSectionHeader("Skills");
-    r.renderText(cv.skills.join(" \u00B7 "), MARGIN_L, CONTENT_W, 8);
+    r.renderText(cv.skills.map(s => sanitizePdfText(s)).join(LIST_SEP), MARGIN_L, CONTENT_W, 8);
     r.y += 4;
   }
 
   // ── LANGUAGES ──────────────────────────────────────────────────────────────
   if (cv.languages && cv.languages.length > 0) {
     r.renderSectionHeader("Languages");
-    r.renderText(cv.languages.join(" \u00B7 "), MARGIN_L, CONTENT_W, 8);
-  }
-
-  return r.doc.output("blob");
-}
-
-// ─── Arabic PDF builder ────────────────────────────────────────────────────────
-
-async function buildArabicPdf(cv: CvData): Promise<Blob> {
-  const r = new PdfRenderer("ar");
-  await ensureArabicFonts(r.doc);
-  r.fontFamily = "Amiri";
-
-  const ar = async (text: string) => reshapeArabic(text);
-
-  // ── HEADER (centered) ──────────────────────────────────────────────────────
-  r.setFont("bold", 20);
-  const name = await ar(cv.fullName || "");
-  r.doc.text(name, PAGE_W / 2, r.y, { align: "center" });
-  r.y += 14;
-
-  if (cv.jobTitle) {
-    const title = await ar(cv.jobTitle);
-    r.setFont("normal", 10);
-    r.doc.text(title, PAGE_W / 2, r.y, { align: "center" });
-    r.y += 12;
-  }
-
-  // Contact (phone/email stay LTR)
-  const contactParts: string[] = [];
-  if (cv.phone)    contactParts.push(cv.phone);
-  if (cv.email)    contactParts.push(cv.email);
-  if (cv.location) contactParts.push(cv.location);
-  if (cv.linkedin) contactParts.push(cv.linkedin);
-  if (contactParts.length > 0) {
-    r.setFont("normal", 8);
-    r.doc.text(contactParts.join("  |  "), PAGE_W / 2, r.y, { align: "center" });
-    r.y += 8;
-  }
-  r.y += 2;
-  r.drawLine();
-  r.y += 2;
-
-  // ── SUMMARY ────────────────────────────────────────────────────────────────
-  if (cv.summary && cv.summary.trim()) {
-    r.renderSectionHeaderAr(await ar("الملخص المهني"));
-    const summaryText = await ar(cv.summary);
-    r.setFont("normal", 8);
-    const lines = r.doc.splitTextToSize(summaryText, CONTENT_W);
-    for (const line of lines) {
-      if (r.y > PAGE_BOTTOM) break;
-      r.doc.text(line, MARGIN_R, r.y, { align: "right" });
-      r.y += r.lineH;
-    }
-    r.y += 6;
-  }
-
-  // ── EXPERIENCE ─────────────────────────────────────────────────────────────
-  if (cv.experience && cv.experience.length > 0) {
-    r.renderSectionHeaderAr(await ar("الخبرة"));
-    for (const exp of cv.experience) {
-      if (r.y > PAGE_BOTTOM) break;
-      const dateStr = [exp.startDate, exp.endDate].filter(Boolean).join(" \u2013 ");
-      const titlePart = await ar(exp.jobTitle || "");
-      const placePart = await ar([exp.company, exp.location].filter(Boolean).join(" | "));
-      const headerLeft = titlePart && placePart
-        ? `${titlePart} \u2014 ${placePart}`
-        : titlePart || placePart;
-      r.renderSplitRowAr(headerLeft, dateStr, true);
-      for (const bullet of exp.bullets || []) {
-        r.renderDashBulletAr(await ar(bullet));
-      }
-      r.y += 6;
-    }
-  }
-
-  // ── EDUCATION ──────────────────────────────────────────────────────────────
-  if (cv.education && cv.education.length > 0) {
-    r.renderSectionHeaderAr(await ar("التعليم"));
-    for (const edu of cv.education) {
-      if (r.y > PAGE_BOTTOM) break;
-      const eduLeft = await ar([edu.degree, edu.institution].filter(Boolean).join(" | "));
-      r.renderSplitRowAr(eduLeft, edu.year || "", true);
-      const extras: string[] = [];
-      if (edu.gpa) extras.push(`GPA: ${edu.gpa}`);
-      if (edu.honors) extras.push(await ar(edu.honors));
-      if (extras.length) {
-        r.renderText(extras.join("  |  "), MARGIN_R, CONTENT_W, 8, "normal", "right");
-      }
-      r.y += 6;
-    }
-  }
-
-  // ── CERTIFICATIONS ─────────────────────────────────────────────────────────
-  if (cv.certifications && cv.certifications.length > 0) {
-    r.renderSectionHeaderAr(await ar("الشهادات والدورات"));
-    for (const cert of cv.certifications) {
-      if (r.y > PAGE_BOTTOM) break;
-      const left = await ar([cert.name, cert.issuer].filter(Boolean).join(" \u2014 "));
-      r.renderSplitRowAr(left, cert.year || "", true);
-    }
-    r.y += 4;
-  }
-
-  // ── SKILLS ─────────────────────────────────────────────────────────────────
-  if (cv.skills && cv.skills.length > 0) {
-    r.renderSectionHeaderAr(await ar("المهارات"));
-    const skillsText = (await Promise.all(cv.skills.map((s) => ar(s)))).join(" \u00B7 ");
-    r.renderText(skillsText, MARGIN_R, CONTENT_W, 8, "normal", "right");
-    r.y += 4;
-  }
-
-  // ── LANGUAGES ──────────────────────────────────────────────────────────────
-  if (cv.languages && cv.languages.length > 0) {
-    r.renderSectionHeaderAr(await ar("اللغات"));
-    const langsText = cv.languages.join(" \u00B7 ");
-    r.renderText(langsText, MARGIN_R, CONTENT_W, 8, "normal", "right");
+    r.renderText(cv.languages.map(s => sanitizePdfText(s)).join(LIST_SEP), MARGIN_L, CONTENT_W, 8);
   }
 
   return r.doc.output("blob");
@@ -769,7 +668,8 @@ export async function renderCvToAtsPdfBlob(
   template?: string
 ): Promise<Blob> {
   if (lang === "ar") {
-    return await buildArabicPdf(cv);
+    const { generateArabicResumePDF } = await import("@/nashmi/lib/pdf-export/generateArabicResumePDF");
+    return generateArabicResumePDF(cv);
   }
-  return buildEnglishPdf(cv);
+  return await buildEnglishPdf(cv);
 }

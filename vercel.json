@@ -25,6 +25,8 @@
     { "src": "/api/reviews/", "dest": "/__server" },
     { "src": "/api/purchase", "dest": "/__server" },
     { "src": "/api/purchase/", "dest": "/__server" },
+    { "src": "/api/activate", "dest": "/__server" },
+    { "src": "/api/activate/", "dest": "/__server" },
     { "src": "/api/ocr-resume", "dest": "/__server" },
     { "src": "/api/ocr-resume/", "dest": "/__server" }
   ]

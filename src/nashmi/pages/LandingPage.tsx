@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { WHATSAPP_SALES_URL } from "@/nashmi/lib/constants";
+import { WHATSAPP_SALES_URL, SALLA_PREMIUM_URL, SALLA_ELITE_URL } from "@/nashmi/lib/constants";
+import { PlanActivationPanel } from "@/nashmi/components/PlanActivationPanel";
 import { P, FF } from "@/nashmi/lib/tokens";
 import { VioletBadge } from "@/nashmi/components/VioletBadge";
 import { ATSRing } from "@/nashmi/components/ATSRing";
@@ -17,7 +18,7 @@ interface Props {
   onNav: (page: string, cv?: CVData) => void;
   onLangToggle: () => void;
   page: string;
-  onSelectPlan: (plan: string) => void;
+  onPlanActivated?: (plan: string) => void;
 }
 
 function useInView(ref: React.RefObject<HTMLElement | null>) {
@@ -41,7 +42,7 @@ function Section({ id, children }: { id?: string; children: React.ReactNode }) {
   );
 }
 
-export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }: Props) {
+export function LandingPage({ lang, t, onNav, onLangToggle, page, onPlanActivated }: Props) {
   const isAr = lang === "ar";
   const ff = FF;
   const [demoScore, setDemoScore] = useState(34);
@@ -343,32 +344,41 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onSelectPlan }
                   ))}
                 </ul>
 
-                <button onClick={() => {
-                  track("payment_page_reached", { plan: plan.tier });
-                  if (plan.tier === "enterprise" || plan.ctaNav === "whatsapp") {
-                    window.open(WHATSAPP_SALES_URL, "_blank", "noopener,noreferrer");
-                    return;
-                  }
-                  if (plan.ctaNav === "builder") onNav("builder");
-                  else { onSelectPlan(plan.tier); onNav("checkout"); }
-                }} style={{
-                  width: "100%", borderRadius: 12, padding: "12px 18px", cursor: "pointer",
-                  fontSize: 15, fontWeight: 800, fontFamily: ff2,
-                  background: plan.highlight ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : "transparent",
-                  border: plan.highlight ? "none" : `1px solid ${P.borderLight}`,
-                  color: plan.highlight ? "#fff" : P.text,
-                  boxShadow: plan.highlight ? `0 6px 24px ${P.violet}44` : "none",
-                  transition: "opacity 0.2s, transform 0.2s",
-                }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity="0.88"; (e.currentTarget as HTMLButtonElement).style.transform="translateY(-1px)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity="1"; (e.currentTarget as HTMLButtonElement).style.transform=""; }}
-                >{plan.cta}</button>
+                {(plan.tier === "premium" || plan.tier === "elite") ? (
+                  <PlanActivationPanel
+                    plan={plan.tier}
+                    sallaUrl={plan.tier === "premium" ? SALLA_PREMIUM_URL : SALLA_ELITE_URL}
+                    ctaLabel={plan.cta}
+                    isAr={isAr}
+                    highlight={plan.highlight}
+                    onActivated={tier => onPlanActivated?.(tier)}
+                  />
+                ) : (
+                  <button onClick={() => {
+                    if (plan.tier === "enterprise" || plan.ctaNav === "whatsapp") {
+                      window.open(WHATSAPP_SALES_URL, "_blank", "noopener,noreferrer");
+                      return;
+                    }
+                    if (plan.ctaNav === "builder") onNav("builder");
+                  }} style={{
+                    width: "100%", borderRadius: 12, padding: "12px 18px", cursor: "pointer",
+                    fontSize: 15, fontWeight: 800, fontFamily: ff,
+                    background: plan.highlight ? `linear-gradient(135deg, ${P.violet}, ${P.violetLight})` : "transparent",
+                    border: plan.highlight ? "none" : `1px solid ${P.borderLight}`,
+                    color: plan.highlight ? "#fff" : P.text,
+                    boxShadow: plan.highlight ? `0 6px 24px ${P.violet}44` : "none",
+                    transition: "opacity 0.2s, transform 0.2s",
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity="0.88"; (e.currentTarget as HTMLButtonElement).style.transform="translateY(-1px)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity="1"; (e.currentTarget as HTMLButtonElement).style.transform=""; }}
+                  >{plan.cta}</button>
+                )}
               </div>
             ))}
           </div>
 
           <div style={{ textAlign: "center", marginTop: 22, color: P.muted, fontSize: 12 }}>
-            {isAr ? "دفعة واحدة · بدون اشتراك · جلسة سيرة واحدة لكل شراء" : "One-time payment · No subscription · One resume session per purchase"}
+            {isAr ? "شراء من متجر سلة · كود تفعيل · جلسة سيرة واحدة لكل شراء" : "Buy on Salla · activation code · one resume session per purchase"}
           </div>
         </div>
       </Section>

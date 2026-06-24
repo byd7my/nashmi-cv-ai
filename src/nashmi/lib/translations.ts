@@ -33,7 +33,7 @@ export const TR = {
       { icon: "✧", title: "AI Assistant Sidebar", desc: "Chat with your AI assistant. Ask it to optimize, rewrite, or tailor your resume for any job posting." },
     ],
     pricingTitle: "Choose the Plan That Fits Your Career",
-    pricingSub: "Pay once — one resume session per purchase. Export unlocks after payment.",
+    pricingSub: "Buy on Salla — redeem your activation code. One resume session per purchase.",
     plans: [
       {
         tier: "starter",   name: "Starter",    price: "0",      cur: "SAR", per: "",
@@ -53,7 +53,7 @@ export const TR = {
       {
         tier: "premium",   name: "Premium",    price: "19.99",  cur: "SAR", per: "",
         desc: "Create and download 1 professional CV.",
-        highlight: false, popular: false, ctaNav: "checkout",
+        highlight: false, popular: false, ctaNav: "salla",
         cta: "Get Premium",
         features: [
           { text: "1 CV (Arabic OR English)",     included: true  },
@@ -68,7 +68,7 @@ export const TR = {
       {
         tier: "elite",     name: "Elite",      price: "34.99",  cur: "SAR", per: "",
         desc: "Two CVs in Arabic AND English — for maximum reach.",
-        highlight: true,  popular: true,  ctaNav: "checkout",
+        highlight: true,  popular: true,  ctaNav: "salla",
         cta: "Get Elite",
         features: [
           { text: "2 CVs (Arabic + English)",     included: true  },
@@ -96,8 +96,8 @@ export const TR = {
       },
     ],
     faq: [
-      { q: "Is Nashmi free to use?",              a: "Previewing your resume is always free — no credit card needed. Downloading an ATS-friendly PDF requires a one-time payment (Premium at 19.99 SAR or Elite at 34.99 SAR)." },
-      { q: "Can I download my resume for free?",  a: "No. PDF export requires a paid plan. The Starter plan lets you preview your resume in full with ATS scoring, but the export button is locked. Upgrade to Premium or Elite to download." },
+      { q: "Is Nashmi free to use?",              a: "Previewing your resume is always free — no credit card needed. Downloading an ATS-friendly PDF requires a paid plan (Premium at 19.99 SAR or Elite at 34.99 SAR) purchased on our Salla store, then redeemed with your activation code." },
+      { q: "Can I download my resume for free?",  a: "No. PDF export requires a paid plan. The Starter plan lets you preview your resume in full with ATS scoring, but the export button is locked. Buy Premium or Elite on Salla and enter your activation code to unlock." },
       { q: "Does it support Arabic resumes?",     a: "Absolutely. Nashmi has full RTL support, Arabic typography, and AI writing in both Arabic and English. The Elite plan lets you create one CV in each language." },
       { q: "How accurate is the ATS score?",      a: "Our ATS engine analyzes 12+ factors including keywords, formatting, section completeness, and job description matching." },
       { q: "Can I import my old resume?",         a: "Yes. Upload a PDF, TXT, JSON, or photo of your resume and our AI will extract your data and populate the builder automatically." },
@@ -134,7 +134,7 @@ export const TR = {
       { icon: "✧", title: "المساعد الذكي",       desc: "تحدث مع المساعد الذكي. اطلب منه تحسين سيرتك أو إعادة صياغتها أو تكييفها لأي وظيفة." },
     ],
     pricingTitle: "اختر الباقة المناسبة لمستقبلك المهني",
-    pricingSub: "ادفع مرة واحدة — جلسة سيرة واحدة لكل عملية شراء. التصدير يُفعَّل بعد الدفع.",
+    pricingSub: "اشترِ من متجر سلة — فعّل بكود التفعيل. جلسة سيرة واحدة لكل شراء.",
     plans: [
       {
         tier: "starter",    name: "مبتدئ",      price: "0",      cur: "ريال", per: "",
@@ -154,7 +154,7 @@ export const TR = {
       {
         tier: "premium",    name: "مميز",        price: "19.99",  cur: "ريال", per: "",
         desc: "أنشئ وحمّل سيرة ذاتية واحدة احترافية.",
-        highlight: false, popular: false, ctaNav: "checkout",
+        highlight: false, popular: false, ctaNav: "salla",
         cta: "ابدأ المميز",
         features: [
           { text: "سيرة واحدة (عربي أو إنجليزي)",  included: true  },
@@ -169,7 +169,7 @@ export const TR = {
       {
         tier: "elite",      name: "النخبة",      price: "34.99",  cur: "ريال", per: "",
         desc: "سيرتان بالعربية والإنجليزية — لأقصى فرصة توظيف.",
-        highlight: true,  popular: true,  ctaNav: "checkout",
+        highlight: true,  popular: true,  ctaNav: "salla",
         cta: "ابدأ النخبة",
         features: [
           { text: "سيرتان (عربي + إنجليزي)",        included: true  },
@@ -197,8 +197,8 @@ export const TR = {
       },
     ],
     faq: [
-      { q: "هل نشمي مجاني؟",                      a: "المعاينة مجانية دائماً — دون بطاقة ائتمانية. أما تحميل PDF ATS بجودة عالية فيتطلب دفعة واحدة (مميز بـ 19.99 ريال أو النخبة بـ 34.99 ريال)." },
-      { q: "هل يمكنني تحميل السيرة مجاناً؟",        a: "لا. تصدير PDF يتطلب خطة مدفوعة. باقة المبتدئ تتيح معاينة سيرتك كاملةً مع درجة ATS، لكن زر التصدير مقفل. قم بالترقية إلى مميز أو النخبة للتحميل." },
+      { q: "هل نشمي مجاني؟",                      a: "المعاينة مجانية دائماً — دون بطاقة ائتمانية. أما تحميل PDF ATS بجودة عالية فيتطلب باقة مدفوعة (مميز بـ 19.99 ريال أو النخبة بـ 34.99 ريال) من متجر سلة، ثم تفعيل الكود الذي يصلك." },
+      { q: "هل يمكنني تحميل السيرة مجاناً؟",        a: "لا. تصدير PDF يتطلب خطة مدفوعة. باقة المبتدئ تتيح معاينة سيرتك كاملةً مع درجة ATS، لكن زر التصدير مقفل. اشترِ من سلة وأدخل كود التفعيل لفتح المميزات." },
       { q: "هل يدعم السير الذاتية العربية؟",         a: "بالتأكيد. نشمي يدعم RTL بشكل كامل، الخطوط العربية، والكتابة بالذكاء الاصطناعي بالعربية والإنجليزية. باقة النخبة تتيح إنشاء سيرة بكل لغة." },
       { q: "ما مدى دقة درجة ATS؟",                  a: "يحلل محرك ATS لدينا أكثر من 12 عاملاً تشمل الكلمات المفتاحية والتنسيق واكتمال الأقسام ومطابقة وصف الوظيفة." },
       { q: "هل يمكنني استيراد سيرتي القديمة؟",       a: "نعم. ارفع PDF أو TXT أو JSON أو صورة لسيرتك وسيستخرج الذكاء الاصطناعي بياناتك ويملأ المنشئ تلقائياً." },

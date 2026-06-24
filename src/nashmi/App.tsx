@@ -8,7 +8,6 @@ import { LandingPage } from "@/nashmi/pages/LandingPage";
 import { BuilderPage } from "@/nashmi/pages/BuilderPage";
 import { AuthPage } from "@/nashmi/pages/AuthPage";
 import { BlogPage } from "@/nashmi/pages/BlogPage";
-import { CheckoutPage } from "@/nashmi/pages/CheckoutPage";
 import { AdminPage } from "@/nashmi/pages/AdminPage";
 import { LanguageModal } from "@/nashmi/components/LanguageModal";
 import { CvLangModal } from "@/nashmi/components/CvLangModal";
@@ -36,15 +35,16 @@ const GLOBAL_CSS = `
   ::-webkit-scrollbar-thumb:hover { background: #7C5CFF88; }
 `;
 
-type Page = "landing" | "builder" | "auth" | "blog" | "checkout" | "admin";
+type Page = "landing" | "builder" | "auth" | "blog" | "admin";
 
-const PUBLIC_PAGES = new Set<string>(["landing", "builder", "blog", "checkout"]);
+const PUBLIC_PAGES = new Set<string>(["landing", "builder", "blog"]);
 
 function hashToPage(): Page {
   if (typeof window === "undefined") return "landing";
   const first = window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
   if (!first || first === "landing" || first === "auth" || first === "admin") return "landing";
   if (first === "blog") return "blog";
+  if (first === "checkout") return "landing";
   return PUBLIC_PAGES.has(first) ? (first as Page) : "landing";
 }
 
@@ -58,7 +58,6 @@ export default function App() {
 
   const [page, setPage] = useState<Page>(() => hashToPage());
   const [blogSlug, setBlogSlug] = useState<string | null>(() => parseBlogSlugFromHash());
-  const [selectedPlan, setSelectedPlan] = useState("premium");
   const [currentPlan, setCurrentPlan] = useState<string | null>(() => {
     const stored = getSessionPlanTier();
     return stored !== "starter" ? stored : null;
@@ -91,6 +90,9 @@ export default function App() {
     if (raw === "blog" || raw.startsWith("blog/")) {
       const slug = raw.split("/")[1];
       window.location.replace(slug ? `/blog/${slug}` : "/blog");
+    }
+    if (raw === "checkout") {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
   }, []);
 
@@ -162,15 +164,13 @@ export default function App() {
     window.location.href = "/blog";
   }
 
-  function selectPlan(plan: string) {
-    setSelectedPlan(plan);
-    setPage("checkout");
-    syncHash("checkout");
+  function handlePlanActivated(tier: string) {
+    setCurrentPlan(tier);
   }
 
   const shared = {
     lang, t, onNav: navTo, onLangToggle: toggle, page,
-    onSelectPlan: selectPlan,
+    onPlanActivated: handlePlanActivated,
     onOpenBlogPost: openBlogPost,
     onOpenBlogList: openBlogList,
   };
@@ -187,7 +187,7 @@ export default function App() {
           lang={lang} t={t} onNav={navTo}
           initialCV={initialCV}
           cvLang={selectedCvLang}
-          onSelectPlan={selectPlan}
+          onPlanActivated={handlePlanActivated}
           currentPlan={currentPlan}
           setCurrentPlan={setCurrentPlan}
         />
@@ -198,11 +198,6 @@ export default function App() {
       break;
     case "blog":
       pageNode = <BlogPage {...shared} blogSlug={blogSlug} />;
-      break;
-    case "checkout":
-      pageNode = (
-        <CheckoutPage lang={lang} t={t} onNav={navTo} plan={selectedPlan} onPaid={setCurrentPlan}/>
-      );
       break;
     case "admin":
       pageNode = <AdminPage lang={lang} t={t} onNav={navTo}/>;

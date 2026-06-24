@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { handleOcrResumeRequest } from "../lib/ocr-api.server";
 import { handleOpenAIRequest } from "../lib/openai-api.server";
+import { handleActivateRequest } from "../lib/activation-api.server";
 import { handlePurchaseRequest } from "../lib/purchases-api.server";
 import { handleReviewsRequest } from "../lib/reviews-api.server";
 import { handleSendCvRequest } from "../lib/send-cv-api.server";
@@ -76,6 +77,18 @@ export default {
         console.error("[api/reviews] Unhandled handler error", error);
         return Response.json(
           { error: "Internal server error", code: "REVIEWS_HANDLER_CRASH" },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (pathname === "/api/activate") {
+      try {
+        return await handleActivateRequest(request);
+      } catch (error) {
+        console.error("[api/activate] Unhandled handler error", error);
+        return Response.json(
+          { error: "Internal server error", code: "ACTIVATE_HANDLER_CRASH" },
           { status: 500 },
         );
       }
