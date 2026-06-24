@@ -42,7 +42,6 @@ export const TR = {
         cta: "Preview Free",
         features: [
           { text: "Unlimited previews",          included: true  },
-          { text: "All templates (preview only)", included: true  },
           { text: "ATS score checker",            included: true  },
           { text: "ATS PDF download",             included: false },
           { text: "CV creation & editing",        included: false },
@@ -57,7 +56,6 @@ export const TR = {
         cta: "Get Premium",
         features: [
           { text: "1 CV (Arabic OR English)",     included: true  },
-          { text: "All 4 templates",              included: true  },
           { text: "High-quality ATS PDF",         included: true  },
           { text: "Full ATS analysis",            included: true  },
           { text: "AI writing assistant",         included: true  },
@@ -72,7 +70,6 @@ export const TR = {
         cta: "Get Elite",
         features: [
           { text: "2 CVs (Arabic + English)",     included: true  },
-          { text: "All 4 templates",              included: true  },
           { text: "High-quality ATS PDF",         included: true  },
           { text: "Full ATS analysis",            included: true  },
           { text: "AI writing assistant",         included: true  },
@@ -143,7 +140,6 @@ export const TR = {
         cta: "معاينة مجانية",
         features: [
           { text: "معاينات غير محدودة",           included: true  },
-          { text: "جميع القوالب (معاينة فقط)",     included: true  },
           { text: "محلل درجة ATS",                included: true  },
           { text: "تحميل PDF ATS",                included: false },
           { text: "إنشاء السيرة وتعديلها",         included: false },
@@ -158,7 +154,6 @@ export const TR = {
         cta: "ابدأ المميز",
         features: [
           { text: "سيرة واحدة (عربي أو إنجليزي)",  included: true  },
-          { text: "جميع القوالب الـ4",               included: true  },
           { text: "PDF ATS بجودة عالية",            included: true  },
           { text: "تحليل ATS كامل",                 included: true  },
           { text: "مساعد كتابة ذكي",                included: true  },
@@ -173,7 +168,6 @@ export const TR = {
         cta: "ابدأ النخبة",
         features: [
           { text: "سيرتان (عربي + إنجليزي)",        included: true  },
-          { text: "جميع القوالب الـ4",               included: true  },
           { text: "PDF ATS بجودة عالية",            included: true  },
           { text: "تحليل ATS كامل",                 included: true  },
           { text: "مساعد كتابة ذكي",                included: true  },
