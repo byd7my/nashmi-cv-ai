@@ -6,15 +6,15 @@ import type { CvData } from "@/nashmi/lib/cv-pdf-export";
 import {
   joinPreparedParts,
   prepareArabicLine,
-  prepareSideText,
+  prepareArabicPdfContent,
   sanitizeArabicPdfText,
 } from "@/nashmi/lib/pdf-export/arabic-bidi";
 
 const LIST_SEP = " | ";
-const BODY_FONT = 9;
-const SECTION_FONT = 10.5;
-const LINE_HEIGHT = 0.98;
-const PAGE_MARGINS: [number, number, number, number] = [51.4, 26, 51.4, 18];
+const BODY_FONT = 8.5;
+const SECTION_FONT = 10;
+const LINE_HEIGHT = 0.95;
+const PAGE_MARGINS: [number, number, number, number] = [40, 24, 40, 16];
 
 function hr(): Content {
   return {
@@ -24,7 +24,7 @@ function hr(): Content {
 }
 
 function bodyText(text: string, bold = false): Content {
-  return { text: prepareArabicLine(text), bold };
+  return { ...prepareArabicPdfContent(text), bold };
 }
 
 function sectionHeader(title: string): Content[] {
@@ -32,7 +32,7 @@ function sectionHeader(title: string): Content[] {
     {
       ...bodyText(title, true),
       style: "section",
-      margin: [0, 2, 0, 0.5] as [number, number, number, number],
+      margin: [0, 1.5, 0, 0.25] as [number, number, number, number],
     },
     hr(),
   ];
@@ -42,14 +42,14 @@ function splitRow(main: string, side: string, boldMain = true): Content {
   return {
     columns: [
       {
-        text: prepareSideText(side),
+        ...prepareArabicPdfContent(side),
         width: 112,
         alignment: "left",
         fontSize: BODY_FONT,
         color: "#000000",
       },
       {
-        text: prepareArabicLine(main),
+        ...prepareArabicPdfContent(main),
         width: "*",
         alignment: "right",
         bold: boldMain,
@@ -58,15 +58,15 @@ function splitRow(main: string, side: string, boldMain = true): Content {
       },
     ],
     columnGap: 6,
-    margin: [0, 0, 0, 0.5] as [number, number, number, number],
+    margin: [0, 0, 0, 0.25] as [number, number, number, number],
   };
 }
 
 function bulletList(bullets: string[]): Content {
   return {
-    ul: bullets.map((bullet) => prepareArabicLine(bullet)),
+    ul: bullets.map((bullet) => prepareArabicPdfContent(bullet)),
     style: "body",
-    margin: [0, 0, 0, 0.5] as [number, number, number, number],
+    margin: [0, 0, 0, 0.25] as [number, number, number, number],
   };
 }
 
@@ -96,7 +96,7 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
       text: contactLine,
       style: "contact",
       direction: "ltr",
-      margin: [0, 0, 0, 1] as [number, number, number, number],
+      margin: [0, 0, 0, 0.5] as [number, number, number, number],
     });
   }
 
@@ -107,7 +107,7 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
     content.push({
       ...bodyText(cv.summary),
       style: "body",
-      margin: [0, 0, 0, 1] as [number, number, number, number],
+      margin: [0, 0, 0, 0.5] as [number, number, number, number],
     });
   }
 
@@ -136,9 +136,9 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
       if (edu.honors) extras.push(prepareArabicLine(edu.honors));
       if (extras.length) {
         content.push({
-          text: extras.join("  |  "),
+          ...prepareArabicPdfContent(extras.join("  |  ")),
           style: "body",
-          margin: [0, 0, 0, 1] as [number, number, number, number],
+          margin: [0, 0, 0, 0.5] as [number, number, number, number],
         });
       }
     }
@@ -155,16 +155,16 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
   if (cv.skills?.length) {
     content.push(...sectionHeader(H.skills));
     content.push({
-      text: joinPreparedParts(cv.skills, LIST_SEP),
+      ...prepareArabicPdfContent(joinPreparedParts(cv.skills, LIST_SEP)),
       style: "body",
-      margin: [0, 0, 0, 1] as [number, number, number, number],
+      margin: [0, 0, 0, 0.5] as [number, number, number, number],
     });
   }
 
   if (cv.languages?.length) {
     content.push(...sectionHeader(H.languages));
     content.push({
-      text: joinPreparedParts(cv.languages, LIST_SEP),
+      ...prepareArabicPdfContent(joinPreparedParts(cv.languages, LIST_SEP)),
       style: "body",
       margin: [0, 0, 0, 0] as [number, number, number, number],
     });
@@ -183,15 +183,15 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
     },
     styles: {
       name: {
-        fontSize: 15,
+        fontSize: 14,
         bold: true,
         alignment: "center",
         margin: [0, 0, 0, 0.5] as [number, number, number, number],
       },
       jobTitle: {
-        fontSize: 10,
+        fontSize: 9.5,
         alignment: "center",
-        margin: [0, 0, 0, 1] as [number, number, number, number],
+        margin: [0, 0, 0, 0.5] as [number, number, number, number],
       },
       contact: {
         fontSize: BODY_FONT,
