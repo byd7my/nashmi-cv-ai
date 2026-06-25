@@ -1036,7 +1036,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
     lightText: "#1E1B4B",
     lightMuted: "#64748B",
   };
-  const userTier = currentPlan || "starter";
+  const userTier = currentPlan || getSessionPlanTier() || "starter";
   const canExport = userTier === "premium" || userTier === "elite" || userTier === "enterprise";
 
   // Persist CV across navigation (checkout round-trip, refresh)

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLang, type CvLang } from "@/nashmi/hooks/useLang";
 import { TR } from "@/nashmi/lib/translations";
 import type { CVData } from "@/nashmi/lib/ats";
-import { getSessionPlanTier } from "@/nashmi/lib/plan-session";
+import { getSessionPlanTier, setSessionPlanTier } from "@/nashmi/lib/plan-session";
 
 import { LandingPage } from "@/nashmi/pages/LandingPage";
 import { BuilderPage } from "@/nashmi/pages/BuilderPage";
@@ -165,6 +165,8 @@ export default function App() {
   }
 
   function handlePlanActivated(tier: string) {
+    if (tier !== "premium" && tier !== "elite" && tier !== "enterprise") return;
+    setSessionPlanTier(tier);
     setCurrentPlan(tier);
   }
 

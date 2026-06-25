@@ -351,7 +351,10 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onPlanActivate
                     ctaLabel={plan.cta}
                     isAr={isAr}
                     highlight={plan.highlight}
-                    onActivated={tier => onPlanActivated?.(tier)}
+                    onActivated={tier => {
+                      onPlanActivated?.(tier);
+                      void onNav("builder");
+                    }}
                   />
                 ) : (
                   <button onClick={() => {
