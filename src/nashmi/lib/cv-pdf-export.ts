@@ -131,6 +131,36 @@ function registerEnglishFonts(doc: jsPDF): void {
 /** ATS-safe inline separator for skills/languages lists. */
 const LIST_SEP = " | ";
 
+export const PDF_LINK_COLOR = "#0000EE";
+const CONTACT_SEP = "  |  ";
+
+export type ContactLinkPart = { text: string; link?: string };
+
+function toExternalUrl(raw: string): string {
+  const value = raw.trim();
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://${value.replace(/^\/+/, "")}`;
+}
+
+/** Phone, email, and URL fields become clickable PDF links; location stays plain text. */
+export function buildContactLinkParts(cv: CvData): ContactLinkPart[] {
+  const parts: ContactLinkPart[] = [];
+  if (cv.phone?.trim()) {
+    const phone = cv.phone.trim();
+    parts.push({ text: phone, link: `tel:${phone.replace(/[^\d+]/g, "")}` });
+  }
+  if (cv.email?.trim()) {
+    const email = cv.email.trim();
+    parts.push({ text: email, link: `mailto:${email}` });
+  }
+  if (cv.location?.trim()) parts.push({ text: cv.location.trim() });
+  if (cv.linkedin?.trim()) {
+    const linkedin = cv.linkedin.trim();
+    parts.push({ text: linkedin, link: toExternalUrl(linkedin) });
+  }
+  return parts;
+}
+
 /** Replace Unicode punctuation that Helvetica/jsPDF renders as garbled glyphs. */
 function sanitizePdfText(text: string): string {
   return text
@@ -238,6 +268,53 @@ class PdfRenderer {
     const bold = style === "bold" || style === "bolditalic";
     this.doc.setFont("NotoSans", bold ? "bold" : "normal");
     this.doc.setFontSize(size);
+  }
+
+  private drawLinkText(text: string, x: number, y: number, url: string, fontSize: number): number {
+    const doc = this.doc;
+    doc.setTextColor(0, 0, 238);
+    doc.text(text, x, y);
+    const w = doc.getTextWidth(text);
+    doc.setDrawColor(0, 0, 238);
+    doc.setLineWidth(0.25);
+    doc.line(x, y + 1, x + w, y + 1);
+    doc.link(x, y - fontSize * 0.7, w, fontSize, { url });
+    return w;
+  }
+
+  renderContactLinks(parts: ContactLinkPart[]) {
+    if (!parts.length) return;
+    const fontSize = 8;
+    this.setFont("normal", fontSize);
+    const doc = this.doc;
+
+    let totalW = 0;
+    for (let i = 0; i < parts.length; i++) {
+      if (i > 0) totalW += doc.getTextWidth(CONTACT_SEP);
+      totalW += doc.getTextWidth(sanitizePdfText(parts[i]!.text));
+    }
+
+    let x = PAGE_W / 2 - totalW / 2;
+    const y = this.y;
+
+    for (let i = 0; i < parts.length; i++) {
+      if (i > 0) {
+        doc.setTextColor(0, 0, 0);
+        doc.text(CONTACT_SEP, x, y);
+        x += doc.getTextWidth(CONTACT_SEP);
+      }
+      const text = sanitizePdfText(parts[i]!.text);
+      if (parts[i]!.link) {
+        x += this.drawLinkText(text, x, y, parts[i]!.link!, fontSize);
+      } else {
+        doc.setTextColor(0, 0, 0);
+        doc.text(text, x, y);
+        x += doc.getTextWidth(text);
+      }
+    }
+
+    doc.setTextColor(0, 0, 0);
+    this.y += 8;
   }
 
   // Render wrapped text, return new y
@@ -360,16 +437,10 @@ async function buildEnglishPdf(cv: CvData): Promise<Blob> {
     r.y += 12;
   }
 
-  // Contact line
-  const contactParts: string[] = [];
-  if (cv.phone)    contactParts.push(cv.phone);
-  if (cv.email)    contactParts.push(cv.email);
-  if (cv.location) contactParts.push(cv.location);
-  if (cv.linkedin) contactParts.push(cv.linkedin);
+  // Contact line — clickable phone, email, and URLs
+  const contactParts = buildContactLinkParts(cv);
   if (contactParts.length > 0) {
-    r.setFont("normal", 8);
-    r.doc.text(contactParts.join("  |  "), PAGE_W / 2, r.y, { align: "center" });
-    r.y += 8;
+    r.renderContactLinks(contactParts);
   }
 
   r.y += 2;

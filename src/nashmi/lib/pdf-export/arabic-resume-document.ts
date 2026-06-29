@@ -2,6 +2,7 @@ import type { Content, TDocumentDefinitions } from "pdfmake-rtl/interfaces";
 
 import { AR_HEADERS } from "@/nashmi/lib/cv-parser";
 import type { CvData } from "@/nashmi/lib/cv-pdf-export";
+import { buildContactLinkParts, PDF_LINK_COLOR } from "@/nashmi/lib/cv-pdf-export";
 
 import {
   joinPreparedParts,
@@ -70,17 +71,36 @@ function bulletList(bullets: string[]): Content {
   };
 }
 
-/** Contact fields are pure LTR — no Arabic bidi processing. */
-function buildContactLine(cv: CvData): string {
-  const parts: string[] = [];
-  if (cv.phone?.trim()) parts.push(cv.phone.trim());
-  if (cv.email?.trim()) parts.push(cv.email.trim());
-  if (cv.linkedin?.trim()) parts.push(cv.linkedin.trim());
-  if (cv.location?.trim()) parts.push(cv.location.trim());
-  return parts.join("  |  ");
+const CONTACT_SEP = "  |  ";
+
+/** Contact fields are pure LTR — phone/email/URLs are clickable links. */
+function buildContactContent(cv: CvData): Content | null {
+  const parts = buildContactLinkParts(cv);
+  if (!parts.length) return null;
+
+  const textParts: Content[] = [];
+  parts.forEach((part, index) => {
+    if (index > 0) textParts.push(CONTACT_SEP);
+    if (part.link) {
+      textParts.push({
+        text: part.text,
+        link: part.link,
+        color: PDF_LINK_COLOR,
+        decoration: "underline",
+      });
+    } else {
+      textParts.push(part.text);
+    }
+  });
+
+  return {
+    text: textParts,
+    style: "contact",
+    direction: "ltr",
+    margin: [0, 0, 0, 0.5] as [number, number, number, number],
+  };
 }
 
-/** Build pdfmake doc — compact single-page RTL, one font for all glyphs. */
 export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
   const H = AR_HEADERS;
   const content: Content[] = [];
@@ -90,15 +110,8 @@ export function buildArabicResumeDocument(cv: CvData): TDocumentDefinitions {
     ...(cv.jobTitle ? [{ ...bodyText(cv.jobTitle), style: "jobTitle" } as Content] : []),
   );
 
-  const contactLine = buildContactLine(cv);
-  if (contactLine) {
-    content.push({
-      text: contactLine,
-      style: "contact",
-      direction: "ltr",
-      margin: [0, 0, 0, 0.5] as [number, number, number, number],
-    });
-  }
+  const contactContent = buildContactContent(cv);
+  if (contactContent) content.push(contactContent);
 
   content.push(hr());
 
