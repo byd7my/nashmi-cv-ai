@@ -2146,13 +2146,46 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
     </div>
   );
 
-  const renderExpItem = (i: number) => {
+  const experienceNavLabel = (targetIndex: number) => {
+    if (!isAr) return `Go to Experience ${targetIndex}`;
+    const ordinals: Record<number, string> = {
+      1: "الأولى",
+      2: "الثانية",
+      3: "الثالثة",
+      4: "الرابعة",
+      5: "الخامسة",
+    };
+    const label = ordinals[targetIndex] ?? String(targetIndex);
+    return `انتقل للخبرة ${label}`;
+  };
+
+  const renderExpItem = (i: number, showMobileNav = false) => {
     const e = cv.experience[i];
     if (!e) return null;
     return (
       <div key={i} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, padding: "16px 14px", marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `الخبرة ${i + 1}` : `Experience ${i + 1}`}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+            <span style={{ color: P.violetLight, fontSize: 12, fontWeight: 700 }}>{isAr ? `الخبرة ${i + 1}` : `Experience ${i + 1}`}</span>
+            {showMobileNav && cv.experience.length > 1 && i > 0 && (
+              <button
+                type="button"
+                onClick={() => setActivePanel(`experience-${i - 1}`)}
+                style={{ background: `${P.violet}18`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap" }}
+              >
+                {experienceNavLabel(i)}
+              </button>
+            )}
+            {showMobileNav && cv.experience.length > 1 && i < cv.experience.length - 1 && (
+              <button
+                type="button"
+                onClick={() => setActivePanel(`experience-${i + 1}`)}
+                style={{ background: `${P.violet}18`, border: `1px solid ${P.violet}44`, color: P.violetLight, borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: ff, whiteSpace: "nowrap" }}
+              >
+                {experienceNavLabel(i + 2)}
+              </button>
+            )}
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <AIBtn section={`exp-${i}`} text={e.desc}/>
             {cv.experience.length > 1 && (
@@ -2359,7 +2392,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
     if (panel === "summary") return renderSummaryFields();
     if (panel.startsWith("experience-")) {
       const i = Math.min(Number(panel.slice("experience-".length)) || 0, cv.experience.length - 1);
-      return <div>{renderExpItem(i)}{renderAddExpBtn(n => setActivePanel(`experience-${n}`))}</div>;
+      return <div>{renderExpItem(i, isMobile)}{renderAddExpBtn(n => setActivePanel(`experience-${n}`))}</div>;
     }
     if (panel.startsWith("education-")) {
       const i = Math.min(Number(panel.slice("education-".length)) || 0, cv.education.length - 1);
