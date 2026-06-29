@@ -1797,7 +1797,15 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
   // ── Email the exported CV to the address the client entered in the CV ──
   async function emailCvCopy(files: { filename: string; blob: Blob }[]) {
     const recipient = (cv.personal.email || "").trim();
-    if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return;
+    if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      showToast(
+        isAr
+          ? "✕ أضف بريدك الإلكتروني في البيانات الشخصية لاستلام السيرة"
+          : "✕ Add your email in personal info to receive your resume",
+        "error",
+      );
+      return;
+    }
     try {
       const attachments: { filename: string; content: string }[] = [];
       let total = 0;
@@ -1835,6 +1843,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
       a.href = url;
       a.download = fileName;
       a.rel = "noopener";
+      if (isMobile) a.target = "_blank";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2003,7 +2012,6 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
     track("pdf_exported");
     try {
       const baseName = cv.personal.name ? cv.personal.name.replace(/\s+/g, "-").toLowerCase() : "resume";
-      const exportedFiles: { filename: string; blob: Blob }[] = [];
 
       let altCv: CVData | null =
         isElite && otherLangCv && cvMatchesLanguage(otherLangCv, otherLang) ? otherLangCv : null;
@@ -2022,9 +2030,26 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
         secondaryLang: otherLang,
       });
 
-      for (const file of pdfFiles) {
-        downloadBlob(file.blob, file.filename);
-        exportedFiles.push({ filename: file.filename, blob: file.blob });
+      const exportedFiles = pdfFiles.map(file => ({
+        filename: file.filename,
+        blob: file.blob,
+      }));
+
+      // Email before download — mobile browsers navigate away on blob URLs and abort the rest.
+      await emailCvCopy(exportedFiles);
+
+      const purchaseToken = getPurchaseToken();
+      const sessionId = getCvSessionId();
+      if (purchaseToken && sessionId) {
+        try {
+          await fetch("/api/purchase?action=consume", {
+            method: "POST",
+            headers: {
+              "x-nashmi-purchase-token": purchaseToken,
+              "x-nashmi-session-id": sessionId,
+            },
+          });
+        } catch { /* ignore */ }
       }
 
       if (isElite && altCv) {
@@ -2048,23 +2073,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
         );
       }
 
-      await emailCvCopy(exportedFiles);
-
-      const purchaseToken = getPurchaseToken();
-      const sessionId = getCvSessionId();
-      if (purchaseToken && sessionId) {
-        try {
-          await fetch("/api/purchase?action=consume", {
-            method: "POST",
-            headers: {
-              "x-nashmi-purchase-token": purchaseToken,
-              "x-nashmi-session-id": sessionId,
-            },
-          });
-        } catch { /* ignore */ }
-      }
-
-      // Paid users: CV goes to email only; keep their export review, wipe everything else.
+      // Paid users: CV goes to email; wipe session after send, then offer download.
       wipeAllClientCvData();
       setCv({ ...INIT_CV });
       setCvTemplate(DEFAULT_CV_TEMPLATE);
@@ -2078,6 +2087,10 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
       setCurrentPlan("starter");
 
       setTimeout(() => onNav("landing"), 1200);
+
+      for (const file of exportedFiles) {
+        downloadBlob(file.blob, file.filename);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       showToast(isAr ? `✕ فشل تصدير PDF: ${msg}` : `✕ PDF export failed: ${msg}`, "error");
