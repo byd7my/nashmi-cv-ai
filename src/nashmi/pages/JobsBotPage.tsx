@@ -375,7 +375,7 @@ export function JobsBotPage({ lang, t, onNav, onLangToggle }: Props) {
                   className={`jobs-pricing-card${plan.highlight ? " jobs-pricing-popular" : ""}`}
                   style={{
                     background: plan.highlight
-                      ? `linear-gradient(160deg, ${P.violet}1A, ${P.card} 60%)`
+                      ? `linear-gradient(160deg, ${P.violet}45, ${P.violet}28 55%, ${P.card} 100%)`
                       : P.card,
                     border: `1px solid ${plan.highlight ? P.violet : P.border}`,
                     borderRadius: 20,
@@ -408,7 +408,7 @@ export function JobsBotPage({ lang, t, onNav, onLangToggle }: Props) {
                   )}
                   <CardContent style={{ padding: 0, textAlign: "center" }}>
                     <div className="nashmi-card-icon-emoji-lg" style={{ fontSize: 32, marginBottom: 8 }}>{plan.emoji}</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{plan.name}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8, color: "#C4B8FF" }}>{plan.name}</div>
                     <div style={{ color: P.muted, fontSize: 14, marginBottom: 16 }}>المدة: {plan.duration}</div>
                     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 6, marginBottom: 22 }}>
                       <span
