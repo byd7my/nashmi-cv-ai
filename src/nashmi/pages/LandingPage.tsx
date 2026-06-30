@@ -180,15 +180,15 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onPlanActivate
 
       {/* ── FEATURES ───────────────────────────────────────────── */}
       <Section id="features">
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "80px 24px", direction: isAr ? "rtl" : "ltr" }}>
-          <div style={{ textAlign: "center", marginBottom: 52 }}>
+        <div className="landing-features-section" style={{ maxWidth: 1200, margin: "0 auto", padding: "80px 24px", direction: isAr ? "rtl" : "ltr" }}>
+          <div className="landing-features-header" style={{ textAlign: "center", marginBottom: 52 }}>
             <div style={{ marginBottom: 12 }}><VioletBadge>{isAr ? "المميزات" : "Features"}</VioletBadge></div>
             <h2 style={{ fontSize: "clamp(24px, 4vw, 42px)", fontWeight: 900, color: P.text, fontFamily: ff, marginBottom: 14 }}>{t.featuresTitle}</h2>
             <p style={{ color: P.muted, fontSize: 16, maxWidth: 560, margin: "0 auto" }}>{t.featuresSub}</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+          <div className="landing-features-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
             {t.features.map((f, i) => (
-              <div key={i} style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 18, padding: "28px 24px", transition: "border-color 0.25s, transform 0.25s", cursor: "default" }}
+              <div key={i} className="landing-feature-card" style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 18, padding: "28px 24px", transition: "border-color 0.25s, transform 0.25s", cursor: "default" }}
                 onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor=P.violet; el.style.transform="translateY(-4px)"; }}
                 onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor=P.border; el.style.transform=""; }}
               >
@@ -197,52 +197,6 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onPlanActivate
                 <p style={{ color: P.muted, fontSize: 14, lineHeight: 1.65 }}>{f.desc}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </Section>
-
-      {/* ── ATS MATCH SCORE DEMO ──────────────────────────────── */}
-      <Section>
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 80px", direction: isAr ? "rtl" : "ltr" }}>
-          <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 24, overflow: "hidden", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", minHeight: 320}}>
-            <div style={{ padding: "48px 40px", background: `linear-gradient(135deg, ${P.violet}14, transparent)`, borderRight: isAr ? "none" : `1px solid ${P.border}`, borderLeft: isAr ? `1px solid ${P.border}` : "none" }}>
-              <div style={{ marginBottom: 12 }}><VioletBadge>{isAr ? "جديد" : "New"}</VioletBadge></div>
-              <h2 style={{ color: P.text, fontSize: "clamp(20px,3vw,32px)", fontWeight: 900, fontFamily: ff, marginBottom: 14 }}>
-                {isAr ? "مطابقة نشمي مع وصف الوظيفة" : "ATS Job Description Matching"}
-              </h2>
-              <p style={{ color: P.muted, fontSize: 15, lineHeight: 1.7, maxWidth: 360, marginBottom: 24 }}>
-                {isAr
-                  ? "الصق وصف الوظيفة وانظر كيف تتطابق سيرتك الذاتية مع متطلباتها — مع الكلمات المفتاحية الناقصة."
-                  : "Paste any job description and see exactly how well your resume matches — with missing keywords highlighted."}
-              </p>
-              <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-                <ATSRing score={78} size={72}/>
-                <div>
-                  <div style={{ color: P.text, fontWeight: 700, fontSize: 18, fontFamily: ff }}>78% {isAr ? "تطابق" : "match"}</div>
-                  <div style={{ color: P.muted, fontSize: 13 }}>{isAr ? "4 كلمات مفتاحية مفقودة" : "4 missing keywords"}</div>
-                </div>
-              </div>
-            </div>
-            <div style={{ padding: "48px 40px" }}>
-              <div style={{ marginBottom: 14, color: P.muted, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                {isAr ? "الكلمات المفتاحية المفقودة" : "Missing Keywords"}
-              </div>
-              {(isAr
-                ? ["التعلم الآلي", "Python", "بنية البيانات", "SQL", "نموذج اللغة الكبير"]
-                : ["Machine Learning", "Data Pipeline", "Model Training", "SQL", "LLM"]
-              ).map((kw, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: P.red }}/>
-                  <span style={{ color: P.text, fontSize: 14 }}>{kw}</span>
-                  <span style={{ marginLeft: "auto", color: P.muted, fontSize: 11 }}>
-                    {isAr ? "مفقود" : "missing"}
-                  </span>
-                </div>
-              ))}
-              <button onClick={() => onNav("builder")} style={{ marginTop: 20, background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 10, padding: "11px 22px", cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: ff, boxShadow: `0 4px 20px ${P.violet}44` }}>
-                {isAr ? "حسّن سيرتي الآن →" : "Improve Mine Now →"}
-              </button>
-            </div>
           </div>
         </div>
       </Section>
@@ -398,25 +352,6 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onPlanActivate
           {t.faq.map((item, i) => (
             <FAQItem key={i} q={item.q} a={item.a} ff={ff} isAr={isAr}/>
           ))}
-        </div>
-      </Section>
-
-      {/* ── CTA ───────────────────────────────────────────────── */}
-      <Section>
-        <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 24px 80px", textAlign: "center", direction: isAr ? "rtl" : "ltr" }}>
-          <div style={{ background: `linear-gradient(135deg, ${P.violet}22, ${P.card})`, border: `1px solid ${P.violet}44`, borderRadius: 24, padding: "52px 36px", boxShadow: `0 0 60px ${P.violet}1A` }}>
-            <h2 style={{ color: P.text, fontSize: "clamp(22px,4vw,40px)", fontWeight: 900, fontFamily: ff, marginBottom: 14 }}>
-              {isAr ? "ابدأ رحلتك المهنية اليوم" : "Start Your Career Journey Today"}
-            </h2>
-            <p style={{ color: P.muted, fontSize: 15, marginBottom: 28, lineHeight: 1.7, maxWidth: 500, margin: "0 auto 28px" }}>
-              {isAr ? "أنشئ سيرة ذاتية احترافية متوافقة مع ATS في دقائق — مجاناً للمعاينة." : "Build a professional ATS-ready resume in minutes — preview free."}
-            </p>
-            <button onClick={() => onNav("builder")} style={{ background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border: "none", color: "#fff", borderRadius: 12, padding: "16px 36px", cursor: "pointer", fontSize: 17, fontWeight: 800, fontFamily: ff, boxShadow: `0 6px 32px ${P.violet}55`, transition: "transform 0.2s" }}
-              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)"}
-              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.transform=""}
-            >{t.cta}</button>
-            <p style={{ color: P.muted, fontSize: 12, marginTop: 14 }}>{t.ctaSub}</p>
-          </div>
         </div>
       </Section>
     </PageShell>

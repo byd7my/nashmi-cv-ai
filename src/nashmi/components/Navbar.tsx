@@ -31,12 +31,12 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
   const ff = FF;
   const routes = [
     ...NAV_ROUTES[lang],
-    { label: isAr ? "التقديم التلقائي" : "Jobs Bot", page: "jobs-bot" },
+    { label: isAr ? "قدّم على وظائف" : "Jobs Bot", page: "jobs-bot" },
   ] as const;
   const [menuOpen, setMenuOpen] = useState(false);
 
   const pricingLabel = routes.find(r => r.anchor === "pricing")?.label ?? (isAr ? "الأسعار" : "Pricing");
-  const jobsBotLabel = routes.find(r => r.page === "jobs-bot")?.label ?? (isAr ? "التقديم التلقائي" : "Jobs Bot");
+  const jobsBotLabel = routes.find(r => r.page === "jobs-bot")?.label ?? (isAr ? "قدّم على وظائف" : "Jobs Bot");
 
   const isActive = (route: { label: string; anchor?: string; page?: string }) => {
     if (route.page) return page === route.page;
@@ -77,9 +77,8 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
           .nav-center-links { display: none !important; }
           .nav-login-btn { display: none !important; }
           .nav-hamburger { display: flex !important; }
-          .nav-signup-desktop { display: none !important; }
-          .nav-signup-mobile { display: inline-block !important; }
           .nav-mobile-quick-links { display: flex !important; }
+          .nav-brand-text { display: none !important; }
           .nav-inner { padding: 0 12px !important; gap: 8px !important; }
           .nav-right-controls { gap: 6px !important; }
           .nav-lang-btn { padding: 6px 10px !important; }
@@ -87,7 +86,6 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
         @media (min-width: 641px) {
           .nav-hamburger { display: none !important; }
           .nav-mobile-menu { display: none !important; }
-          .nav-signup-mobile { display: none !important; }
           .nav-mobile-quick-links { display: none !important; }
         }
       `}</style>
@@ -131,7 +129,7 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
           {/* Spacer on desktop */}
           <div style={{ flex:1 }} className="nav-center-links" />
 
-          {/* Mobile quick links — pricing + jobs bot (also remain in hamburger menu) */}
+          {/* Mobile quick link — jobs bot only (also in hamburger menu) */}
           <div
             className="nav-mobile-quick-links"
             style={{ display: "none", alignItems: "center", gap: 4, flexShrink: 1, minWidth: 0, overflow: "hidden" }}
@@ -155,25 +153,6 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
             >
               {jobsBotLabel}
             </button>
-            <button
-              type="button"
-              className="nav-mobile-quick-link"
-              onClick={goToPricing}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: P.muted,
-                fontSize: 10,
-                fontWeight: 700,
-                fontFamily: ff,
-                padding: "4px 2px",
-                whiteSpace: "nowrap",
-                lineHeight: 1.3,
-              }}
-            >
-              {pricingLabel}
-            </button>
           </div>
 
           {/* Right controls */}
@@ -189,17 +168,8 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
             >{pricingLabel}</button>
 
             <button
-              className="nav-signup-desktop"
               onClick={() => onNav("builder")}
               style={signupBtnStyle}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.opacity = "0.92"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
-            >{t.signup}</button>
-
-            <button
-              className="nav-signup-mobile"
-              onClick={goToJobsBot}
-              style={{ ...signupBtnStyle, display: "none", padding: "8px 12px", fontSize: 12 }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.opacity = "0.92"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
             >{t.signup}</button>

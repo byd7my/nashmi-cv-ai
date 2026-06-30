@@ -159,8 +159,8 @@
   }
 
   .nashmi-card-icon-emoji-lg {
-    font-size: 22px !important;
-    margin-bottom: 6px !important;
+    font-size: 18px !important;
+    margin-bottom: 5px !important;
   }
 
   .nashmi-card-icon-emoji-md {
@@ -169,6 +169,28 @@
 
   .nashmi-card-icon-emoji-xl {
     font-size: 28px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .landing-features-section {
+    padding: 48px 16px !important;
+  }
+
+  .landing-features-header {
+    margin-bottom: 28px !important;
+  }
+
+  .landing-features-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .landing-feature-card {
+    padding: 14px 12px !important;
+    border-radius: 14px !important;
+  }
+
+  .landing-feature-card .nashmi-card-icon-wrap {
     margin-bottom: 8px !important;
   }
 }
