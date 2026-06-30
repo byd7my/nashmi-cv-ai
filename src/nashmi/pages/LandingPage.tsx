@@ -192,7 +192,7 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onPlanActivate
                 onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor=P.violet; el.style.transform="translateY(-4px)"; }}
                 onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.borderColor=P.border; el.style.transform=""; }}
               >
-                <div style={{ width: 46, height: 46, borderRadius: 12, background: `${P.violet}1A`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 16, color: P.violetLight }}>{f.icon}</div>
+                <div className="nashmi-card-icon-wrap" style={{ width: 46, height: 46, borderRadius: 12, background: `${P.violet}1A`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 16, color: P.violetLight }}>{f.icon}</div>
                 <h3 style={{ color: P.text, fontSize: 17, fontWeight: 700, fontFamily: ff, marginBottom: 8 }}>{f.title}</h3>
                 <p style={{ color: P.muted, fontSize: 14, lineHeight: 1.65 }}>{f.desc}</p>
               </div>

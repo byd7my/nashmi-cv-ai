@@ -2551,7 +2551,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 8px 32px ${P.violet}44`; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${P.violet}55`; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 20px ${P.violet}22`; }}
           >
-            <div style={{ fontSize: 40, marginBottom: 12 }}>✨</div>
+            <div className="nashmi-card-icon-emoji-xl" style={{ fontSize: 40, marginBottom: 12 }}>✨</div>
             <div style={{ color: P.text, fontWeight: 800, fontSize: 17, marginBottom: 6, fontFamily: ff }}>
               {isAr ? "سيرة جديدة" : "New Resume"}
             </div>
@@ -2568,7 +2568,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
             onMouseEnter={e => { if (!importing) { (e.currentTarget as HTMLButtonElement).style.borderColor = P.violetLight; (e.currentTarget as HTMLButtonElement).style.background = P.card; } }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.border; (e.currentTarget as HTMLButtonElement).style.background = P.surface; }}
           >
-            <div style={{ fontSize: 40, marginBottom: 12 }}>{importing ? "⏳" : "📄"}</div>
+            <div className="nashmi-card-icon-emoji-xl" style={{ fontSize: 40, marginBottom: 12 }}>{importing ? "⏳" : "📄"}</div>
             <div style={{ color: P.text, fontWeight: 800, fontSize: 17, marginBottom: 6, fontFamily: ff }}>
               {importing ? (isAr ? "جارٍ التحليل…" : "Analysing…") : (isAr ? "استيراد PDF / صورة / JSON" : "Import PDF / Photo / JSON")}
             </div>
@@ -3053,7 +3053,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
                       transition: "transform 0.2s ease, border-color 0.2s",
                     }}
                   >
-                    <span style={{ fontSize: 24 }}>{icons[i]}</span>
+                    <span className="nashmi-card-icon-emoji-md" style={{ fontSize: 24 }}>{icons[i]}</span>
                     <span style={{ color: P.text, fontSize: 13, fontWeight: 700 }}>{SECTIONS[i]}</span>
                   </button>
                 );
@@ -3065,7 +3065,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
         {isMobile && mobileTab === "export" && (
           <div key="export" className="mobile-tab-view builder-workspace" style={{ padding: "24px 16px calc(80px + env(safe-area-inset-bottom))", overflowY: "auto", alignItems: "center" }}>
             <div style={{ width: "100%", maxWidth: 360, background: P.card, border: `1px solid ${P.border}`, borderRadius: 16, padding: "24px 20px", textAlign: "center" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>{canExport ? "⬇" : "🔒"}</div>
+              <div className="nashmi-card-icon-emoji-xl" style={{ fontSize: 40, marginBottom: 12 }}>{canExport ? "⬇" : "🔒"}</div>
               <h2 style={{ color: P.text, fontSize: 18, fontWeight: 800, marginBottom: 8, fontFamily: ff }}>{t.export}</h2>
               <p style={{ color: P.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
                 {canExport

@@ -11,6 +11,21 @@ interface NavbarProps {
   onLangToggle: () => void;
 }
 
+const signupBtnStyle: React.CSSProperties = {
+  background: `linear-gradient(135deg, ${P.violet}, ${P.violetLight})`,
+  border: "none",
+  color: "#fff",
+  borderRadius: 8,
+  padding: "9px 16px",
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 700,
+  fontFamily: FF,
+  boxShadow: `0 4px 20px ${P.violet}44`,
+  transition: "transform 0.2s, opacity 0.2s",
+  whiteSpace: "nowrap",
+};
+
 export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
   const isAr = lang === "ar";
   const ff = FF;
@@ -19,6 +34,9 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
     { label: isAr ? "التقديم التلقائي" : "Jobs Bot", page: "jobs-bot" },
   ] as const;
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const pricingLabel = routes.find(r => r.anchor === "pricing")?.label ?? (isAr ? "الأسعار" : "Pricing");
+  const jobsBotLabel = routes.find(r => r.page === "jobs-bot")?.label ?? (isAr ? "التقديم التلقائي" : "Jobs Bot");
 
   const isActive = (route: { label: string; anchor?: string; page?: string }) => {
     if (route.page) return page === route.page;
@@ -47,7 +65,10 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
     handleNavClick({ label: "", anchor: "pricing" });
   };
 
-  const pricingLabel = routes.find(r => r.anchor === "pricing")?.label ?? (isAr ? "الأسعار" : "Pricing");
+  const goToJobsBot = () => {
+    setMenuOpen(false);
+    window.location.href = "/jobs-bot";
+  };
 
   return (
     <>
@@ -56,10 +77,18 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
           .nav-center-links { display: none !important; }
           .nav-login-btn { display: none !important; }
           .nav-hamburger { display: flex !important; }
+          .nav-signup-desktop { display: none !important; }
+          .nav-signup-mobile { display: inline-block !important; }
+          .nav-mobile-quick-links { display: flex !important; }
+          .nav-inner { padding: 0 12px !important; gap: 8px !important; }
+          .nav-right-controls { gap: 6px !important; }
+          .nav-lang-btn { padding: 6px 10px !important; }
         }
         @media (min-width: 641px) {
           .nav-hamburger { display: none !important; }
           .nav-mobile-menu { display: none !important; }
+          .nav-signup-mobile { display: none !important; }
+          .nav-mobile-quick-links { display: none !important; }
         }
       `}</style>
 
@@ -69,12 +98,12 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
         background:`${P.bg}e8`, backdropFilter:"blur(20px)",
         borderBottom:`1px solid ${P.border}`,
       }}>
-        <div style={{ maxWidth:1200, margin:"0 auto", height:"100%", display:"flex", alignItems:"center", padding:"0 16px", gap:12, direction: isAr ? "rtl" : "ltr" }}>
+        <div className="nav-inner" style={{ maxWidth:1200, margin:"0 auto", height:"100%", display:"flex", alignItems:"center", padding:"0 16px", gap:12, direction: isAr ? "rtl" : "ltr" }}>
 
           {/* Logo */}
           <div onClick={() => onNav("landing")} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
             <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:900, color:"#fff", boxShadow:`0 4px 16px ${P.violet}55` }}>N</div>
-            <span style={{ color:P.text, fontWeight:800, fontSize:18, fontFamily:ff }}>{t.brand}</span>
+            <span className="nav-brand-text" style={{ color:P.text, fontWeight:800, fontSize:18, fontFamily:ff }}>{t.brand}</span>
           </div>
 
           {/* Center nav — desktop only */}
@@ -99,12 +128,57 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
             })}
           </div>
 
-          {/* Spacer on mobile */}
+          {/* Spacer on desktop */}
           <div style={{ flex:1 }} className="nav-center-links" />
 
+          {/* Mobile quick links — pricing + jobs bot (also remain in hamburger menu) */}
+          <div
+            className="nav-mobile-quick-links"
+            style={{ display: "none", alignItems: "center", gap: 4, flexShrink: 1, minWidth: 0, overflow: "hidden" }}
+          >
+            <button
+              type="button"
+              className="nav-mobile-quick-link"
+              onClick={goToJobsBot}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: page === "jobs-bot" ? P.violetLight : P.muted,
+                fontSize: 10,
+                fontWeight: 700,
+                fontFamily: ff,
+                padding: "4px 2px",
+                whiteSpace: "nowrap",
+                lineHeight: 1.3,
+              }}
+            >
+              {jobsBotLabel}
+            </button>
+            <button
+              type="button"
+              className="nav-mobile-quick-link"
+              onClick={goToPricing}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: P.muted,
+                fontSize: 10,
+                fontWeight: 700,
+                fontFamily: ff,
+                padding: "4px 2px",
+                whiteSpace: "nowrap",
+                lineHeight: 1.3,
+              }}
+            >
+              {pricingLabel}
+            </button>
+          </div>
+
           {/* Right controls */}
-          <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-            <button onClick={onLangToggle} style={{ background:`${P.border}cc`, border:`1px solid ${P.borderLight}`, color:P.muted, borderRadius:8, padding:"6px 13px", cursor:"pointer", fontSize:12, fontWeight:700, transition:"border-color 0.2s, color 0.2s" }}
+          <div className="nav-right-controls" style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+            <button className="nav-lang-btn" onClick={onLangToggle} style={{ background:`${P.border}cc`, border:`1px solid ${P.borderLight}`, color:P.muted, borderRadius:8, padding:"6px 13px", cursor:"pointer", fontSize:12, fontWeight:700, transition:"border-color 0.2s, color 0.2s" }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.violet; (e.currentTarget as HTMLButtonElement).style.color = P.violetLight; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = P.borderLight; (e.currentTarget as HTMLButtonElement).style.color = P.muted; }}
             >{isAr ? "EN" : "ع"}</button>
@@ -114,7 +188,18 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = P.borderLight}
             >{pricingLabel}</button>
 
-            <button onClick={() => onNav("builder")} style={{ background:`linear-gradient(135deg, ${P.violet}, ${P.violetLight})`, border:"none", color:"#fff", borderRadius:8, padding:"9px 16px", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:ff, boxShadow:`0 4px 20px ${P.violet}44`, transition:"transform 0.2s, opacity 0.2s", whiteSpace:"nowrap" }}
+            <button
+              className="nav-signup-desktop"
+              onClick={() => onNav("builder")}
+              style={signupBtnStyle}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.opacity = "0.92"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
+            >{t.signup}</button>
+
+            <button
+              className="nav-signup-mobile"
+              onClick={goToJobsBot}
+              style={{ ...signupBtnStyle, display: "none", padding: "8px 12px", fontSize: 12 }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.opacity = "0.92"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ""; (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
             >{t.signup}</button>

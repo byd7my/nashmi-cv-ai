@@ -291,6 +291,7 @@ export function JobsBotPage({ lang, t, onNav, onLangToggle }: Props) {
                 >
                   <CardContent style={{ padding: "24px 20px" }}>
                     <div
+                      className="nashmi-card-icon-wrap"
                       style={{
                         width: 44,
                         height: 44,
@@ -343,7 +344,7 @@ export function JobsBotPage({ lang, t, onNav, onLangToggle }: Props) {
                   }}
                 >
                   <CardContent style={{ padding: "20px 18px" }}>
-                    <div style={{ fontSize: 26, marginBottom: 10 }}>{f.icon}</div>
+                    <div className="nashmi-card-icon-emoji" style={{ fontSize: 26, marginBottom: 10 }}>{f.icon}</div>
                     <h3 style={{ fontSize: 15, fontWeight: 800, color: P.text, marginBottom: 8, lineHeight: 1.5 }}>
                       {f.title}
                     </h3>
@@ -402,7 +403,7 @@ export function JobsBotPage({ lang, t, onNav, onLangToggle }: Props) {
                     </div>
                   )}
                   <CardContent style={{ padding: 0, textAlign: "center" }}>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>{plan.emoji}</div>
+                    <div className="nashmi-card-icon-emoji-lg" style={{ fontSize: 32, marginBottom: 8 }}>{plan.emoji}</div>
                     <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{plan.name}</div>
                     <div style={{ color: P.muted, fontSize: 14, marginBottom: 16 }}>المدة: {plan.duration}</div>
                     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 6, marginBottom: 22 }}>
