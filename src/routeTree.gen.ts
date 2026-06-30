@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as JobsBotRouteImport } from './routes/jobs-bot'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
@@ -27,6 +28,11 @@ const TermsRoute = TermsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsBotRoute = JobsBotRouteImport.update({
+  id: '/jobs-bot',
+  path: '/jobs-bot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -68,6 +74,7 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/jobs-bot': typeof JobsBotRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/jobs-bot': typeof JobsBotRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/jobs-bot': typeof JobsBotRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/jobs-bot'
     | '/privacy'
     | '/terms'
     | '/blog/$slug'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/jobs-bot'
     | '/privacy'
     | '/terms'
     | '/blog/$slug'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
+    | '/jobs-bot'
     | '/privacy'
     | '/terms'
     | '/blog/$slug'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  JobsBotRoute: typeof JobsBotRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   BlogSlugRoute: typeof BlogSlugRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs-bot': {
+      id: '/jobs-bot'
+      path: '/jobs-bot'
+      fullPath: '/jobs-bot'
+      preLoaderRoute: typeof JobsBotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  JobsBotRoute: JobsBotRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   BlogSlugRoute: BlogSlugRoute,

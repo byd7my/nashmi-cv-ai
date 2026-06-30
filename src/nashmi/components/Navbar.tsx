@@ -14,7 +14,10 @@ interface NavbarProps {
 export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
   const isAr = lang === "ar";
   const ff = FF;
-  const routes = NAV_ROUTES[lang] as readonly { label: string; anchor?: string; page?: string }[];
+  const routes = [
+    ...NAV_ROUTES[lang],
+    { label: isAr ? "التقديم التلقائي" : "Jobs Bot", page: "jobs-bot" },
+  ] as const;
   const [menuOpen, setMenuOpen] = useState(false);
 
   const isActive = (route: { label: string; anchor?: string; page?: string }) => {
@@ -26,6 +29,10 @@ export function Navbar({ lang, t, onNav, page, onLangToggle }: NavbarProps) {
     setMenuOpen(false);
     if (route.page === "blog") {
       window.location.href = "/blog";
+      return;
+    }
+    if (route.page === "jobs-bot") {
+      window.location.href = "/jobs-bot";
       return;
     }
     if (route.page) { onNav(route.page); return; }
