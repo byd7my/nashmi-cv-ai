@@ -260,16 +260,16 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onPlanActivate
 
       {/* ── PRICING ──────────────────────────────────────────── */}
       <Section id="pricing">
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 80px", direction: isAr ? "rtl" : "ltr" }}>
-          <div style={{ textAlign: "center", marginBottom: 48 }}>
+        <div className="landing-pricing-section" style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 80px", direction: isAr ? "rtl" : "ltr" }}>
+          <div className="landing-pricing-header" style={{ textAlign: "center", marginBottom: 48 }}>
             <div style={{ marginBottom: 12 }}><VioletBadge>{isAr ? "الأسعار" : "Pricing"}</VioletBadge></div>
             <h2 style={{ color: P.text, fontSize: "clamp(22px,3.5vw,38px)", fontWeight: 900, fontFamily: ff, marginBottom: 12 }}>{t.pricingTitle}</h2>
             <p style={{ color: P.muted, fontSize: 15, maxWidth: 480, margin: "0 auto" }}>{t.pricingSub}</p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 18, alignItems: "start" }}>
+          <div className="landing-pricing-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 18, alignItems: "start" }}>
             {plans.map((plan, i) => (
-              <div key={i} style={{
+              <div key={i} className="landing-pricing-card" style={{
                 background: plan.highlight ? `linear-gradient(160deg, ${P.violet}1A, ${P.card} 60%)` : P.card,
                 border: `1px solid ${plan.highlight ? P.violet : P.border}`,
                 borderRadius: 20, padding: "28px 22px", position: "relative",
@@ -287,9 +287,9 @@ export function LandingPage({ lang, t, onNav, onLangToggle, page, onPlanActivate
                   <span style={{ color: plan.highlight ? P.violetLight : P.text, fontSize: 36, fontWeight: 900 }}>{plan.price}</span>
                   {plan.cur && <span style={{ color: P.muted, fontSize: 14, fontWeight: 700 }}>{plan.cur}</span>}
                 </div>
-                <p style={{ color: P.muted, fontSize: 13, marginBottom: 18, lineHeight: 1.6 }}>{plan.desc}</p>
+                <p className="landing-pricing-desc" style={{ color: P.muted, fontSize: 13, marginBottom: 18, lineHeight: 1.6 }}>{plan.desc}</p>
 
-                <ul style={{ listStyle: "none", padding: 0, margin: "0 0 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+                <ul className="landing-pricing-features" style={{ listStyle: "none", padding: 0, margin: "0 0 20px", display: "flex", flexDirection: "column", gap: 8 }}>
                   {plan.features.map((f, j) => (
                     <li key={j} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: f.included ? P.textSub : `${P.muted}88` }}>
                       <span style={{ flexShrink: 0, color: f.included ? P.green : P.muted, fontWeight: 700 }}>{f.included ? "✓" : "✕"}</span>

@@ -193,4 +193,37 @@
   .landing-feature-card .nashmi-card-icon-wrap {
     margin-bottom: 8px !important;
   }
+
+  .landing-pricing-section {
+    padding: 0 16px 48px !important;
+  }
+
+  .landing-pricing-header {
+    margin-bottom: 28px !important;
+  }
+
+  .landing-pricing-grid {
+    gap: 10px !important;
+  }
+
+  .landing-pricing-card {
+    padding: 18px 16px !important;
+    border-radius: 16px !important;
+  }
+
+  .landing-pricing-desc {
+    margin-bottom: 10px !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+
+  .landing-pricing-features {
+    gap: 4px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .landing-pricing-features li {
+    font-size: 12px !important;
+    gap: 6px !important;
+  }
 }

@@ -156,6 +156,10 @@ const pageStyles = `
     .jobs-pricing-grid { grid-template-columns: 1fr; }
     .jobs-pricing-popular { transform: none !important; }
   }
+  @media (max-width: 640px) {
+    .jobs-pricing-grid { gap: 10px !important; }
+    .jobs-pricing-card { padding: 18px 16px !important; }
+  }
   @media (max-width: 560px) {
     .jobs-features-grid { grid-template-columns: 1fr; }
   }
@@ -368,7 +372,7 @@ export function JobsBotPage({ lang, t, onNav, onLangToggle }: Props) {
               {PLANS.map((plan) => (
                 <Card
                   key={plan.name}
-                  className={plan.highlight ? "jobs-pricing-popular" : undefined}
+                  className={`jobs-pricing-card${plan.highlight ? " jobs-pricing-popular" : ""}`}
                   style={{
                     background: plan.highlight
                       ? `linear-gradient(160deg, ${P.violet}1A, ${P.card} 60%)`
