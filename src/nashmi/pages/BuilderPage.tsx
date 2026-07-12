@@ -11,6 +11,15 @@ import type { TrLang, Translation } from "@/nashmi/lib/translations";
 import type { CvLang } from "@/nashmi/hooks/useLang";
 import { EliteImportFeature, ELITE_CV_KEYS } from "@/nashmi/components/EliteImportFeature";
 import { cvMatchesLanguage, ensureArabicPersonalName, translateCvDetailed } from "@/nashmi/lib/cv-translate";
+import {
+  buildImproveExperiencePrompt,
+  buildImproveSkillsPrompt,
+  buildImproveSummaryPrompt,
+  buildImproveFactsJson,
+  buildPostImproveWarnings,
+  mergeImproveWarnings,
+  parseSkillsImproveResponse,
+} from "@/nashmi/lib/ai-improve-prompts";
 import { ExportConfirmModal } from "@/nashmi/components/ExportConfirmModal";
 import { ExportLangWarningModal } from "@/nashmi/components/ExportLangWarningModal";
 import { TemplatePicker } from "@/nashmi/components/TemplatePicker";
@@ -718,9 +727,12 @@ async function runCopilotSectionFallback(
   const m = message.toLowerCase();
   if (/مهار|skill/i.test(m)) {
     const data = await callAI("improve_skills", cv.skills.join(", "), cvContentLang, { cv });
-    const suggested = Array.isArray(data.json)
-      ? (data.json as string[])
-      : (data.text || "").split("\n").map((s) => s.trim()).filter(Boolean);
+    const json = data.json as { skills?: string[] } | string[] | undefined;
+    const suggested = Array.isArray(json)
+      ? json
+      : Array.isArray(json?.skills)
+        ? json.skills
+        : (data.text || "").split("\n").map((s) => s.trim()).filter(Boolean);
     if (!suggested.length) return null;
     const merged = [...cv.skills];
     for (const skill of suggested) {
@@ -813,147 +825,40 @@ async function callAI(task: string, text: string, lang: string, extra?: Record<s
     ? "اكتب الناتج باللغة العربية الفصحى المهنية فقط."
     : "Write the output in professional English only.";
 
-  // ── برومت الملخص المهني ────────────────────────────────────────────────
+  // ── AI Improve (Saudi/Gulf ATS — facts-only, human tone) ───────────────
   if (task === "improve_summary") {
-    const cv = (extra as any)?.cv;
-
-    const expText = cv?.experience?.map((e: any) =>
-      `- ${e.role || ""} @ ${e.company || ""} (${e.from || ""} - ${e.to || ""})
-${e.desc || ""}`
-    ).join("\n\n") || "";
-
-    const eduText = cv?.education?.map((e: any) =>
-      `- ${e.degree || ""} ${e.field ? `in ${e.field}` : ""} — ${e.school || ""} (${e.from || ""} - ${e.to || ""})${e.honors ? `, ${e.honors}` : ""}`
-    ).join("\n") || "";
-
-    const certsText = cv?.certifications?.map((c: any) =>
-      `- ${c.title || ""}${c.issuer ? ` — ${c.issuer}` : ""}${c.date ? ` (${c.date})` : ""}`
-    ).join("\n") || "";
-
-    const prompt = `
-You are a professional resume writer and ATS optimization expert.
-
-Task:
-Rewrite the professional summary using the current summary, work experience, educational background, and professional certifications together.
-The result must be comprehensive, well-structured, and fully ATS-compatible while reflecting all available information.
-
-Current summary:
-${text || "No current summary provided."}
-
-Work experience:
-${expText || "No work experience provided."}
-
-Educational background:
-${eduText || "No education provided."}
-
-Professional certifications and courses:
-${certsText || "No certifications provided."}
-
-Rules:
-- Synthesize the summary, experience, education, and certifications into one cohesive professional summary.
-- Keep it comprehensive yet concise (3 to 5 sentences).
-- Use ATS-friendly keywords that match the candidate's field and experience.
-- Mention education or certifications only when they are actually provided.
-- Do not invent companies, dates, degrees, or certificates.
-- Do not use first person pronouns like "I", "my", "أنا", "ني".
-- Return only the improved summary with no explanation.
-
-${outLang}
-    `.trim();
+    const cv = (extra as { cv?: CVData })?.cv;
+    if (!cv) throw new Error(isAr ? "بيانات السيرة غير متوفرة." : "CV data is missing.");
+    const prompt = buildImproveSummaryPrompt(cv, text, isAr);
     const result = await callOpenAIRaw(prompt, { usageType: "improve", usageFeature: "summary" });
-    return { text: result.trim() };
+    const factsJson = buildImproveFactsJson(cv, text);
+    const warnings = buildPostImproveWarnings(result, factsJson, isAr);
+    return { text: result.trim(), json: { warnings } };
   }
 
-  // ── برومت تحسين المهام والإنجازات ─────────────────────────────────────
   if (task.startsWith("improve_exp-")) {
-    const cv = (extra as any)?.cv;
+    const cv = (extra as { cv?: CVData })?.cv;
+    if (!cv) throw new Error(isAr ? "بيانات السيرة غير متوفرة." : "CV data is missing.");
     const idx = parseInt(task.replace("improve_exp-", ""), 10);
-    const exp = cv?.experience?.[idx];
-    const role = exp?.role || "";
-    const company = exp?.company || "";
-    const from = exp?.from || "";
-    const to = exp?.to || "";
-
-    const prompt = `
-You are a professional resume writer and ATS optimization expert.
-
-Task:
-Improve the responsibilities and achievements for this role using the job title and the written tasks/achievements.
-Use strong, ATS-optimized wording with a powerful action verb at the start of every bullet.
-
-Job title:
-${role || "Not provided"}
-
-Company:
-${company || "Not provided"}
-
-Period:
-${from || ""} - ${to || ""}
-
-Current tasks and achievements:
-${text || "No responsibilities provided."}
-
-Rules:
-- Rewrite specifically for the job title above.
-- Start every bullet with a strong action verb (e.g. Led, Built, Optimized, أدار، طوّر، حسّن).
-- Make each bullet professional, results-oriented, and ATS-friendly.
-- Preserve the meaning of the original tasks; do not invent fake numbers, tools, or achievements.
-- Use bullet points only.
-- Return only the improved tasks and achievements with no explanation.
-
-${outLang}
-    `.trim();
+    const prompt = buildImproveExperiencePrompt(cv, idx, text, isAr);
     const result = await callOpenAIRaw(prompt, { usageType: "improve", usageFeature: `exp-${idx}` });
-    return { text: result.trim() };
+    const factsJson = buildImproveFactsJson(cv, text);
+    const warnings = buildPostImproveWarnings(result, factsJson, isAr);
+    return { text: result.trim(), json: { warnings } };
   }
 
-  // ── برومت اقتراح المهارات ──────────────────────────────────────────────
   if (task === "improve_skills") {
-    const cv = (extra as any)?.cv;
-    const specialty = cv?.personal?.title || "";
-    const titles = cv?.experience?.map((e: any) => e.role).filter(Boolean).join(", ") || "";
-    const experienceDetails = cv?.experience?.map((e: any) =>
-      `${e.role || ""} @ ${e.company || ""}:\n${e.desc || ""}`
-    ).filter(Boolean).join("\n\n") || "";
-    const existing = cv?.skills?.join(", ") || text || "";
-
-    const prompt = `
-You are an ATS resume optimization expert.
-
-Task:
-Suggest skills that match the candidate's specialization, job titles, and experience.
-Skills must be relevant to the job market and optimized for ATS screening.
-
-Specialization / target role:
-${specialty || titles || "Not provided"}
-
-Job titles:
-${titles || "No job titles provided."}
-
-Work experience:
-${experienceDetails || "No experience details provided."}
-
-Existing skills:
-${existing || "No existing skills provided."}
-
-Rules:
-- Suggest 10 to 15 skills that fit the specialization and experience.
-- Prioritize in-demand, market-relevant, ATS-friendly keywords.
-- Include a balanced mix of technical skills, tools, and professional competencies when appropriate.
-- Do not duplicate existing skills.
-- Do not suggest unrelated skills.
-- Write one skill per line with no numbering, bullets, commas, or explanations.
-- Return only the skills list.
-
-${outLang}
-    `.trim();
+    const cv = (extra as { cv?: CVData })?.cv;
+    if (!cv) throw new Error(isAr ? "بيانات السيرة غير متوفرة." : "CV data is missing.");
+    const prompt = buildImproveSkillsPrompt(cv, text, isAr);
     const result = await callOpenAIRaw(prompt, { usageType: "improve", usageFeature: "skills" });
-    // نحول النتيجة لقائمة نظيفة
-    const skills = result
-      .split("\n")
-      .map((s: string) => s.replace(/^[-•*\d.)\s]+/, "").trim())
-      .filter((s: string) => s.length > 1);
-    return { text: skills.join("\n"), json: skills };
+    const parsed = parseSkillsImproveResponse(result);
+    const factsJson = buildImproveFactsJson(cv, text);
+    const warnings = mergeImproveWarnings(
+      parsed.warnings,
+      buildPostImproveWarnings(parsed.skills.join("\n"), factsJson, isAr),
+    );
+    return { text: parsed.skills.join("\n"), json: { skills: parsed.skills, warnings } };
   }
 
   // ── تحليل السيرة عند الاستيراد ─────────────────────────────────────────
@@ -1408,7 +1313,7 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
   const [jobDesc, setJobDesc] = useState("");
   const [atsMatch, setAtsMatch] = useState<{ score: number; matched: string[]; missing: string[] } | null>(null);
 
-  const [beforeAfter, setBeforeAfter] = useState<{ section: string; before: string; after: string } | null>(null);
+  const [beforeAfter, setBeforeAfter] = useState<{ section: string; before: string; after: string; warnings?: string[] } | null>(null);
 
   useEffect(() => {
     if (!initialCV) return;
@@ -1499,8 +1404,11 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
     try {
       const data = await callAI(`improve_${section}`, text, aiLang, { cv });
       const after = (data.text || "").trim();
+      const warnings = Array.isArray((data.json as { warnings?: string[] } | undefined)?.warnings)
+        ? (data.json as { warnings: string[] }).warnings
+        : [];
       if (after) {
-        setBeforeAfter({ section, before, after });
+        setBeforeAfter({ section, before, after, warnings });
       }
     } catch (err) {
       if (err instanceof AiRateLimitError) {
@@ -3195,6 +3103,19 @@ export function BuilderPage({ lang, t, onNav, initialCV, cvLang, onPlanActivated
                 </div>
               </div>
             </div>
+
+            {beforeAfter.warnings && beforeAfter.warnings.length > 0 && (
+              <div style={{ background: `${P.gold}14`, border: `1px solid ${P.gold}44`, borderRadius: 10, padding: "12px 14px", marginBottom: 18 }}>
+                <div style={{ color: P.gold, fontSize: 11, fontWeight: 700, marginBottom: 8, textTransform: "uppercase" }}>
+                  {isAr ? "تحقق قبل الإرسال" : "Verify Before Sending"}
+                </div>
+                <ul style={{ margin: 0, paddingInlineStart: 18, color: P.textSub, fontSize: 12, lineHeight: 1.65 }}>
+                  {beforeAfter.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="before-after-actions" style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setBeforeAfter(null)} style={{ background: "transparent", border: `1px solid ${P.border}`, color: P.muted, borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontSize: 14, fontFamily: ff }}>
