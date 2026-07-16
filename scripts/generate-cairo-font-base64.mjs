@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 
 const CAIRO_DIR = path.join(repoRoot, "node_modules/pdfmake-rtl/fonts/Cairo");
-const OUT_FILE = path.join(repoRoot, "api/_lib/cairo-font-data.ts");
+const OUT_FILE = path.join(repoRoot, "lib/cairo-font-data.server.ts");
 
 function readBase64(filename) {
   const filePath = path.join(CAIRO_DIR, filename);
@@ -28,9 +28,11 @@ const contents = `/**
  * so the serverless function never fetches fonts over the network.
  */
 
-export const CAIRO_REGULAR_BASE64 = "${regular}";
+export const CAIRO_REGULAR_BASE64 =
+  "${regular}";
 
-export const CAIRO_BOLD_BASE64 = "${bold}";
+export const CAIRO_BOLD_BASE64 =
+  "${bold}";
 `;
 
 fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
