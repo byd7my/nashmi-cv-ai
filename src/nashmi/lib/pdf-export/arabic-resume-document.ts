@@ -1,8 +1,7 @@
 import type { Content, TDocumentDefinitions } from "pdfmake-rtl/interfaces";
 
-import { AR_HEADERS } from "@/nashmi/lib/cv-parser";
 import type { CvData } from "@/nashmi/lib/cv-pdf-export";
-import { buildContactLinkParts, PDF_LINK_COLOR } from "@/nashmi/lib/cv-pdf-export";
+import { buildContactLinkParts, PDF_LINK_COLOR } from "@/nashmi/lib/pdf-export/cv-contact";
 
 import {
   joinPreparedParts,
@@ -10,6 +9,19 @@ import {
   prepareArabicPdfContent,
   sanitizeArabicPdfText,
 } from "@/nashmi/lib/pdf-export/arabic-bidi";
+
+/**
+ * Pure — no window/document/DOM. Kept in sync with cv-parser.ts's AR_HEADERS
+ * (that copy feeds the on-page editor; this one feeds PDF export).
+ */
+const AR_HEADERS = {
+  summary: "الملخص",
+  experience: "الخبرة",
+  education: "التعليم",
+  skills: "المهارات",
+  languages: "اللغات",
+  certifications: "الشهادات والدورات",
+};
 
 const LIST_SEP = " | ";
 const BODY_FONT = 8.5;
