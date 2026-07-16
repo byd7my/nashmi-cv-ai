@@ -1,43 +1,25 @@
-/**
- * POST /api/generate-cv — standalone Vercel serverless function.
- * Renders a CV PDF (Arabic pdfmake / English jsPDF) for the external
- * Telegram bot to call directly. Never used by the website itself.
- */
-
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 
 import { buildArabicResumeDocument } from "@/nashmi/lib/pdf-export/arabic-resume-document";
 import { buildEnglishPdf, type CvData } from "@/nashmi/lib/cv-pdf-export";
 
-import { renderArabicPdfBuffer } from "./_lib/arabic-pdf-node";
+import { renderArabicPdfBuffer } from "./arabic-pdf-node.server";
+
+/**
+ * POST /api/generate-cv — renders a CV PDF (Arabic pdfmake / English jsPDF)
+ * for the external Telegram bot. Auth: x-internal-key vs INTERNAL_API_KEY.
+ * Never used by the website's own browser export paths.
+ */
 
 type GenerateCvBody = CvData & { language?: string };
 
 const ARRAY_FIELDS = ["experience", "education", "certifications", "skills", "languages"] as const;
-
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  const payload = JSON.stringify(body);
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(payload);
-}
 
 function safeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) return false;
   return timingSafeEqual(bufA, bufB);
-}
-
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const raw = Buffer.concat(chunks).toString("utf8");
-  if (!raw.trim()) throw new Error("Empty body");
-  return JSON.parse(raw);
 }
 
 /** Returns an error message describing the first missing/invalid field, or null if valid. */
@@ -62,39 +44,35 @@ function validateBody(body: unknown): string | null {
   return null;
 }
 
-export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    sendJson(res, 405, { error: "Method not allowed" });
-    return;
+export async function handleGenerateCvRequest(request: Request): Promise<Response> {
+  if (request.method !== "POST") {
+    return Response.json(
+      { error: "Method not allowed" },
+      { status: 405, headers: { Allow: "POST" } },
+    );
   }
 
   const expectedKey = process.env.INTERNAL_API_KEY;
-  const providedKey = req.headers["x-internal-key"];
-  const providedKeyStr = Array.isArray(providedKey) ? providedKey[0] : providedKey;
+  const providedKey = request.headers.get("x-internal-key") || "";
 
   if (!expectedKey) {
     console.error("[api/generate-cv] INTERNAL_API_KEY is not set");
-    sendJson(res, 401, { error: "Unauthorized" });
-    return;
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!providedKeyStr || !safeEqual(providedKeyStr, expectedKey)) {
-    sendJson(res, 401, { error: "Unauthorized" });
-    return;
+  if (!providedKey || !safeEqual(providedKey, expectedKey)) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: unknown;
   try {
-    body = await readJsonBody(req);
+    body = await request.json();
   } catch {
-    sendJson(res, 400, { error: "Invalid JSON body" });
-    return;
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const validationError = validateBody(body);
   if (validationError) {
-    sendJson(res, 400, { error: validationError });
-    return;
+    return Response.json({ error: validationError }, { status: 400 });
   }
 
   const cv = body as GenerateCvBody;
@@ -110,14 +88,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       pdfBuffer = Buffer.from(await blob.arrayBuffer());
     }
 
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", 'attachment; filename="cv.pdf"');
-    res.setHeader("Content-Length", String(pdfBuffer.length));
-    res.end(pdfBuffer);
+    return new Response(new Uint8Array(pdfBuffer), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": 'attachment; filename="cv.pdf"',
+        "Content-Length": String(pdfBuffer.length),
+      },
+    });
   } catch (error) {
     console.error("[api/generate-cv] PDF generation failed", error);
     const message = error instanceof Error ? error.message : "Failed to generate PDF";
-    sendJson(res, 500, { error: message });
+    return Response.json({ error: message }, { status: 500 });
   }
 }

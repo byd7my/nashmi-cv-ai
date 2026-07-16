@@ -6,6 +6,7 @@ import { handleActivateRequest } from "../lib/activation-api.server";
 import { handlePurchaseRequest } from "../lib/purchases-api.server";
 import { handleReviewsRequest } from "../lib/reviews-api.server";
 import { handleSendCvRequest } from "../lib/send-cv-api.server";
+import { handleGenerateCvRequest } from "../lib/generate-cv-api.server";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
@@ -113,6 +114,18 @@ export default {
         console.error("[api/ocr-resume] Unhandled handler error", error);
         return Response.json(
           { error: "Internal server error", code: "OCR_HANDLER_CRASH" },
+          { status: 500 },
+        );
+      }
+    }
+
+    if (pathname === "/api/generate-cv") {
+      try {
+        return await handleGenerateCvRequest(request);
+      } catch (error) {
+        console.error("[api/generate-cv] Unhandled handler error", error);
+        return Response.json(
+          { error: "Internal server error", code: "GENERATE_CV_HANDLER_CRASH" },
           { status: 500 },
         );
       }
