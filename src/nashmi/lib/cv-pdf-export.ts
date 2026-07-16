@@ -9,6 +9,7 @@
 
 import { jsPDF } from "jspdf";
 import { loadPdfJs } from "@/nashmi/lib/cv-parser";
+import { buildContactLinkParts, type ContactLinkPart } from "@/nashmi/lib/pdf-export/cv-contact";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,35 +132,13 @@ function registerEnglishFonts(doc: jsPDF): void {
 /** ATS-safe inline separator for skills/languages lists. */
 const LIST_SEP = " | ";
 
-export const PDF_LINK_COLOR = "#0000EE";
 const CONTACT_SEP = "  |  ";
 
-export type ContactLinkPart = { text: string; link?: string };
-
-function toExternalUrl(raw: string): string {
-  const value = raw.trim();
-  if (/^https?:\/\//i.test(value)) return value;
-  return `https://${value.replace(/^\/+/, "")}`;
-}
-
-/** Phone, email, and URL fields become clickable PDF links; location stays plain text. */
-export function buildContactLinkParts(cv: CvData): ContactLinkPart[] {
-  const parts: ContactLinkPart[] = [];
-  if (cv.phone?.trim()) {
-    const phone = cv.phone.trim();
-    parts.push({ text: phone, link: `tel:${phone.replace(/[^\d+]/g, "")}` });
-  }
-  if (cv.email?.trim()) {
-    const email = cv.email.trim();
-    parts.push({ text: email, link: `mailto:${email}` });
-  }
-  if (cv.location?.trim()) parts.push({ text: cv.location.trim() });
-  if (cv.linkedin?.trim()) {
-    const linkedin = cv.linkedin.trim();
-    parts.push({ text: linkedin, link: toExternalUrl(linkedin) });
-  }
-  return parts;
-}
+export {
+  buildContactLinkParts,
+  PDF_LINK_COLOR,
+  type ContactLinkPart,
+} from "@/nashmi/lib/pdf-export/cv-contact";
 
 /** Replace Unicode punctuation that Helvetica/jsPDF renders as garbled glyphs. */
 function sanitizePdfText(text: string): string {
@@ -421,7 +400,7 @@ class PdfRenderer {
 
 // ─── English PDF builder ───────────────────────────────────────────────────────
 
-async function buildEnglishPdf(cv: CvData): Promise<Blob> {
+export async function buildEnglishPdf(cv: CvData): Promise<Blob> {
   await loadFontCache();
   const r = new PdfRenderer("en");
   registerEnglishFonts(r.doc);
