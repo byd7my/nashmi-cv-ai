@@ -52,8 +52,9 @@ export async function handleGenerateCvRequest(request: Request): Promise<Respons
     );
   }
 
-  const expectedKey = process.env.INTERNAL_API_KEY;
-  const providedKey = request.headers.get("x-internal-key") || "";
+  // trim يحمي من مسافة/سطر زائد يلتصق بالمفتاح عند اللصق في لوحات الإعدادات
+  const expectedKey = (process.env.INTERNAL_API_KEY || "").trim();
+  const providedKey = (request.headers.get("x-internal-key") || "").trim();
 
   if (!expectedKey) {
     console.error("[api/generate-cv] INTERNAL_API_KEY is not set");
